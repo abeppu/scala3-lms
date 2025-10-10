@@ -18,7 +18,7 @@ class BoolTest extends TutorialFunSuite {
     check("boolean-or-false", Snippet.code)
   }
 
-    test("boolean-or-handwritten") {
+  test("boolean-or-handwritten") {
     @virtualize
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
@@ -46,6 +46,16 @@ class BoolTest extends TutorialFunSuite {
       }
     }
     check("boolean-or-self", Snippet.code)
+  }
+
+  test("boolean-or-consts") {
+    @virtualize
+    object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
+      def snippet(x: Rep[Boolean]): Rep[Boolean] = {
+        boolean_or(false, true)
+      }
+    }
+    check("boolean-or-consts", Snippet.code)
   }
 
   test("boolean-and-handwritten1") {
