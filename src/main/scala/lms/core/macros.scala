@@ -67,6 +67,15 @@ class virtualize extends MacroAnnotation {
       case t => Bare(t)
     }
 
+    // promote bool term to rep; helps in cases like boolean_and(xrep, bool)
+    def wrapBareBoolean(t: Term, thist: Term): Term = repOrVar(t.tpe) match {
+      case Bare(lty) => {
+        val srcGen = '{SourceContext.generate}.asTerm
+        Select.overloaded(thist, "boolToBoolRep", Nil, List(t))
+      }
+      case _ => t
+    }
+
     def unRep(t: TypeRepr): Option[TypeRepr] = repOrVar(t) match {
       case RepW(t) => Some(t)
       case _ => None
@@ -175,12 +184,21 @@ class virtualize extends MacroAnnotation {
     }
 
     object Visitor extends TreeMap {
+
       override def transformTerm(tree: Term)(owner: Symbol): Term = {
         tree match {
-          case Apply(
-            Select(_, "boolToBoolRep"),
-            List(x@Apply(Select(_, "=="), List(_)))) => this.transformTerm(x)(owner)
-
+          case Apply(Select(_, "boolToBoolRep"), List(x@Apply(Select(_, "=="), List(_)))) => this.transformTerm(x)(owner)
+          // avoid outputting boolToRep(boolExp), which causes cast exception
+          case Apply(Select(_, "boolToBoolRep"), List(e)) => {
+            val e2 = this.transformTerm(e)(owner)
+            if (e2.tpe != TypeRepr.of[Boolean] && e2.tpe != TypeRepr.of[false] && e2.tpe != TypeRepr.of[true]) {
+              e2
+            } else {
+              val thist = makeThis(owner)
+              Apply(Select.unique(thist, "boolToBoolRep"), List(e2))
+            }
+          }
+          case Apply(Select(Select(_, __virtualizedBoolConvInternal),apply),List(e)) => this.transformTerm(e)(owner)
           case Apply(Select(lhsp, "=="), List(rhsp)) => {
             val thist = makeThis(owner)
             val srcGen = '{SourceContext.generate}.asTerm
@@ -218,7 +236,27 @@ class virtualize extends MacroAnnotation {
               Select.overloaded(thist, "__equal", List(lty, rty), List(lhs, rhs)),
               List(overload, ltyW, rtyW, srcGen))
           }
+          case Apply(Select(lhsp, "&&"), List(rhsp)) => {
+            val thist = makeThis(owner)
+            val srcGen = '{ SourceContext.generate }.asTerm
+            val lhs = this.transformTerm(lhsp)(owner)
+            val rhs = this.transformTerm(rhsp)(owner)
+            (repOrVar(lhs.tpe), repOrVar(rhs.tpe)) match {
+              case (Bare(_), Bare(_)) => Apply(Select.overloaded(thist, "unit", Nil, List(tree)), List(srcGen)) // don't transform
+              case _ => Apply(Select.overloaded(thist, "boolean_and", Nil, List(wrapBareBoolean(lhs, thist), wrapBareBoolean(rhs, thist))), List(srcGen))
+            }
+          }
+          case Apply(Select(lhsp, "||"), List(rhsp)) => {
+            val thist = makeThis(owner)
+            val srcGen = '{ SourceContext.generate }.asTerm
+            val lhs = this.transformTerm(lhsp)(owner)
+            val rhs = this.transformTerm(rhsp)(owner)
 
+            (repOrVar(lhs.tpe), repOrVar(rhs.tpe)) match {
+              case (Bare(_), Bare(_)) => Apply(Select.overloaded(thist, "unit", Nil, List(tree)), List(srcGen)) // don't transform
+              case _ => Apply(Select.overloaded(thist, "boolean_or", Nil, List(wrapBareBoolean(lhs, thist), wrapBareBoolean(rhs, thist))), List(srcGen))
+            }
+          }
           case If(guard@Apply(conv, List(x)), thenp, elsep) => {
             val thist = makeThis(owner)
             val srcGen = '{SourceContext.generate}.asTerm
