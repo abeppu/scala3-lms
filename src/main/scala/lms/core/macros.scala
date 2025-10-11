@@ -266,23 +266,7 @@ class virtualize extends MacroAnnotation {
                 report.errorAndAbort("LMS-internal error: no [unit] found for self")
               case x :: _ => thist.select(x)
             }
-
-            val xt =
-              if (conv.show.endsWith("__virtualizedBoolConvInternal.apply")) {
-                this.transformTerm(x)(owner)
-              } else if (conv.show.endsWith("==")) {
-                this.transformTerm(guard)(owner)
-              } else {
-                return super.transformTerm(tree)(owner)
-              }
-
-            // HACK: In the case of `if (e1 == e2)` where both `e1` and `e2` are
-            // non-Rep (stage-time) expressions, don't rewrite the `if` expr.
-            val guardRep = unRep(xt.tpe) match {
-              case Some(_) => ()
-              case None => return super.transformTerm(tree)(owner)
-            }
-
+            val guardt = this.transformTerm(guard)(owner)
             val thent = ensureTrailingRep(this.transformTerm(thenp)(owner), thist, unitf)
             val elset = ensureTrailingRep(this.transformTerm(elsep)(owner), thist, unitf)
 
@@ -299,8 +283,12 @@ class virtualize extends MacroAnnotation {
             val typW = findTypW(thist, trep)
 
             //Apply(Apply(ite, List(xt, thent, elset)), List(typW, srcGen))
-            Apply(Select.overloaded(thist, "__ifThenElse", List(trep), List(xt, thent, elset)),
-              List(typW, srcGen))
+            val ifOrVirtIf = unRep(guardt.tpe) match {
+              case Some(guardTpe) => Apply(Select.overloaded(thist, "__ifThenElse", List(trep), List(guardt, thent, elset)),
+                List(typW, srcGen))
+              case None => If(guardt, thent, elset)
+            }
+            ifOrVirtIf
           }
 
           case While(Apply(conv, List(x)), bodyp) => {
