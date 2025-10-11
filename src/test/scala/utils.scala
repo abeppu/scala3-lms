@@ -15,7 +15,7 @@ trait Dsl extends PrimitiveOps with NumericOps with BooleanOps with LiftString w
   def comment[A:Typ](l: String, verbose: Boolean = true)(b: => Rep[A]): Rep[A]
 }
 
-trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with BooleanOpsExp with IfThenElseExpOpt with EqualExpBridgeOpt with RangeOpsExp with OrderingOpsExp with MiscOpsExp with EffectExp with ArrayOpsExpOpt with StringOpsExp with SeqOpsExp with FunctionsRecursiveExp with WhileExp with StaticDataExp with VariablesExpOpt with ObjectOpsExpOpt {
+trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with BooleanOpsExpOpt with IfThenElseExpOpt with EqualExpBridgeOpt with RangeOpsExp with OrderingOpsExp with MiscOpsExp with EffectExp with ArrayOpsExpOpt with StringOpsExp with SeqOpsExp with FunctionsRecursiveExp with WhileExp with StaticDataExp with VariablesExpOpt with ObjectOpsExpOpt {
   override def boolean_or(lhs: Exp[Boolean], rhs: Exp[Boolean])(implicit pos: SourceContext) : Exp[Boolean] = lhs match {
     case Const(false) => rhs
     case _ => super.boolean_or(lhs, rhs)
@@ -103,6 +103,19 @@ abstract class DslDriver[A:ClassTag,B:ClassTag] extends DslSnippet[A,B] with Dsl
     val source = new java.io.StringWriter()
     codegen.emitSource(
       snippet, "Snippet", new java.io.PrintWriter(source))(using manifestTyp[A],manifestTyp[B])
+    source.toString
+  }
+}
+
+abstract class DslSnippet2[A:ClassTag,B:ClassTag, C:ClassTag] extends Dsl {
+  def snippet(x: Rep[A], y: Rep[B]): Rep[C]
+}
+
+abstract class DslDriver2[A:ClassTag,B:ClassTag, C:ClassTag] extends DslSnippet2[A,B,C] with DslImpl {
+  lazy val code: String = {
+    val source = new java.io.StringWriter()
+    codegen.emitSource2(
+      snippet, "Snippet", new java.io.PrintWriter(source))(using manifestTyp[A],manifestTyp[B], manifestTyp[C])
     source.toString
   }
 }
