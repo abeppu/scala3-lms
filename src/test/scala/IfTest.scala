@@ -21,7 +21,7 @@ class IfTest extends TutorialFunSuite {
     check("if-and-true", Snippet.code)
   }
 
-    test("if-and-xy") {
+  test("if-and-xy") {
     @virtualize
     object Snippet extends DslDriver2[Boolean, Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean],y: Rep[Boolean]): Rep[Int] = {
@@ -33,5 +33,21 @@ class IfTest extends TutorialFunSuite {
       }
     }
     check("if-and-xy", Snippet.code)
+  }
+
+  test("if-elseif-else") {
+    @virtualize
+    object Snippet extends DslDriver[Int, Int] with Dsl {
+      def snippet(x: Rep[Int]): Rep[Int] = {
+        if (x < 5) { // I think this should just be 1?
+            1
+        } else if (x >=5 && x < 10) {
+            2
+        } else {
+            3
+        }
+      }
+    }
+    check("if-elseif-else", Snippet.code)
   }
 }
