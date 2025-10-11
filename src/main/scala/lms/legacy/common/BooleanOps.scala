@@ -22,6 +22,10 @@ trait BooleanOps extends Variables {
   def boolean_negate(lhs: Rep[Boolean])(implicit pos: SourceContext): Rep[Boolean]
   def boolean_and(lhs: Rep[Boolean], rhs: Rep[Boolean])(implicit pos: SourceContext): Rep[Boolean]
   def boolean_or(lhs: Rep[Boolean], rhs: Rep[Boolean])(implicit pos: SourceContext): Rep[Boolean]
+
+  extension (b: Rep[Boolean])
+    def unary_! = boolean_negate(b)
+
 }
 
 trait BooleanOpsExp extends BooleanOps with EffectExp {

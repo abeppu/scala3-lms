@@ -7,6 +7,47 @@ import scala.lms.virtualize
 
 class BoolTest extends TutorialFunSuite {
   val under = "virtualize/"
+  test("boolean-not") {
+    @virtualize
+    object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
+      def snippet(x: Rep[Boolean]): Rep[Boolean] = {
+        !x
+      }
+    }
+    check("boolean-not", Snippet.code)
+  }
+
+  test("boolean-double-not") {
+    @virtualize
+    object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
+      def snippet(x: Rep[Boolean]): Rep[Boolean] = {
+        !(!x)
+      }
+    }
+    check("boolean-double-not", Snippet.code)
+  }
+
+
+  test("const-not") {
+    @virtualize
+    object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
+      def snippet(x: Rep[Boolean]): Rep[Boolean] = {
+        !true
+      }
+    }
+    check("const-not", Snippet.code)
+  }
+
+  test("const-double-not") {
+    @virtualize
+    object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
+      def snippet(x: Rep[Boolean]): Rep[Boolean] = {
+        !(!true)
+      }
+    }
+    check("const-double-not", Snippet.code)
+  }
+
 
   test("boolean-or-rewrite") {
     @virtualize

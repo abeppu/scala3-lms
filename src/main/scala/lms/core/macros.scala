@@ -257,6 +257,30 @@ class virtualize extends MacroAnnotation {
               case _ => Apply(Select.overloaded(thist, "boolean_or", Nil, List(wrapBareBoolean(lhs, thist), wrapBareBoolean(rhs, thist))), List(srcGen))
             }
           }
+          case Select(x, "unary_!") => {
+            val thist = makeThis(owner) // TODO can we dry out thist, srcgen etc
+            val srcGen = '{ SourceContext.generate }.asTerm
+            val xt = this.transformTerm(x)(owner)
+            val unitf: Term = findMethods(owner, "unit") match {
+              case Nil =>
+                report.errorAndAbort("BUG: no [unit] found for self")
+              case x :: _ => thist.select(x)
+            }
+            repOrVar(xt.tpe) match {
+              case Bare(_) =>  tree // Apply(Select.overloaded(thist, "boolean_negate", Nil, List(wrapBareBoolean(xt, thist))), List(srcGen))
+              case _ => Apply(Select.overloaded(thist, "boolean_negate", Nil, List(x)), List(srcGen))
+            }
+          }
+          case Apply(Select(_, "unary_!"), List(x)) => {
+            val thist = makeThis(owner)
+            val srcGen = '{ SourceContext.generate }.asTerm
+            val xt = this.transformTerm(x)(owner)
+            repOrVar(xt.tpe) match {
+              case Bare(_) => super.transformTerm(tree)(owner) //Apply(Select.overloaded(thist, "unit", Nil, List(tree)), List(srcGen)) // don't transform
+              case _ => Apply(Select.overloaded(thist, "boolean_negate", Nil, List(wrapBareBoolean(xt, thist))), List(srcGen))
+            }
+          }
+
           case If(guard@Apply(conv, List(x)), thenp, elsep) => {
             val thist = makeThis(owner)
             val srcGen = '{SourceContext.generate}.asTerm
@@ -415,7 +439,7 @@ class virtualize extends MacroAnnotation {
       }
 
       override def transformStatement(tree: Statement)(owner: Symbol): Statement = {
-        tree match {
+        val treet = tree match {
           case ValDef(name, tptp, Some(rhsfull@Apply(conv,List(rhsp)))) => {
             if (!isVarApply(conv)) {
               return handleGenericValDef(name, tptp, rhsfull)(tree, owner)
@@ -464,6 +488,31 @@ class virtualize extends MacroAnnotation {
 
           case _ => super.transformStatement(tree)(owner)
         }
+
+        val wrappedTransformedTree: Statement = treet match {
+          case dd @ DefDef(name, params, typetree, Some(term)) => {
+            // if the method wants to preduce Rep[T] but the body is producing T, wrap in a `unit` call
+            (repOrVar(typetree.tpe), repOrVar(term.tpe))  match {
+              case (RepW(_), Bare(t)) => {
+                // need a unit function from the class that the defdef is being defined on
+                val thist = makeThis(dd.symbol.owner)
+                val unitf: Select = findMethods(dd.symbol.owner, "unit") match {
+                  case Nil =>
+                    report.errorAndAbort(s"BUG: no [unit] found for self = ${dd.symbol.owner}")
+                  case x :: _ => thist.select(x)
+                }
+                val vtree = DefDef.copy(tree)(name, params, typetree,
+                  Some(Apply(TypeApply(unitf, List(Inferred(t))), List(term)))
+                )
+                vtree
+              }
+              case _ => dd // do nothing
+            }
+          }
+          case _ => treet
+        }
+
+        wrappedTransformedTree
       }
 
       def handleGenericValDef

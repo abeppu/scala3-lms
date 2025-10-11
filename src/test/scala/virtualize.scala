@@ -3,11 +3,12 @@ package tests
 
 import scala.lms.common.*
 
-@virtualize
+
 class VirtualizeTest extends TutorialFunSuite {
   val under = "virtualize/"
 
   test("simple if") {
+    @virtualize
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
           if (x) {
@@ -21,6 +22,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("if nested") {
+    @virtualize
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
           if (x) {
@@ -34,6 +36,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("equality guard") {
+    @virtualize
     object Snippet extends DslDriver[Int, Int] with Dsl {
       def snippet(x: Rep[Int]): Rep[Int] = {
         if (x == 1) 2 else x
@@ -43,6 +46,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("function calls") {
+    @virtualize
     object Snippet extends DslDriver[Int, Int] with Dsl {
       def snippet(x: Rep[Int]) = {
         def compute(b: Rep[Boolean]): Rep[Int] = {
@@ -56,6 +60,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("while empty") {
+    @virtualize
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
         while(x) {
@@ -67,6 +72,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("array") {
+    @virtualize
     object Snippet extends DslDriver[Array[Int], Array[Int]] with Dsl {
       def snippet(x: Rep[Array[Int]]): Rep[Array[Int]] = {
         x(0) = 1
@@ -77,6 +83,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("power") {
+    @virtualize
     object Snippet extends DslDriver[Int,Int] {
       def square(x: Rep[Int]): Rep[Int] = x*x
 
@@ -92,6 +99,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("one-sided if") {
+    @virtualize
     object Snippet extends DslDriver[Int,Int] {
       def snippet(b: Rep[Int]): Rep[Int] = {
         if (b < 10) {
