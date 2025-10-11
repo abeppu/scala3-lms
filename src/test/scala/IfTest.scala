@@ -50,4 +50,18 @@ class IfTest extends TutorialFunSuite {
     }
     check("if-elseif-else", Snippet.code)
   }
+
+  test("if-const") {
+    @virtualize
+    object Snippet extends DslDriver[Int, Int] with Dsl {
+      def snippet(x: Rep[Int]): Rep[Int] = {
+        if (true) { // I think this should just be 1?
+          x
+        } else {
+          x - 1
+        }
+      }
+    }
+    check("if-const", Snippet.code)
+  }
 }
