@@ -14,6 +14,14 @@ trait LiftString {
 trait StringOps extends Variables with OverloadHack with PrimitiveOps {
   // NOTE: if something doesn't get lifted, this won't give you a compile time error,
   //       since string concat is defined on all objects
+
+  extension (s: Rep[String]) {
+    def length: Rep[Int] = string_length(s)
+
+    def apply(i: Int)(using o1: Overloaded1) = string_charAt(s, unit(i))
+
+    def apply(i: Rep[Int])(using o2: Overloaded2) = string_charAt(s, i)
+  }
   
   implicit def stringTyp: Typ[String]
 
@@ -77,6 +85,7 @@ trait StringOps extends Variables with OverloadHack with PrimitiveOps {
   def string_tolong(s: Rep[String])(implicit pos: SourceContext): Rep[Long]
   def string_substring(s: Rep[String], start:Rep[Int], end:Rep[Int])(implicit pos: SourceContext): Rep[String]
   def string_length(s: Rep[String])(implicit pos: SourceContext): Rep[Int]
+    
 }
 
 trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
