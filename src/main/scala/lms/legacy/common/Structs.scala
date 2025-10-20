@@ -1,15 +1,16 @@
 package lms.legacy.common
 
 import lms.legacy.util.OverloadHack
-import java.io.PrintWriter
-import lms.legacy.internal.{GenericNestedCodegen, GenericFatCodegen}
 
-import lms.legacy.compat.{RefinedManifest,SourceContext, Manifest}
+import java.io.PrintWriter
+import lms.legacy.internal.{GenericFatCodegen, GenericNestedCodegen}
+import lms.legacy.compat.{Manifest, RefinedManifest, SourceContext}
+
+import scala.compiletime.deferred
 trait StructOps extends Base {
   abstract class Record extends Struct
 
-  implicit def recordTyp[T<:Record:Manifest]: Typ[T]
-
+  given recordTyp[T<:Record:Manifest]: Typ[T] = deferred
   /**
    * Allows to write things like “val z = new Record { val re = 1.0; val im = -1.0 }; print(z.re)”
    */

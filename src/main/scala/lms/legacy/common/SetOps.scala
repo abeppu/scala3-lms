@@ -1,13 +1,15 @@
 package lms.legacy.common
 
 import java.io.PrintWriter
-import lms.legacy.internal._
+import lms.legacy.internal.*
+
 import scala.collection.mutable.Set
 import lms.legacy.compat.SourceContext
 
-trait SetOps extends Base {
-  implicit def setTyp[T:Typ]: Typ[Set[T]]
+import scala.compiletime.deferred
 
+trait SetOps extends Base {
+  given setTyp[T:Typ]: Typ[Set[T]] = deferred
   object Set {
     def apply[A:Typ](xs: Rep[A]*)(using pos: SourceContext) = set_new[A](xs)
   }
@@ -37,7 +39,7 @@ trait SetOps extends Base {
 }
 
 trait SetOpsExp extends SetOps with ArrayOps with BooleanOps with EffectExp {
-  implicit def setTyp[T:Typ]: Typ[Set[T]] = {
+  override given setTyp[T:Typ]: Typ[Set[T]] = {
     implicit val ManifestTyp(m: Manifest[T]) = typ[T]
     manifestTyp
   }

@@ -1,14 +1,16 @@
 package lms.legacy.common
 
 import lms.legacy.internal.GenericCodegen
+
 import java.io.PrintWriter
 import lms.legacy.compat.SourceContext
-trait TupleOps extends Base {
-  implicit def tuple2_typ[A:Typ,B:Typ]: Typ[(A,B)]
-  implicit def tuple3_typ[A:Typ,B:Typ,C:Typ]: Typ[(A,B,C)]
-  implicit def tuple4_typ[A:Typ,B:Typ,C:Typ,D:Typ]: Typ[(A,B,C,D)]
-  implicit def tuple5_typ[A:Typ,B:Typ,C:Typ,D:Typ,E:Typ]: Typ[(A,B,C,D,E)]
 
+import scala.compiletime.deferred
+trait TupleOps extends Base {
+  given tuple2_typ[A:Typ,B:Typ]: Typ[(A,B)] = deferred
+  given tuple3_typ[A:Typ,B:Typ,C:Typ]: Typ[(A,B,C)] = deferred
+  given tuple4_typ[A:Typ,B:Typ,C:Typ,D:Typ]: Typ[(A,B,C,D)] = deferred
+  given tuple5_typ[A:Typ,B:Typ,C:Typ,D:Typ,E:Typ]: Typ[(A,B,C,D,E)] = deferred
   implicit def make_tuple2[A:Typ,B:Typ](t: (Rep[A], Rep[B]))(using pos: SourceContext) : Rep[(A,B)]
   implicit def make_tuple3[A:Typ,B:Typ,C:Typ](t: (Rep[A], Rep[B], Rep[C]))(using pos: SourceContext) : Rep[(A,B,C)]
   implicit def make_tuple4[A:Typ,B:Typ,C:Typ,D:Typ](t: (Rep[A], Rep[B], Rep[C], Rep[D]))(using pos: SourceContext) : Rep[(A,B,C,D)]
@@ -43,25 +45,25 @@ trait TupleOps extends Base {
 }
 
 trait TupleOpsExp extends TupleOps with StructExpOpt {
-  implicit def tuple2_typ[A:Typ,B:Typ]: Typ[(A,B)] = {
+  override given tuple2_typ[A:Typ,B:Typ]: Typ[(A,B)] = {
     implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
     implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
     manifestTyp
   }
-  implicit def tuple3_typ[A:Typ,B:Typ,C:Typ]: Typ[(A,B,C)] = {
+  override given tuple3_typ[A:Typ,B:Typ,C:Typ]: Typ[(A,B,C)] = {
     implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
     implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
     implicit val ManifestTyp(mC: Manifest[C]) = typ[C]
     manifestTyp
   }
-  implicit def tuple4_typ[A:Typ,B:Typ,C:Typ,D:Typ]: Typ[(A,B,C,D)] = {
+  override given tuple4_typ[A:Typ,B:Typ,C:Typ,D:Typ]: Typ[(A,B,C,D)] = {
     implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
     implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
     implicit val ManifestTyp(mC: Manifest[C]) = typ[C]
     implicit val ManifestTyp(mD: Manifest[D]) = typ[D]
     manifestTyp
   }
-  implicit def tuple5_typ[A:Typ,B:Typ,C:Typ,D:Typ,E:Typ]: Typ[(A,B,C,D,E)] = {
+  override given tuple5_typ[A:Typ,B:Typ,C:Typ,D:Typ,E:Typ]: Typ[(A,B,C,D,E)] = {
     implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
     implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
     implicit val ManifestTyp(mC: Manifest[C]) = typ[C]

@@ -3,10 +3,11 @@ package lms.legacy.common
 import java.io.PrintWriter
 import lms.legacy.internal.GenericNestedCodegen
 import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 trait ListOps extends Variables {
 
-  implicit def listTyp[T:Typ]: Typ[List[T]]
-
+  given listTyp[T:Typ]: Typ[List[T]] = deferred
   object List {
     def apply[A:Typ](xs: Rep[A]*)(using pos: SourceContext) = list_new(xs)
   }
@@ -56,10 +57,7 @@ trait ListOps extends Variables {
 }
 
 trait ListOpsExp extends ListOps with EffectExp with VariablesExp with BooleanOpsExp with ArrayOpsExp with StringOpsExp {
-  implicit def listTyp[T:Typ]: Typ[List[T]] = {
-    implicit val ManifestTyp(m: Manifest[T]) = typ[T]
-    manifestTyp
-  }
+  override given listTyp[T:Typ]: Typ[List[T]] = manifestTyp
   case class ListNew[A:Typ](xs: Seq[Rep[A]]) extends Def[List[A]] {
     def mA = typ[A]
   }

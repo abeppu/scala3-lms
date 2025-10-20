@@ -1,13 +1,14 @@
 package lms.legacy.common
 
 import java.io.PrintWriter
-import lms.legacy.internal._
+import lms.legacy.internal.*
 import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 
 trait SeqOps extends Variables {
 
-  implicit def seqTyp[T:Typ]: Typ[Seq[T]]
-
+  given seqTyp[T:Typ]: Typ[Seq[T]] = deferred
   object Seq {
     def apply[A:Typ](xs: Rep[A]*)(using pos: SourceContext) = seq_new(xs)
   }
@@ -33,7 +34,7 @@ trait SeqOps extends Variables {
 }
 
 trait SeqOpsExp extends SeqOps with PrimitiveOps with EffectExp {
-  implicit def seqTyp[T:Typ]: Typ[Seq[T]] = {
+  override given seqTyp[T:Typ]: Typ[Seq[T]] = {
     implicit val ManifestTyp(m: Manifest[T]) = typ[T]
     manifestTyp
   }

@@ -93,7 +93,7 @@ trait DslImpl extends DslExp { q =>
   }
 }
 
-abstract class DslSnippet[A:ClassTag,B:ClassTag] extends Dsl {
+trait DslSnippet[A:ClassTag,B:ClassTag] extends Dsl {
   def snippet(x: Rep[A]): Rep[B]
 }
 
@@ -106,7 +106,7 @@ abstract class DslDriver[A:ClassTag,B:ClassTag] extends DslSnippet[A,B] with Dsl
   }
 }
 
-abstract class DslSnippet2[A:ClassTag,B:ClassTag, C:ClassTag] extends Dsl {
+trait DslSnippet2[A:ClassTag,B:ClassTag, C:ClassTag] extends Dsl {
   def snippet(x: Rep[A], y: Rep[B]): Rep[C]
 }
 

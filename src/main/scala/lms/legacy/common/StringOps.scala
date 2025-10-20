@@ -2,8 +2,10 @@ package lms.legacy.common
 
 import java.io.PrintWriter
 import lms.legacy.util.OverloadHack
-import lms.legacy.internal.{GenerationFailedException}
+import lms.legacy.internal.GenerationFailedException
 import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 
 trait LiftString {
   this: StringOps =>
@@ -89,7 +91,7 @@ trait StringOps extends Variables with OverloadHack with PrimitiveOps {
 }
 
 trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
-  implicit def arrayTyp[T:Typ]: Typ[Array[T]]  
+  given arrayTyp[T:Typ]: Typ[Array[T]] = deferred
   implicit def stringTyp: Typ[String] = manifestTyp
 
   case class StringPlus(s: Exp[Any], o: Exp[Any]) extends Def[String]

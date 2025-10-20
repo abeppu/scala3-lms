@@ -3,8 +3,11 @@ package lms.legacy.common
 import java.io.PrintWriter
 import scala.collection.mutable.ArrayBuffer
 import lms.legacy.internal.GenericNestedCodegen
+
 import collection.mutable.ArrayBuffer
 import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 
 trait ArrayBufferOps extends Base with StringOps with ArrayOps {
 
@@ -12,7 +15,7 @@ trait ArrayBufferOps extends Base with StringOps with ArrayOps {
     def apply[A:Typ](xs: Rep[A]*) = arraybuffer_new(xs)
   }
 
-  implicit def arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]]
+  given arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]] = deferred
   implicit def seqTyp[T:Typ]: Typ[Seq[T]] // TODO: remove?
 
   given repToArrayBufferOps[A:Typ]: Conversion[Rep[ArrayBuffer[A]], ArrayBufferOpsCls[?]] with {
@@ -54,8 +57,8 @@ trait ArrayBufferOps extends Base with StringOps with ArrayOps {
 }
 
 trait ArrayBufferOpsExp extends ArrayBufferOps with EffectExp {
-  implicit def arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]] = {
-    implicit val ManifestTyp(m: Manifest[T]) = typ[T]
+  override given arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]] = {
+    given Typ[T] = typ[T]
     manifestTyp
   }
   

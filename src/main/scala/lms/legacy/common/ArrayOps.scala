@@ -1,8 +1,10 @@
 package lms.legacy.common
 
 import java.io.PrintWriter
-import lms.legacy.internal._
+import lms.legacy.internal.*
 import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 
 trait LiftArrays { 
   this: ArrayOps =>
@@ -15,10 +17,9 @@ trait LiftArrays {
 
 trait ArrayOps extends Variables {
 
-  implicit def intTyp: Typ[Int] // import
-  implicit def seqTyp[T:Typ]: Typ[Seq[T]] // import
-  implicit def arrayTyp[T:Typ]: Typ[Array[T]]
-
+  //given intTyp: Typ[Int] = deferred // import
+  given seqTyp[T:Typ]: Typ[Seq[T]] = deferred // import
+  given arrayTyp[T:Typ]: Typ[Array[T]] = deferred
   // multiple definitions needed because implicits won't chain
   // not using infix here because apply doesn't work with infix methods
   given varToArrayOps[T:Typ]: Conversion[Var[Array[T]], ArrayOpsCls[T]] with {
@@ -65,7 +66,7 @@ trait ArrayOps extends Variables {
 
 trait ArrayOpsExp extends ArrayOps with EffectExp with VariablesExp {
 
-  implicit def arrayTyp[T:Typ]: Typ[Array[T]] = {
+  override given arrayTyp[T:Typ]: Typ[Array[T]] = {
     val m = typ[T]
     m.arrayTyp
   }
