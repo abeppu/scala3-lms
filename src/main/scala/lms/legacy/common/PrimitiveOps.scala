@@ -14,8 +14,12 @@ trait LiftPrimitives {
   implicit def doubleToRepDouble(x: Double): Rep[Double] = unit(x)
   
   // precision-widening promotions
-  implicit def chainIntToRepFloat[A:Typ](x: A)(using c: A => Rep[Int]): Rep[Float] = repIntToRepFloat(c(x))
-  implicit def chainFloatToRepDouble[A:Typ](x: A)(using c: A => Rep[Float]): Rep[Double] = repFloatToRepDouble(c(x))
+  given chainIntToRepFloat[A:Typ](using c: A => Rep[Int]): Conversion[A,Rep[Float]] with {
+    def apply(x: A): Rep[Float] = repIntToRepFloat(c(x))
+  }
+  given chainFloatToRepDouble[A:Typ](using c: A => Rep[Float]): Conversion[A, Rep[Double]] with {
+    def apply (x: A) = repFloatToRepDouble(c(x))
+  }
 }
 
 /**
