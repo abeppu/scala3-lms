@@ -1,7 +1,5 @@
 package lms.gen
 
-import lms.legacy.common.{Base, BaseExp}
-import lms.legacy.internal.{Blocks, Expressions}
 
 import scala.quoted.{Expr, Quotes, Type}
 

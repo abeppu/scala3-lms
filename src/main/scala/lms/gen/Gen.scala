@@ -1,8 +1,7 @@
 package lms.gen
 
-import lms.legacy.common.BaseExp
-import lms.legacy.internal.Expressions
 
+import scala.lms.internal.Expressions
 import scala.quoted.Quotes
 
 trait Gen extends Expressions { // meant to be the code gen interface for a module that introduces specific value types or defs

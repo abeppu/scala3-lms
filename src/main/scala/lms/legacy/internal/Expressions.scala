@@ -4,6 +4,7 @@ package internal
 import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.mutable.ListBuffer
 import java.lang.{StackTraceElement,Thread}
+import scala.quoted.*
 
 /**
  * The Expressions trait houses common AST nodes. It also manages a list of encountered Definitions which
@@ -18,6 +19,12 @@ trait Expressions extends Utils {
     def runtimeClass: java.lang.Class[?]
     def <:<(that: Typ[?]): Boolean
     def isArray = runtimeClass.isArray
+
+    def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
+      import q.reflect.*
+      val typeArgsRepr = typeArguments.map(_.asTypeRepr)
+      TypeRepr.typeConstructorOf(runtimeClass)
+    }
   }
 
   case class ManifestTyp[T](mf: Manifest[T]) extends Typ[T] {

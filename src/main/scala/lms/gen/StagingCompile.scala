@@ -1,6 +1,7 @@
 package lms.gen
 
-import lms.legacy.common.*
+
+import scala.lms.common.BaseExp
 import scala.quoted.*
 
 trait StagingCompile extends QuotedGen {
