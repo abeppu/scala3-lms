@@ -25,7 +25,7 @@ trait StringOps extends Variables with OverloadHack with PrimitiveOps {
     def apply(i: Rep[Int])(using o2: Overloaded2) = string_charAt(s, i)
   }
   
-  implicit def stringTyp: Typ[String]
+  given stringTyp: Typ[String] = deferred
 
   def infix_+(s1: String, s2: Rep[Any])(using o: Overloaded1, pos: SourceContext) = string_plus(unit(s1), s2)
   def infix_+[T:Typ](s1: String, s2: Var[T])(using o: Overloaded2, pos: SourceContext) = string_plus(unit(s1), readVar(s2))
@@ -92,7 +92,7 @@ trait StringOps extends Variables with OverloadHack with PrimitiveOps {
 
 trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
   given arrayTyp[T:Typ]: Typ[Array[T]] = deferred
-  implicit def stringTyp: Typ[String] = manifestTyp
+  override given stringTyp: Typ[String] = manifestTyp
 
   case class StringPlus(s: Exp[Any], o: Exp[Any]) extends Def[String]
   case class StringStartsWith(s1: Exp[String], s2: Exp[String]) extends Def[Boolean]

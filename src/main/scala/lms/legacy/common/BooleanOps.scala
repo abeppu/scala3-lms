@@ -3,15 +3,17 @@ package lms.legacy.common
 import java.io.PrintWriter
 import lms.legacy.compat.SourceContext
 
+import scala.compiletime.deferred
+
 trait LiftBoolean {
   this: Base =>
 
-  implicit def boolTyp: Typ[Boolean]
+  given boolTyp: Typ[Boolean] = deferred
   implicit def boolToBoolRep(b: Boolean): Rep[Boolean] = unit(b)
 }
 
 trait BooleanOps extends Variables {
-  implicit def boolTyp: Typ[Boolean]
+  given boolTyp: Typ[Boolean] = deferred
 
   def infix_unary_!(x: Rep[Boolean])(using pos: SourceContext) = boolean_negate(x)
   def infix_&&(lhs: Rep[Boolean], rhs: =>Rep[Boolean])(using pos: SourceContext) = boolean_and(lhs,rhs)
@@ -29,7 +31,7 @@ trait BooleanOps extends Variables {
 }
 
 trait BooleanOpsExp extends BooleanOps with EffectExp {
-  implicit def boolTyp: Typ[Boolean] = manifestTyp
+  override given boolTyp: Typ[Boolean] = manifestTyp
 
   case class BooleanNegate(lhs: Exp[Boolean]) extends Def[Boolean]
   case class BooleanAnd(lhs: Exp[Boolean], rhs: Exp[Boolean]) extends Def[Boolean]

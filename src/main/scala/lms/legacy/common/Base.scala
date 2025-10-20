@@ -1,9 +1,10 @@
 package lms.legacy.common
 
 import scala.reflect.ClassTag
-
-import lms.legacy.internal._
+import lms.legacy.internal.*
 import lms.legacy.compat.{EmbeddedControls, Manifest, SourceContext}
+
+import scala.compiletime.deferred
 /**
  * This trait automatically lifts any concrete instance to a representation.
  */
@@ -25,8 +26,8 @@ trait Base extends EmbeddedControls {
 
   protected def unit[T:Typ](x: T): Rep[T]
 
-  implicit def unitTyp: Typ[Unit]
-  //implicit def nullTyp: Typ[Null]
+  given unitTyp: Typ[Unit] = deferred
+  //given nullTyp: Typ[Null] = deferred
 
   def typ[T:Typ]: Typ[T]
 
@@ -49,7 +50,7 @@ trait BaseExp extends Base with Expressions with Blocks with Transforming {
   type Rep[+T] = Exp[T]
   protected def manifestTyp[T:ClassTag]: Typ[T] = ManifestTyp(Manifest.of[T])
 
-  implicit def unitTyp: Typ[Unit] = manifestTyp
+  override given unitTyp: Typ[Unit] = manifestTyp
   //implicit def nullTyp: Typ[Null] = ManifestTyp(nullManifest)
 
   protected def unit[T:Typ](x: T) = Const(x)

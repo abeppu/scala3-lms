@@ -1,9 +1,10 @@
 package lms.legacy.common
 
 import java.io.PrintWriter
-
 import lms.legacy.util.OverloadHack
 import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 
 trait LiftPrimitives {
   this: PrimitiveOps =>
@@ -25,13 +26,13 @@ trait LiftPrimitives {
 trait PrimitiveOps extends Variables with OverloadHack { 
   this: ImplicitOps =>
 
-  implicit def byteTyp   : Typ[Byte]
-  implicit def charTyp   : Typ[Char]
-  implicit def shortTyp  : Typ[Short]
-  implicit def intTyp    : Typ[Int]
-  implicit def longTyp   : Typ[Long]
-  implicit def floatTyp  : Typ[Float]
-  implicit def doubleTyp : Typ[Double]
+  given byteTyp   : Typ[Byte] = deferred
+  given charTyp   : Typ[Char] = deferred
+  given shortTyp  : Typ[Short] = deferred
+  given intTyp    : Typ[Int] = deferred
+  given longTyp   : Typ[Long] = deferred
+  given floatTyp  : Typ[Float] = deferred
+  given doubleTyp : Typ[Double] = deferred
 
   /**
    * Primitive conversions
@@ -299,13 +300,13 @@ trait PrimitiveOps extends Variables with OverloadHack {
 trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   this: ImplicitOps =>
   
-  implicit def byteTyp   : Typ[Byte]   = manifestTyp
-  implicit def charTyp   : Typ[Char]   = manifestTyp
-  implicit def shortTyp  : Typ[Short]  = manifestTyp
-  implicit def intTyp    : Typ[Int]    = manifestTyp
-  implicit def longTyp   : Typ[Long]   = manifestTyp
-  implicit def floatTyp  : Typ[Float]  = manifestTyp
-  implicit def doubleTyp : Typ[Double] = manifestTyp
+  override given byteTyp   : Typ[Byte]   = manifestTyp
+  override given charTyp   : Typ[Char]   = manifestTyp
+  override given shortTyp  : Typ[Short]  = manifestTyp
+  override given intTyp    : Typ[Int]    = manifestTyp
+  override given longTyp   : Typ[Long]   = manifestTyp
+  override given floatTyp  : Typ[Float]  = manifestTyp
+  override given doubleTyp : Typ[Double] = manifestTyp
 
   /**
    * Double

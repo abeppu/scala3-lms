@@ -4,6 +4,8 @@ import java.io.PrintWriter
 import lms.legacy.util.OverloadHack
 import lms.legacy.compat.SourceContext
 
+import scala.compiletime.deferred
+
 trait LiftVariables extends Base {
   this: Variables =>
 
@@ -29,9 +31,9 @@ trait ReadVarImplicitExp extends EffectExp {
 trait LowPriorityVariableImplicits extends ImplicitOps {
   this: Variables =>
 
-  implicit def intTyp: Typ[Int]
-  implicit def floatTyp: Typ[Float]
-  implicit def doubleTyp: Typ[Double]
+  given intTyp: Typ[Int] = deferred
+  given floatTyp: Typ[Float] = deferred
+  given doubleTyp: Typ[Double] = deferred
 
   implicit def varIntToRepDouble(x: Var[Int])(using pos: SourceContext): Rep[Double] = implicit_convert[Int,Double](readVar(x))
   implicit def varIntToRepFloat(x: Var[Int])(using pos: SourceContext): Rep[Float] = implicit_convert[Int,Float](readVar(x))

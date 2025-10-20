@@ -1,12 +1,13 @@
 package lms.legacy.common
 
 import java.io.PrintWriter
-
-import lms.legacy.internal.{GenericNestedCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenerationFailedException, GenericNestedCodegen}
 import lms.legacy.compat.SourceContext
 
+import scala.compiletime.deferred
+
 trait RangeOps extends Base {
-  implicit def rangeTyp: Typ[Range]
+  given rangeTyp: Typ[Range] = deferred
 
   // workaround for infix not working with manifests
   implicit def repRangeToRangeOps(r: Rep[Range]): rangeOpsCls = new rangeOpsCls(r)
@@ -28,7 +29,7 @@ trait RangeOps extends Base {
 }
 
 trait RangeOpsExp extends RangeOps with PrimitiveOps with EffectExp {
-  implicit def rangeTyp: Typ[Range] = manifestTyp
+  override given rangeTyp: Typ[Range] = manifestTyp
 
   extension (start: Rep[Int])
     def until(end: Rep[Int]): Rep[Range] = range_until(start, end)

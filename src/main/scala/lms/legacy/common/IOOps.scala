@@ -1,9 +1,11 @@
 package lms.legacy.common
 
-import java.io.{File, FileReader, FileWriter, BufferedReader, BufferedWriter, PrintWriter}
-import lms.legacy.internal.{GenerationFailedException}
+import java.io.{BufferedReader, BufferedWriter, File, FileReader, FileWriter, PrintWriter}
+import lms.legacy.internal.GenerationFailedException
 import lms.legacy.util.OverloadHack
 import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 // TODO: fine grained effects
 
 trait IOOps extends Variables with OverloadHack with StringOps {
@@ -11,7 +13,7 @@ trait IOOps extends Variables with OverloadHack with StringOps {
   /**
    * File
    */
-  implicit def fileTyp: Typ[File]
+  given fileTyp: Typ[File] = deferred
   object File {
     def apply(dir: Rep[String])(using pos: SourceContext) = obj_file_apply(dir)
   }
@@ -27,7 +29,7 @@ trait IOOps extends Variables with OverloadHack with StringOps {
   /**
    * BufferedReader
    */
-  implicit def bufferedReaderTyp: Typ[BufferedReader]
+  given bufferedReaderTyp: Typ[BufferedReader] = deferred
   object BufferedReader {
     def apply(f: Rep[FileReader])(using pos: SourceContext) = obj_br_apply(f)
   }
@@ -41,7 +43,7 @@ trait IOOps extends Variables with OverloadHack with StringOps {
   /**
    * BufferedWriter
    */
-  implicit def bufferedWriterTyp: Typ[BufferedWriter]
+  given bufferedWriterTyp: Typ[BufferedWriter] = deferred
   object BufferedWriter {
     def apply(f: Rep[FileWriter])(using pos: SourceContext) = obj_bw_apply(f)
   }
@@ -56,7 +58,7 @@ trait IOOps extends Variables with OverloadHack with StringOps {
   /**
    * FileReader
    */
-  implicit def fileReaderTyp: Typ[FileReader]
+  given fileReaderTyp: Typ[FileReader] = deferred
   object FileReader {
     def apply(s: Rep[String])(using pos: SourceContext) = obj_fr_apply(s)
   }
@@ -65,7 +67,7 @@ trait IOOps extends Variables with OverloadHack with StringOps {
   /**
    * FileWriter
    */
-  implicit def fileWriterTyp: Typ[FileWriter]
+  given fileWriterTyp: Typ[FileWriter] = deferred
   object FileWriter {
     def apply(s: Rep[String])(using pos: SourceContext) = obj_fw_apply(s)
   }
@@ -73,11 +75,11 @@ trait IOOps extends Variables with OverloadHack with StringOps {
 }
 
 trait IOOpsExp extends IOOps with DSLOpsExp with ArrayOpsExp {
-  implicit def fileTyp: Typ[File] = manifestTyp
-  implicit def bufferedReaderTyp: Typ[BufferedReader] = manifestTyp
-  implicit def bufferedWriterTyp: Typ[BufferedWriter] = manifestTyp
-  implicit def fileReaderTyp: Typ[FileReader] = manifestTyp
-  implicit def fileWriterTyp: Typ[FileWriter] = manifestTyp
+  override given fileTyp: Typ[File] = manifestTyp
+  override given bufferedReaderTyp: Typ[BufferedReader] = manifestTyp
+  override given bufferedWriterTyp: Typ[BufferedWriter] = manifestTyp
+  override given fileReaderTyp: Typ[FileReader] = manifestTyp
+  override given fileWriterTyp: Typ[FileWriter] = manifestTyp
 
   case class ObjFileApply(dir: Exp[String]) extends Def[File]
   case class FileGetCanonicalFile(f: Exp[File]) extends Def[File]
