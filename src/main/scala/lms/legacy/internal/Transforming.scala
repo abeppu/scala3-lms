@@ -1,8 +1,8 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.OverloadHack
+import lms.legacy.util.OverloadHack
 import scala.collection.{immutable,mutable}
+import lms.legacy.compat.SourceContext
 
 trait AbstractTransformer {
   val IR: Expressions with Blocks with OverloadHack

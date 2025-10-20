@@ -1,8 +1,6 @@
-package scala.lms
-package common
+package lms.legacy.common
 
-import internal.CodeMotion
-import internal.Scheduling
+import lms.legacy.internal.{CodeMotion, FatBlockTraversal, FatScheduling, Scheduling}
 
 /*
   current fusion algorithm:
@@ -171,7 +169,7 @@ import internal.Scheduling
 
 
 
-trait LoopFusionOpt extends internal.FatBlockTraversal with LoopFusionCore {
+trait LoopFusionOpt extends FatBlockTraversal with LoopFusionCore {
   val IR: LoopsFatExp with IfThenElseFatExp
   import IR._  
 
@@ -212,7 +210,7 @@ trait LoopFusionOpt extends internal.FatBlockTraversal with LoopFusionCore {
 
 
 
-trait LoopFusionCore extends internal.FatScheduling with CodeMotion with SimplifyTransform {
+trait LoopFusionCore extends FatScheduling with CodeMotion with SimplifyTransform {
   val IR: LoopsFatExp with IfThenElseFatExp
   import IR._  
   

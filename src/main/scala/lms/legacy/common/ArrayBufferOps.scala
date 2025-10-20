@@ -1,10 +1,10 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
 import scala.collection.mutable.ArrayBuffer
-import scala.lms.internal.GenericNestedCodegen
+import lms.legacy.internal.GenericNestedCodegen
 import collection.mutable.ArrayBuffer
+import lms.legacy.compat.SourceContext
 
 trait ArrayBufferOps extends Base with StringOps with ArrayOps {
 

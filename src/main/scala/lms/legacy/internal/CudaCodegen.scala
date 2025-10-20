@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 import java.io.{FileWriter, StringWriter, PrintWriter, File}
 import collection.immutable.List._

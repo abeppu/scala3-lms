@@ -1,9 +1,9 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal._
+import lms.legacy.internal._
 import scala.collection.mutable.Set
+import lms.legacy.compat.SourceContext
 
 trait SetOps extends Base {
   implicit def setTyp[T:Typ]: Typ[Set[T]]

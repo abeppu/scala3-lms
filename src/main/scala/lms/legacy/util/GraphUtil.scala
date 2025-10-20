@@ -1,5 +1,4 @@
-package scala.lms
-package util
+package lms.legacy.util
 
 import java.util.{ArrayDeque, HashMap}
 

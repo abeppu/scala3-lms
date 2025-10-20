@@ -1,8 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal._
+import lms.legacy.internal._
+import lms.legacy.compat.SourceContext
 
 trait MiscOps extends Base with PrimitiveOps with StringOps {
   /**

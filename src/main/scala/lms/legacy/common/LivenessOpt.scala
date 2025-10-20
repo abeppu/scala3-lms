@@ -1,8 +1,7 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.NestedBlockTraversal
+import lms.legacy.internal.NestedBlockTraversal
 
 import scala.collection.mutable
 

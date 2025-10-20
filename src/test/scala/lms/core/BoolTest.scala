@@ -1,8 +1,8 @@
-package scala.lms
-package tests
+package lms.core
 
-import scala.lms.tests.TutorialFunSuite
-import scala.lms.virtualize
+import lms.core.virtualize
+
+import lms.core.TutorialFunSuite
 
 
 class BoolTest extends TutorialFunSuite {

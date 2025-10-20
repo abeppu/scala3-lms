@@ -1,8 +1,8 @@
-package scala.lms.tests
-import scala.lms.tests.{Dsl, DslDriver, TutorialFunSuite}
+package lms.core
 
-import scala.lms.tests.TutorialFunSuite
-import scala.lms.virtualize
+import lms.core.virtualize
+
+import lms.core.{Dsl, DslDriver, TutorialFunSuite}
 
 class StringTest extends TutorialFunSuite {
 

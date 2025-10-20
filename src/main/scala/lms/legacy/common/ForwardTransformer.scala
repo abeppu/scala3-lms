@@ -1,9 +1,9 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import scala.collection.{immutable,mutable}
+import lms.legacy.internal.{AbstractSubstTransformer, FatBlockTraversal}
 
-trait ForwardTransformer extends internal.AbstractSubstTransformer with internal.FatBlockTraversal { self =>
+trait ForwardTransformer extends AbstractSubstTransformer with FatBlockTraversal { self =>
   val IR: BaseFatExp with EffectExp //LoopsFatExp with IfThenElseFatExp
   import IR._
   

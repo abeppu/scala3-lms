@@ -1,4 +1,4 @@
-package scala.lms.internal
+package lms.legacy.internal
 
 trait AbstractHostTransfer {
   this: GenericCodegen =>

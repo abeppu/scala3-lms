@@ -1,7 +1,8 @@
-package scala.lms.tests
+package lms.core
 
-import scala.lms.tests.TutorialFunSuite
-import scala.lms.virtualize
+import lms.core.virtualize
+
+import lms.core.TutorialFunSuite
 
 class IfTest extends TutorialFunSuite {
   

@@ -1,5 +1,4 @@
-package scala.lms
-package util
+package lms.legacy.util
 
 // hack to appease erasure
 

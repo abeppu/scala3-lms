@@ -1,9 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.GenericNestedCodegen
-
+import lms.legacy.internal.GenericNestedCodegen
+import lms.legacy.compat.SourceContext
 trait While extends Base {
   def __whileDo(cond: => Rep[Boolean], body: => Rep[Unit])(implicit pos: SourceContext): Rep[Unit]
 }

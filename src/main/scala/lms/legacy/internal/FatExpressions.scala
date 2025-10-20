@@ -1,5 +1,5 @@
-package scala.lms
-package internal
+package lms.legacy.internal
+import lms.legacy.compat.anyManifest
 
 trait FatExpressions extends Expressions {
   

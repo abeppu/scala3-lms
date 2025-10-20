@@ -1,10 +1,9 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import scala.reflect.ClassTag
 
-import internal._
-
+import lms.legacy.internal._
+import lms.legacy.compat.{EmbeddedControls, Manifest, SourceContext}
 /**
  * This trait automatically lifts any concrete instance to a representation.
  */

@@ -1,7 +1,7 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
+import lms.legacy.compat.SourceContext
 
 trait FractionalOps extends ImplicitOps {
   def infix_/[A,T](lhs: Rep[T], rhs: Rep[A])(implicit c: A => T, f: Fractional[T], mA: Typ[A], mT: Typ[T], pos: SourceContext) = fractional_divide(lhs,implicit_convert[A,T](rhs))

@@ -1,9 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
 
-import scala.lms.internal.{GenericNestedCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenericNestedCodegen, GenerationFailedException}
 
 //TODO: is this used at all? should it be merge with DeliteOps?
 

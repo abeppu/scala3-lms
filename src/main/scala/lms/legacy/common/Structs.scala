@@ -1,10 +1,10 @@
-package scala.lms
-package common
+package lms.legacy.common
 
-import util.OverloadHack
+import lms.legacy.util.OverloadHack
 import java.io.PrintWriter
-import internal.{GenericNestedCodegen, GenericFatCodegen}
+import lms.legacy.internal.{GenericNestedCodegen, GenericFatCodegen}
 
+import lms.legacy.compat.{RefinedManifest,SourceContext, Manifest}
 trait StructOps extends Base {
   abstract class Record extends Struct
 

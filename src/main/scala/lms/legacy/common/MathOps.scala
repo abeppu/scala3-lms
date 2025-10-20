@@ -1,8 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import internal.{GenericNestedCodegen}
+import lms.legacy.internal.{GenericNestedCodegen}
+import lms.legacy.compat.SourceContext
 
 trait MathOps extends Base with PrimitiveOps {
 

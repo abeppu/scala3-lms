@@ -1,9 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.{Blocks, Effects, AbstractTransformer}
-import scala.lms.util.OverloadHack
+import lms.legacy.internal.{Blocks, Effects, AbstractTransformer}
+import lms.legacy.util.OverloadHack
 
 /*
  * This trait allows functions to be stored as case class parameters in a way that works correctly

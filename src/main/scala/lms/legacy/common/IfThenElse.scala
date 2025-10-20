@@ -1,8 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
+import lms.legacy.compat.SourceContext
 
 trait IfThenElse extends Base {
   def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext): Rep[T]

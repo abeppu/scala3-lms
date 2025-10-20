@@ -1,6 +1,5 @@
-package scala.lms
-package common
-
+package lms.legacy.common
+import lms.legacy.compat.SourceContext
 import java.io.PrintWriter
 
 trait ImplicitOps extends Base {

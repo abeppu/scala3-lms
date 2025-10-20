@@ -1,9 +1,9 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.util.OverloadHack
-import scala.lms.internal.{GenerationFailedException}
+import lms.legacy.util.OverloadHack
+import lms.legacy.internal.{GenerationFailedException}
+import lms.legacy.compat.SourceContext
 
 trait ObjectOps extends Variables with StringOps with OverloadHack {
   def infix_toString(lhs: Rep[Any])(implicit pos: SourceContext) = object_tostring(lhs)

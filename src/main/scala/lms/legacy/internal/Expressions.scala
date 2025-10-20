@@ -1,10 +1,12 @@
-package scala.lms
-package internal
+package lms.legacy.internal
+
+import lms.legacy.compat.{Manifest, SourceContext}
 
 import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.mutable.ListBuffer
-import java.lang.{StackTraceElement,Thread}
+import java.lang.{StackTraceElement, Thread}
 import scala.quoted.*
+
 
 /**
  * The Expressions trait houses common AST nodes. It also manages a list of encountered Definitions which

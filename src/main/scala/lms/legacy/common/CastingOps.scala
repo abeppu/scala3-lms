@@ -1,8 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.util.OverloadHack
+import lms.legacy.util.OverloadHack
+import lms.legacy.compat.SourceContext
 
 trait CastingOps extends Variables with OverloadHack {
   this: ImplicitOps =>

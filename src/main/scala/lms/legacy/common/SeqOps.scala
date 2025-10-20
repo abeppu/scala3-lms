@@ -1,8 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import internal._
+import lms.legacy.internal._
+import lms.legacy.compat.SourceContext
 
 trait SeqOps extends Variables {
 

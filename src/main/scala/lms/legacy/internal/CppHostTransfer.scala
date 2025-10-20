@@ -1,4 +1,4 @@
-package scala.lms.internal
+package lms.legacy.internal
 
 trait CppHostTransfer extends AbstractHostTransfer {
   this: CLikeCodegen =>

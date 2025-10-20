@@ -1,4 +1,4 @@
-package scala.lms
+package lms.core
 
 /* The main frontend driver for scala3-lms.
  *
@@ -15,6 +15,7 @@ package scala.lms
 import scala.reflect.ClassTag
 import scala.annotation.*
 import scala.quoted.*
+import lms.legacy.compat.SourceContext
 
 @experimental
 class virtualize extends MacroAnnotation {

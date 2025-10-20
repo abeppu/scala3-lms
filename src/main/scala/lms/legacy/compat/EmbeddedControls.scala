@@ -1,4 +1,4 @@
-package scala.lms
+package lms.legacy.compat
 
 /** The <code>EmbeddedControls</code> object provides method definitions
  *  where calls to the methods are treated by the compiler in a special way.

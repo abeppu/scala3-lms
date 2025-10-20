@@ -1,4 +1,4 @@
-package scala.lms.internal
+package lms.legacy.internal
 
 /* Defines OpenCL specific device transfer functions */
 trait OpenCLDeviceTransfer extends AbstractDeviceTransfer {

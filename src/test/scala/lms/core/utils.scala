@@ -1,12 +1,11 @@
-package scala.lms
-package tests
+package lms.core
 
-import java.io._
-import scala.reflect.ClassTag
-
+import lms.legacy.common.*
+import lms.legacy.compat.SourceContext
 import org.scalatest.funsuite.AnyFunSuite
 
-import scala.lms.common._
+import java.io.*
+import scala.reflect.ClassTag
 
 // CR cam: should we try to use Packages.scala here?
 
@@ -57,7 +56,7 @@ trait DslGen extends ScalaGenNumericOps
 {
   val IR: DslExp
 
-  import IR._
+  import IR.*
 
   override def quote(x: Exp[Any]) = x match {
     case Const('\n') if x.tp == typ[Char] => "'\\n'"

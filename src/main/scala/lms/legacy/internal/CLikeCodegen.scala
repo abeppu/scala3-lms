@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 import java.io.PrintWriter
 import collection.mutable.HashSet

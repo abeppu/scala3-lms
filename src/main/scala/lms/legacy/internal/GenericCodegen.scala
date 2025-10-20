@@ -1,8 +1,9 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.GraphUtil
+import lms.legacy.util.GraphUtil
 import java.io.{File, PrintWriter}
+
+import lms.legacy.compat.RefinedManifest
 
 trait GenericCodegen extends BlockTraversal {
   val IR: Expressions

@@ -1,7 +1,7 @@
-package scala.lms
-package tests
+package lms.core
 
-import scala.lms.common.*
+import lms.core.virtualize
+import lms.legacy.common.*
 
 
 class ManifestTest extends TutorialFunSuite {

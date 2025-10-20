@@ -1,10 +1,10 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
 
 
+import lms.legacy.compat.{SourceContext, EmbeddedControls}
 trait SplitEffectsExpFat extends IfThenElseFatExp with WhileExp with PreviousIterationDummyExp { thisIR: BooleanOpsExp with EqualExpBridge =>
   
   // split effectful statements: one piece for each affected mutable object.

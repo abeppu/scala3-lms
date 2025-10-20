@@ -1,9 +1,9 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.util.OverloadHack
-import scala.lms.internal.{GenerationFailedException}
+import lms.legacy.util.OverloadHack
+import lms.legacy.internal.{GenerationFailedException}
+import lms.legacy.compat.SourceContext
 
 trait LiftString {
   this: StringOps =>

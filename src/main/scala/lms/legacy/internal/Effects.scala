@@ -1,9 +1,9 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.GraphUtil
+import lms.legacy.util.GraphUtil
 import scala.collection.mutable
 import scala.annotation.unchecked.uncheckedVariance
+import lms.legacy.compat.{anyManifest,SourceContext}
 
 trait Blocks extends Expressions {
   

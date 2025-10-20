@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 trait Config {
   val verbosity = System.getProperty("lms.verbosity","0").toInt

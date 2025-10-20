@@ -1,7 +1,7 @@
-package scala.lms
-package common
+package lms.legacy.common
+import lms.legacy.internal.FatScheduling
 
-trait SimplifyTransform extends internal.FatScheduling {
+trait SimplifyTransform extends FatScheduling {
   val IR: LoopsFatExp & IfThenElseFatExp
   import IR._
   

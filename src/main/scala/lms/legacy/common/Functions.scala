@@ -1,11 +1,10 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
 
-import scala.lms.internal.{GenericNestedCodegen, GenerationFailedException}
-import scala.lms.util.ClosureCompare
-
+import lms.legacy.internal.{GenericNestedCodegen, GenerationFailedException}
+import lms.legacy.util.ClosureCompare
+import lms.legacy.compat.SourceContext
 trait Functions extends Base {
 
   implicit def funTyp[A:Typ,B:Typ]: Typ[A => B]

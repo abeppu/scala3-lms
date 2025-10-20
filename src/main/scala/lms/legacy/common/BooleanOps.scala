@@ -1,7 +1,7 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
+import lms.legacy.compat.SourceContext
 
 trait LiftBoolean {
   this: Base =>

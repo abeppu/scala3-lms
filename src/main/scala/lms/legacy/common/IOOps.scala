@@ -1,10 +1,9 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.{File, FileReader, FileWriter, BufferedReader, BufferedWriter, PrintWriter}
-import scala.lms.internal.{GenerationFailedException}
-import util.OverloadHack
-
+import lms.legacy.internal.{GenerationFailedException}
+import lms.legacy.util.OverloadHack
+import lms.legacy.compat.SourceContext
 // TODO: fine grained effects
 
 trait IOOps extends Variables with OverloadHack with StringOps {

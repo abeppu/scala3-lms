@@ -1,7 +1,6 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.GraphUtil
+import lms.legacy.util.GraphUtil
 import scala.collection.mutable.HashMap
 
 trait FatScheduling extends Scheduling {

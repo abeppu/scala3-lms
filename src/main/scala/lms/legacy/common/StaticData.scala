@@ -1,9 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.GenericNestedCodegen
-
+import lms.legacy.internal.GenericNestedCodegen
+import lms.legacy.compat.SourceContext
 trait StaticData extends Base {
   def staticData[T:Typ](x: T): Rep[T]
 }

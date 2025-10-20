@@ -1,9 +1,9 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 import java.io.{StringWriter, PrintWriter, File}
 import collection.immutable.List._
 import collection.mutable.{HashMap, HashSet, ArrayBuffer, ListMap, ListBuffer}
+import lms.legacy.compat.SourceContext
 
 trait GPUCodegen extends CLikeCodegen with AbstractHostTransfer with AbstractDeviceTransfer {
   val IR: Expressions

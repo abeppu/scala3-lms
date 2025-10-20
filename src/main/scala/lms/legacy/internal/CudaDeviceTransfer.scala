@@ -1,4 +1,4 @@
-package scala.lms.internal
+package lms.legacy.internal
 
 /* Defines Cuda specific device transfer functions */
 trait CudaDeviceTransfer extends AbstractDeviceTransfer {

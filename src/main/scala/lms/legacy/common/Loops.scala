@@ -1,9 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.{FatBlockTraversal,GenericNestedCodegen,GenericFatCodegen}
-
+import lms.legacy.internal.{FatBlockTraversal,GenericNestedCodegen,GenericFatCodegen}
+import lms.legacy.compat.SourceContext
 trait Loops extends Base { // no surface constructs for now
 
 }

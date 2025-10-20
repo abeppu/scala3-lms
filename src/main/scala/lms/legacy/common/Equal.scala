@@ -1,9 +1,9 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
 
-import scala.lms.util.OverloadHack
+import lms.legacy.util.OverloadHack
+import lms.legacy.compat.SourceContext
 
 trait LiftEquals extends Base {
   this: Equal =>

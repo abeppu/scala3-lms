@@ -1,9 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
-import scala.lms.internal.GenericCodegen
+import lms.legacy.internal.GenericCodegen
 import java.io.PrintWriter
-
+import lms.legacy.compat.SourceContext
 trait TupleOps extends Base {
   implicit def tuple2_typ[A:Typ,B:Typ]: Typ[(A,B)]
   implicit def tuple3_typ[A:Typ,B:Typ,C:Typ]: Typ[(A,B,C)]

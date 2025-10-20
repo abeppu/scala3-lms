@@ -1,7 +1,6 @@
-package scala.lms
-package common
+package lms.legacy.common
 
-import scala.lms.common._
+import lms.legacy.common._
 
 trait CoreOpsPkgExp 
     extends PrimitiveOpsExp
