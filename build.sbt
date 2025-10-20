@@ -1,4 +1,4 @@
-ThisBuild / scalaVersion := "3.5.2"
+ThisBuild / scalaVersion := "3.7.3"
 
 scalacOptions ++= Seq("-experimental")
 libraryDependencies ++= Seq(
