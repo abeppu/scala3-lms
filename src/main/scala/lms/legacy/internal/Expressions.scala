@@ -188,7 +188,7 @@ trait Expressions extends Utils {
   }
   
 
-  protected implicit def toAtom[T:Typ](d: Def[T])(implicit pos: SourceContext): Exp[T] = {
+  protected implicit def toAtom[T:Typ](d: Def[T])(using pos: SourceContext): Exp[T] = {
     findOrCreateDefinitionExp(d, List(pos)) // TBD: return Const(()) if type is Unit??
   }
 

@@ -13,63 +13,63 @@ trait IOOps extends Variables with OverloadHack with StringOps {
    */
   implicit def fileTyp: Typ[File]
   object File {
-    def apply(dir: Rep[String])(implicit pos: SourceContext) = obj_file_apply(dir)
+    def apply(dir: Rep[String])(using pos: SourceContext) = obj_file_apply(dir)
   }
-  def infix_getCanonicalFile(f: Rep[File])(implicit pos: SourceContext) = file_getcanonicalfile(f)
-  def infix_getPath(f: Rep[File])(implicit pos: SourceContext) = file_getpath(f)
-  def infix_listFiles(f: Rep[File])(implicit pos: SourceContext) = file_listfiles(f)
+  def infix_getCanonicalFile(f: Rep[File])(using pos: SourceContext) = file_getcanonicalfile(f)
+  def infix_getPath(f: Rep[File])(using pos: SourceContext) = file_getpath(f)
+  def infix_listFiles(f: Rep[File])(using pos: SourceContext) = file_listfiles(f)
 
-  def obj_file_apply(dir: Rep[String])(implicit pos: SourceContext): Rep[File]
-  def file_getcanonicalfile(f: Rep[File])(implicit pos: SourceContext): Rep[File]
-  def file_getpath(f: Rep[File])(implicit pos: SourceContext): Rep[String]
-  def file_listfiles(f: Rep[File])(implicit pos: SourceContext): Rep[Array[File]]
+  def obj_file_apply(dir: Rep[String])(using pos: SourceContext): Rep[File]
+  def file_getcanonicalfile(f: Rep[File])(using pos: SourceContext): Rep[File]
+  def file_getpath(f: Rep[File])(using pos: SourceContext): Rep[String]
+  def file_listfiles(f: Rep[File])(using pos: SourceContext): Rep[Array[File]]
   
   /**
    * BufferedReader
    */
   implicit def bufferedReaderTyp: Typ[BufferedReader]
   object BufferedReader {
-    def apply(f: Rep[FileReader])(implicit pos: SourceContext) = obj_br_apply(f)
+    def apply(f: Rep[FileReader])(using pos: SourceContext) = obj_br_apply(f)
   }
-  def infix_readLine(b: Rep[BufferedReader])(implicit pos: SourceContext) = br_readline(b)
-  def infix_close(b: Rep[BufferedReader])(implicit pos: SourceContext) = br_close(b)
+  def infix_readLine(b: Rep[BufferedReader])(using pos: SourceContext) = br_readline(b)
+  def infix_close(b: Rep[BufferedReader])(using pos: SourceContext) = br_close(b)
 
-  def obj_br_apply(f: Rep[FileReader])(implicit pos: SourceContext): Rep[BufferedReader]
-  def br_readline(b: Rep[BufferedReader])(implicit pos: SourceContext): Rep[String]
-  def br_close(b: Rep[BufferedReader])(implicit pos: SourceContext): Rep[Unit]
+  def obj_br_apply(f: Rep[FileReader])(using pos: SourceContext): Rep[BufferedReader]
+  def br_readline(b: Rep[BufferedReader])(using pos: SourceContext): Rep[String]
+  def br_close(b: Rep[BufferedReader])(using pos: SourceContext): Rep[Unit]
 
   /**
    * BufferedWriter
    */
   implicit def bufferedWriterTyp: Typ[BufferedWriter]
   object BufferedWriter {
-    def apply(f: Rep[FileWriter])(implicit pos: SourceContext) = obj_bw_apply(f)    
+    def apply(f: Rep[FileWriter])(using pos: SourceContext) = obj_bw_apply(f)
   }
 
-  def infix_write(b: Rep[BufferedWriter], s: Rep[String])(implicit pos: SourceContext) = bw_write(b,s)
-  def infix_close(b: Rep[BufferedWriter])(implicit o: Overloaded1, pos: SourceContext) = bw_close(b)
+  def infix_write(b: Rep[BufferedWriter], s: Rep[String])(using pos: SourceContext) = bw_write(b,s)
+  def infix_close(b: Rep[BufferedWriter])(using o: Overloaded1, pos: SourceContext) = bw_close(b)
 
-  def obj_bw_apply(f: Rep[FileWriter])(implicit pos: SourceContext): Rep[BufferedWriter]
-  def bw_write(b: Rep[BufferedWriter], s: Rep[String])(implicit pos: SourceContext): Rep[Unit]
-  def bw_close(b: Rep[BufferedWriter])(implicit pos: SourceContext): Rep[Unit]
+  def obj_bw_apply(f: Rep[FileWriter])(using pos: SourceContext): Rep[BufferedWriter]
+  def bw_write(b: Rep[BufferedWriter], s: Rep[String])(using pos: SourceContext): Rep[Unit]
+  def bw_close(b: Rep[BufferedWriter])(using pos: SourceContext): Rep[Unit]
 
   /**
    * FileReader
    */
   implicit def fileReaderTyp: Typ[FileReader]
   object FileReader {
-    def apply(s: Rep[String])(implicit pos: SourceContext) = obj_fr_apply(s)
+    def apply(s: Rep[String])(using pos: SourceContext) = obj_fr_apply(s)
   }
-  def obj_fr_apply(s: Rep[String])(implicit pos: SourceContext): Rep[FileReader]
+  def obj_fr_apply(s: Rep[String])(using pos: SourceContext): Rep[FileReader]
 
   /**
    * FileWriter
    */
   implicit def fileWriterTyp: Typ[FileWriter]
   object FileWriter {
-    def apply(s: Rep[String])(implicit pos: SourceContext) = obj_fw_apply(s)
+    def apply(s: Rep[String])(using pos: SourceContext) = obj_fw_apply(s)
   }
-  def obj_fw_apply(s: Rep[String])(implicit pos: SourceContext): Rep[FileWriter]
+  def obj_fw_apply(s: Rep[String])(using pos: SourceContext): Rep[FileWriter]
 }
 
 trait IOOpsExp extends IOOps with DSLOpsExp with ArrayOpsExp {
@@ -94,22 +94,22 @@ trait IOOpsExp extends IOOps with DSLOpsExp with ArrayOpsExp {
   case class BrReadline(b: Exp[BufferedReader]) extends Def[String]
   case class BrClose(b: Exp[BufferedReader]) extends Def[Unit]
 
-  def obj_file_apply(dir: Exp[String])(implicit pos: SourceContext): Exp[File] = reflectEffect(ObjFileApply(dir))
-  def file_getcanonicalfile(f: Exp[File])(implicit pos: SourceContext) = FileGetCanonicalFile(f)
-  def file_getpath(f: Exp[File])(implicit pos: SourceContext) = FileGetPath(f)
-  def file_listfiles(f: Exp[File])(implicit pos: SourceContext) = FileListFiles(f)
+  def obj_file_apply(dir: Exp[String])(using pos: SourceContext): Exp[File] = reflectEffect(ObjFileApply(dir))
+  def file_getcanonicalfile(f: Exp[File])(using pos: SourceContext) = FileGetCanonicalFile(f)
+  def file_getpath(f: Exp[File])(using pos: SourceContext) = FileGetPath(f)
+  def file_listfiles(f: Exp[File])(using pos: SourceContext) = FileListFiles(f)
   
-  def obj_br_apply(f: Exp[FileReader])(implicit pos: SourceContext): Exp[BufferedReader] = reflectEffect(ObjBrApply(f))
-  def obj_bw_apply(f: Exp[FileWriter])(implicit pos: SourceContext): Exp[BufferedWriter] = reflectEffect(ObjBwApply(f))
-  def obj_fr_apply(s: Exp[String])(implicit pos: SourceContext): Exp[FileReader] = reflectEffect(ObjFrApply(s))
-  def obj_fw_apply(s: Exp[String])(implicit pos: SourceContext): Exp[FileWriter] = reflectEffect(ObjFwApply(s))
+  def obj_br_apply(f: Exp[FileReader])(using pos: SourceContext): Exp[BufferedReader] = reflectEffect(ObjBrApply(f))
+  def obj_bw_apply(f: Exp[FileWriter])(using pos: SourceContext): Exp[BufferedWriter] = reflectEffect(ObjBwApply(f))
+  def obj_fr_apply(s: Exp[String])(using pos: SourceContext): Exp[FileReader] = reflectEffect(ObjFrApply(s))
+  def obj_fw_apply(s: Exp[String])(using pos: SourceContext): Exp[FileWriter] = reflectEffect(ObjFwApply(s))
 
-  def bw_write(b: Exp[BufferedWriter], s: Exp[String])(implicit pos: SourceContext) = reflectEffect(BwWrite(b,s))
-  def bw_close(b: Exp[BufferedWriter])(implicit pos: SourceContext) = reflectEffect(BwClose(b))
-  def br_readline(b: Exp[BufferedReader])(implicit pos: SourceContext) : Exp[String] = reflectEffect(BrReadline(b))
-  def br_close(b: Exp[BufferedReader])(implicit pos: SourceContext) : Exp[Unit] = reflectEffect(BrClose(b))
+  def bw_write(b: Exp[BufferedWriter], s: Exp[String])(using pos: SourceContext) = reflectEffect(BwWrite(b,s))
+  def bw_close(b: Exp[BufferedWriter])(using pos: SourceContext) = reflectEffect(BwClose(b))
+  def br_readline(b: Exp[BufferedReader])(using pos: SourceContext) : Exp[String] = reflectEffect(BrReadline(b))
+  def br_close(b: Exp[BufferedReader])(using pos: SourceContext) : Exp[Unit] = reflectEffect(BrClose(b))
   
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = ({
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = ({
     e match {
       case Reflect(ObjFrApply(s), u, es) => reflectMirrored(Reflect(ObjFrApply(f(s)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(ObjBrApply(x), u, es) => reflectMirrored(Reflect(ObjBrApply(f(x)), mapOver(f,u), f(es)))(using mtyp1[A], pos)

@@ -15,11 +15,11 @@ trait Dsl extends PrimitiveOps with NumericOps with BooleanOps with LiftString w
 }
 
 trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with BooleanOpsExpOpt with IfThenElseExpOpt with EqualExpBridgeOpt with RangeOpsExp with OrderingOpsExp with MiscOpsExp with EffectExp with ArrayOpsExpOpt with StringOpsExp with SeqOpsExp with FunctionsRecursiveExp with WhileExp with StaticDataExp with VariablesExpOpt with ObjectOpsExpOpt {
-  override def boolean_or(lhs: Exp[Boolean], rhs: Exp[Boolean])(implicit pos: SourceContext) : Exp[Boolean] = lhs match {
+  override def boolean_or(lhs: Exp[Boolean], rhs: Exp[Boolean])(using pos: SourceContext) : Exp[Boolean] = lhs match {
     case Const(false) => rhs
     case _ => super.boolean_or(lhs, rhs)
   }
-  override def boolean_and(lhs: Exp[Boolean], rhs: Exp[Boolean])(implicit pos: SourceContext) : Exp[Boolean] = lhs match {
+  override def boolean_and(lhs: Exp[Boolean], rhs: Exp[Boolean])(using pos: SourceContext) : Exp[Boolean] = lhs match {
     case Const(true) => rhs
     case _ => super.boolean_and(lhs, rhs)
   }
@@ -38,7 +38,7 @@ trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with Bool
     case _ => super.boundSyms(e)
   }
 
-  override def array_apply[T:Typ](x: Exp[Array[T]], n: Exp[Int])(implicit pos: SourceContext): Exp[T] = (x,n) match {
+  override def array_apply[T:Typ](x: Exp[Array[T]], n: Exp[Int])(using pos: SourceContext): Exp[T] = (x,n) match {
     case (Def(StaticData(x:Array[T])), Const(n)) =>
       val y = x(n)
       if (y.isInstanceOf[Int]) unit(y) else staticData(y)

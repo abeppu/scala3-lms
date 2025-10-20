@@ -8,12 +8,18 @@ trait ListOps extends Variables {
   implicit def listTyp[T:Typ]: Typ[List[T]]
 
   object List {
-    def apply[A:Typ](xs: Rep[A]*)(implicit pos: SourceContext) = list_new(xs)
+    def apply[A:Typ](xs: Rep[A]*)(using pos: SourceContext) = list_new(xs)
   }
 
-  implicit def varToListOps[T:Typ](x: Var[List[T]]): ListOpsCls[T] = new ListOpsCls(readVar(x)) // FIXME: dep on var is not nice
-  implicit def repToListOps[T:Typ](a: Rep[List[T]]): ListOpsCls[T] = new ListOpsCls(a)
-  implicit def listToListOps[T:Typ](a: List[T]): ListOpsCls[T] = new ListOpsCls(unit(a))
+  given varToListOps[T:Typ]: Conversion[Var[List[T]], ListOpsCls[T]] with {
+  def apply(x: Var[List[T]]): ListOpsCls[T] = new ListOpsCls(readVar(x)) // FIXME: dep on var is not nice
+}
+  given repToListOps[T:Typ]: Conversion[Rep[List[T]], ListOpsCls[T]] with {
+  def apply(a: Rep[List[T]]): ListOpsCls[T] = new ListOpsCls(a)
+}
+  given listToListOps[T:Typ]: Conversion[List[T], ListOpsCls[T]] with {
+  def apply(a: List[T]): ListOpsCls[T] = new ListOpsCls(unit(a))
+}
   
   class ListOpsCls[A:Typ](l: Rep[List[A]]) {
     def map[B:Typ](f: Rep[A] => Rep[B]) = list_map(l,f)
@@ -31,22 +37,22 @@ trait ListOps extends Variables {
     def toSeq = list_toseq(l)
   }
   
-  def list_new[A:Typ](xs: Seq[Rep[A]])(implicit pos: SourceContext): Rep[List[A]]
-  def list_fromseq[A:Typ](xs: Rep[Seq[A]])(implicit pos: SourceContext): Rep[List[A]]  
-  def list_map[A:Typ,B:Typ](l: Rep[List[A]], f: Rep[A] => Rep[B])(implicit pos: SourceContext): Rep[List[B]]
-  def list_flatMap[A : Typ, B : Typ](xs: Rep[List[A]], f: Rep[A] => Rep[List[B]])(implicit pos: SourceContext): Rep[List[B]]
-  def list_filter[A : Typ](l: Rep[List[A]], f: Rep[A] => Rep[Boolean])(implicit pos: SourceContext): Rep[List[A]]
-  def list_sortby[A:Typ,B:Typ:Ordering](l: Rep[List[A]], f: Rep[A] => Rep[B])(implicit pos: SourceContext): Rep[List[A]]
-  def list_prepend[A:Typ](l: Rep[List[A]], e: Rep[A])(implicit pos: SourceContext): Rep[List[A]]
-  def list_toarray[A:Typ](l: Rep[List[A]])(implicit pos: SourceContext): Rep[Array[A]]
-  def list_toseq[A:Typ](l: Rep[List[A]])(implicit pos: SourceContext): Rep[Seq[A]]
-  def list_concat[A:Typ](xs: Rep[List[A]], ys: Rep[List[A]])(implicit pos: SourceContext): Rep[List[A]]
-  def list_cons[A:Typ](x: Rep[A], xs: Rep[List[A]])(implicit pos: SourceContext): Rep[List[A]] // FIXME remove?
-  def list_mkString[A : Typ](xs: Rep[List[A]])(implicit pos: SourceContext): Rep[String]
-  def list_mkString2[A : Typ](xs: Rep[List[A]], sep:Rep[String])(implicit pos: SourceContext): Rep[String]
-  def list_head[A:Typ](xs: Rep[List[A]])(implicit pos: SourceContext): Rep[A]
-  def list_tail[A:Typ](xs: Rep[List[A]])(implicit pos: SourceContext): Rep[List[A]]
-  def list_isEmpty[A:Typ](xs: Rep[List[A]])(implicit pos: SourceContext): Rep[Boolean]
+  def list_new[A:Typ](xs: Seq[Rep[A]])(using pos: SourceContext): Rep[List[A]]
+  def list_fromseq[A:Typ](xs: Rep[Seq[A]])(using pos: SourceContext): Rep[List[A]]
+  def list_map[A:Typ,B:Typ](l: Rep[List[A]], f: Rep[A] => Rep[B])(using pos: SourceContext): Rep[List[B]]
+  def list_flatMap[A : Typ, B : Typ](xs: Rep[List[A]], f: Rep[A] => Rep[List[B]])(using pos: SourceContext): Rep[List[B]]
+  def list_filter[A : Typ](l: Rep[List[A]], f: Rep[A] => Rep[Boolean])(using pos: SourceContext): Rep[List[A]]
+  def list_sortby[A:Typ,B:Typ:Ordering](l: Rep[List[A]], f: Rep[A] => Rep[B])(using pos: SourceContext): Rep[List[A]]
+  def list_prepend[A:Typ](l: Rep[List[A]], e: Rep[A])(using pos: SourceContext): Rep[List[A]]
+  def list_toarray[A:Typ](l: Rep[List[A]])(using pos: SourceContext): Rep[Array[A]]
+  def list_toseq[A:Typ](l: Rep[List[A]])(using pos: SourceContext): Rep[Seq[A]]
+  def list_concat[A:Typ](xs: Rep[List[A]], ys: Rep[List[A]])(using pos: SourceContext): Rep[List[A]]
+  def list_cons[A:Typ](x: Rep[A], xs: Rep[List[A]])(using pos: SourceContext): Rep[List[A]] // FIXME remove?
+  def list_mkString[A : Typ](xs: Rep[List[A]])(using pos: SourceContext): Rep[String]
+  def list_mkString2[A : Typ](xs: Rep[List[A]], sep:Rep[String])(using pos: SourceContext): Rep[String]
+  def list_head[A:Typ](xs: Rep[List[A]])(using pos: SourceContext): Rep[A]
+  def list_tail[A:Typ](xs: Rep[List[A]])(using pos: SourceContext): Rep[List[A]]
+  def list_isEmpty[A:Typ](xs: Rep[List[A]])(using pos: SourceContext): Rep[Boolean]
 }
 
 trait ListOpsExp extends ListOps with EffectExp with VariablesExp with BooleanOpsExp with ArrayOpsExp with StringOpsExp {
@@ -73,40 +79,40 @@ trait ListOpsExp extends ListOps with EffectExp with VariablesExp with BooleanOp
   case class ListTail[A:Typ](xs: Rep[List[A]]) extends Def[List[A]]
   case class ListIsEmpty[A:Typ](xs: Rep[List[A]]) extends Def[Boolean]
   
-  def list_new[A:Typ](xs: Seq[Rep[A]])(implicit pos: SourceContext) = ListNew(xs)
-  def list_fromseq[A:Typ](xs: Rep[Seq[A]])(implicit pos: SourceContext) = ListFromSeq(xs)
-  def list_map[A:Typ,B:Typ](l: Exp[List[A]], f: Exp[A] => Exp[B])(implicit pos: SourceContext) = {
+  def list_new[A:Typ](xs: Seq[Rep[A]])(using pos: SourceContext) = ListNew(xs)
+  def list_fromseq[A:Typ](xs: Rep[Seq[A]])(using pos: SourceContext) = ListFromSeq(xs)
+  def list_map[A:Typ,B:Typ](l: Exp[List[A]], f: Exp[A] => Exp[B])(using pos: SourceContext) = {
     val a = fresh[A]
     val b = reifyEffects(f(a))
     reflectEffect(ListMap(l, a, b), infix_star(summarizeEffects(b)))
   }
-  def list_flatMap[A:Typ, B:Typ](l: Exp[List[A]], f: Exp[A] => Exp[List[B]])(implicit pos: SourceContext) = {
+  def list_flatMap[A:Typ, B:Typ](l: Exp[List[A]], f: Exp[A] => Exp[List[B]])(using pos: SourceContext) = {
     val a = fresh[A]
     val b = reifyEffects(f(a))
     reflectEffect(ListFlatMap(l, a, b), infix_star(summarizeEffects(b)))
   }
-  def list_filter[A : Typ](l: Exp[List[A]], f: Exp[A] => Exp[Boolean])(implicit pos: SourceContext) = {
+  def list_filter[A : Typ](l: Exp[List[A]], f: Exp[A] => Exp[Boolean])(using pos: SourceContext) = {
     val a = fresh[A]
     val b = reifyEffects(f(a))
     reflectEffect(ListFilter(l, a, b), infix_star(summarizeEffects(b)))
   }
-  def list_sortby[A:Typ,B:Typ:Ordering](l: Exp[List[A]], f: Exp[A] => Exp[B])(implicit pos: SourceContext) = {
+  def list_sortby[A:Typ,B:Typ:Ordering](l: Exp[List[A]], f: Exp[A] => Exp[B])(using pos: SourceContext) = {
     val a = fresh[A]
     val b = reifyEffects(f(a))
     reflectEffect(ListSortBy(l, a, b), infix_star(summarizeEffects(b)))
   }
-  def list_toarray[A:Typ](l: Exp[List[A]])(implicit pos: SourceContext) = ListToArray(l)
-  def list_toseq[A:Typ](l: Exp[List[A]])(implicit pos: SourceContext) = ListToSeq(l)
-  def list_prepend[A:Typ](l: Exp[List[A]], e: Exp[A])(implicit pos: SourceContext) = ListPrepend(l,e)
-  def list_concat[A:Typ](xs: Rep[List[A]], ys: Rep[List[A]])(implicit pos: SourceContext) = ListConcat(xs,ys)
-  def list_cons[A:Typ](x: Rep[A], xs: Rep[List[A]])(implicit pos: SourceContext) = ListCons(x,xs)
-  def list_mkString[A:Typ](l: Exp[List[A]])(implicit pos: SourceContext) = ListMkString(l)
-  def list_mkString2[A:Typ](l: Rep[List[A]], sep:Rep[String])(implicit pos: SourceContext) = ListMkString2(l,sep)
-  def list_head[A:Typ](xs: Rep[List[A]])(implicit pos: SourceContext) = ListHead(xs)
-  def list_tail[A:Typ](xs: Rep[List[A]])(implicit pos: SourceContext) = ListTail(xs)
-  def list_isEmpty[A:Typ](xs: Rep[List[A]])(implicit pos: SourceContext) = ListIsEmpty(xs)
+  def list_toarray[A:Typ](l: Exp[List[A]])(using pos: SourceContext) = ListToArray(l)
+  def list_toseq[A:Typ](l: Exp[List[A]])(using pos: SourceContext) = ListToSeq(l)
+  def list_prepend[A:Typ](l: Exp[List[A]], e: Exp[A])(using pos: SourceContext) = ListPrepend(l,e)
+  def list_concat[A:Typ](xs: Rep[List[A]], ys: Rep[List[A]])(using pos: SourceContext) = ListConcat(xs,ys)
+  def list_cons[A:Typ](x: Rep[A], xs: Rep[List[A]])(using pos: SourceContext) = ListCons(x,xs)
+  def list_mkString[A:Typ](l: Exp[List[A]])(using pos: SourceContext) = ListMkString(l)
+  def list_mkString2[A:Typ](l: Rep[List[A]], sep:Rep[String])(using pos: SourceContext) = ListMkString2(l,sep)
+  def list_head[A:Typ](xs: Rep[List[A]])(using pos: SourceContext) = ListHead(xs)
+  def list_tail[A:Typ](xs: Rep[List[A]])(using pos: SourceContext) = ListTail(xs)
+  def list_isEmpty[A:Typ](xs: Rep[List[A]])(using pos: SourceContext) = ListIsEmpty(xs)
   
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case e@ListNew(xs) => list_new(f(xs))(using e.mA,pos)
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]] // why??
@@ -137,7 +143,7 @@ trait ListOpsExp extends ListOps with EffectExp with VariablesExp with BooleanOp
 }
 
 trait ListOpsExpOpt extends ListOpsExp {
-  override def list_concat[A : Typ](xs1: Exp[List[A]], xs2: Exp[List[A]])(implicit pos: SourceContext): Exp[List[A]] = (xs1, xs2) match {
+  override def list_concat[A : Typ](xs1: Exp[List[A]], xs2: Exp[List[A]])(using pos: SourceContext): Exp[List[A]] = (xs1, xs2) match {
     case (Def(ListNew(xs1)), Def(ListNew(xs2))) => ListNew(xs1 ++ xs2)
     case (Def(ListNew(Seq())), xs2) => xs2
     case (xs1, Def(ListNew(Seq()))) => xs1

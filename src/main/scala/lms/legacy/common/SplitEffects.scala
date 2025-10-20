@@ -19,7 +19,7 @@ trait SplitEffectsExpFat extends IfThenElseFatExp with WhileExp with PreviousIte
   // FIXME: wo do not account for mutable objectes allocated in a loop
   // (see test8-speculative6)
 
-  override def reflectEffectInternal[A:Typ](x: Def[A], u: Summary)(implicit pos: SourceContext): Exp[A] = x match {
+  override def reflectEffectInternal[A:Typ](x: Def[A], u: Summary)(using pos: SourceContext): Exp[A] = x match {
     case IfThenElse(cond, thenp, elsep) =>
       val affected = (u.mayRead ++ u.mayWrite).distinct
 

@@ -17,7 +17,7 @@ trait LoopsExp extends Loops with BaseExp with EffectExp {
   
   case class SimpleLoop[A](val size: Exp[Int], val v: Sym[Int], val body: Def[A]) extends AbstractLoop[A]
   
-  def simpleLoop[A:Typ](size: Exp[Int], v: Sym[Int], body: Def[A])(implicit pos: SourceContext): Exp[A] = SimpleLoop(size, v, body)
+  def simpleLoop[A:Typ](size: Exp[Int], v: Sym[Int], body: Def[A])(using pos: SourceContext): Exp[A] = SimpleLoop(size, v, body)
 
 
   override def syms(e: Any): List[Sym[Any]] = e match {
@@ -44,7 +44,7 @@ trait LoopsExp extends Loops with BaseExp with EffectExp {
   //////////////
   // mirroring
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case SimpleLoop(s,v,body: Def[A]) => simpleLoop(f(s),f(v).asInstanceOf[Sym[Int]],mirrorFatDef[A](body,f))
     case Reflect(SimpleLoop(s,v,body: Def[A]), u, es) if u == Control() => reflectMirrored(Reflect(SimpleLoop(f(s),f(v).asInstanceOf[Sym[Int]],mirrorFatDef[A](body,f)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
     case _ => super.mirror(e,f)

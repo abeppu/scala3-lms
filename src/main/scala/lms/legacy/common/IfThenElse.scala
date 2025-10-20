@@ -5,7 +5,7 @@ import lms.legacy.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationF
 import lms.legacy.compat.SourceContext
 
 trait IfThenElse extends Base {
-  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext): Rep[T]
+  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext): Rep[T]
 }
 
 // TODO: it would be nice if IfThenElseExp would extend IfThenElsePureExp
@@ -15,7 +15,7 @@ trait IfThenElsePureExp extends IfThenElse with BaseExp {
 
   case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Exp[T], elsep: Exp[T]) extends Def[T]
 
-  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext) = IfThenElse(cond, thenp, elsep)
+  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = IfThenElse(cond, thenp, elsep)
 }
 
 
@@ -29,14 +29,14 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
   
   case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Block[T], elsep: Block[T]) extends AbstractIfThenElse[T]
 
-  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext) = {
+  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = {
     val a = reifyEffectsHere(thenp)
     val b = reifyEffectsHere(elsep)
 
     ifThenElse(cond,a,b)
   }
 
-  def ifThenElse[T:Typ](cond: Rep[Boolean], thenp: Block[T], elsep: Block[T])(implicit pos: SourceContext) = {
+  def ifThenElse[T:Typ](cond: Rep[Boolean], thenp: Block[T], elsep: Block[T])(using pos: SourceContext) = {
     val ae = summarizeEffects(thenp)
     val be = summarizeEffects(elsep)
     
@@ -50,12 +50,12 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
     reflectEffectInternal(IfThenElse(cond,thenp,elsep), infix_orElse(ae,be))
   }
   
-  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Def[A] = e match {
+  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = e match {
     case IfThenElse(c,a,b) => IfThenElse[A](f(c),f(a),f(b))
     case _ => super.mirrorDef(e,f)
   }
   
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = e match {
     case Reflect(IfThenElse(c,a,b), u, es) =>
       if (f.hasContext)
         __ifThenElse[A](f(c),f.reflectBlock(a),f.reflectBlock(b))
@@ -183,7 +183,7 @@ trait IfThenElseExpOpt extends IfThenElseExp { this: BooleanOpsExp with EqualExp
   // 'de-reify' blocks in case we rewrite if(true) to thenp. 
   // TODO: make reflect(Reify(..)) do the right thing
   
-  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext) = cond match {
+  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = cond match {
     case Const(true) => thenp
     case Const(false) => elsep
     case Def(BooleanNegate(a)) => __ifThenElse(a, elsep, thenp)

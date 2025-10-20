@@ -4,14 +4,14 @@ import java.io.PrintWriter
 import lms.legacy.internal.GenericNestedCodegen
 import lms.legacy.compat.SourceContext
 trait While extends Base {
-  def __whileDo(cond: => Rep[Boolean], body: => Rep[Unit])(implicit pos: SourceContext): Rep[Unit]
+  def __whileDo(cond: => Rep[Boolean], body: => Rep[Unit])(using pos: SourceContext): Rep[Unit]
 }
 
 
 trait WhileExp extends While with BooleanOps with EffectExp {
   case class While(cond: Block[Boolean], body: Block[Unit]) extends Def[Unit]
 
-  override def __whileDo(cond: => Exp[Boolean], body: => Rep[Unit])(implicit pos: SourceContext) = {
+  override def __whileDo(cond: => Exp[Boolean], body: => Rep[Unit])(using pos: SourceContext) = {
     val c = reifyEffects(cond)
     val a = reifyEffects(body)
     val ce = summarizeEffects(c)
@@ -40,7 +40,7 @@ trait WhileExp extends While with BooleanOps with EffectExp {
 
 trait WhileExpOptSpeculative extends WhileExp with PreviousIterationDummyExp {
   
-  override def __whileDo(cond: => Exp[Boolean], body: => Rep[Unit])(implicit pos: SourceContext) = {
+  override def __whileDo(cond: => Exp[Boolean], body: => Rep[Unit])(using pos: SourceContext) = {
 
     val pc = fresh[Unit]
     val pb = fresh[Unit]

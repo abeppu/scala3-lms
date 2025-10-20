@@ -24,8 +24,7 @@ trait UncheckedOps extends Base {
   
   // args: =>Code* is not allowed so we make thunks explicit
   case class Thunk[+A](eval: () => A)
-  implicit def toThunk[A](x: =>A):Thunk[A] = new Thunk(() => x)
-
+  implicit def toThunk[A](x: => A): Thunk[A] = new Thunk(() => x) // TODO given
 }
 
 trait UncheckedOpsExp extends EffectExp {
@@ -36,7 +35,7 @@ trait UncheckedOpsExp extends EffectExp {
   def unchecked[T:Typ](s: Any*): Rep[T] = reflectEffect[T](Unchecked(s.toList))
   def uncheckedPure[T:Typ](s: Any*): Rep[T] = toAtom[T](Unchecked(s.toList))
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     //case Reflect(ThrowException(s), u, es) => reflectMirrored(Reflect(ThrowException(f(s)), mapOver(f,u), f(es)))(mtyp1[A])
     // TODO mirror Unchecked and Reflect(Unchecked)
     case _ => super.mirror(e,f)

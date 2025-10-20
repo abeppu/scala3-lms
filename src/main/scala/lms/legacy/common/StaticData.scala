@@ -12,7 +12,7 @@ trait StaticDataExp extends EffectExp {
   def staticData[T:Typ](x: T): Exp[T] = StaticData(x)
 
   // StaticData doesn't play well with control dependencies.. looks like we somehow lose updates
-  override implicit def toAtom[T:Typ](d: Def[T])(implicit pos: SourceContext) = d match {
+  override implicit def toAtom[T:Typ](d: Def[T])(using pos: SourceContext) = d match {
     case StaticData(x) if addControlDeps =>
       val save = conditionalScope
       conditionalScope = false
@@ -27,7 +27,7 @@ trait StaticDataExp extends EffectExp {
     case _ => super.isWritableSym(w)
   }
   
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case StaticData(x) => staticData(x)(using mtyp1[A])
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]   

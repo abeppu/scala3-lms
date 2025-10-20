@@ -10,16 +10,16 @@ trait MiscOps extends Base with PrimitiveOps with StringOps {
    * a better way to do this
    */
 
-  def print(x: Rep[Any])(implicit pos: SourceContext): Rep[Unit]
-  def println(x: Rep[Any])(implicit pos: SourceContext): Rep[Unit]
-  def printf(f: String, x: Rep[Any]*)(implicit pos: SourceContext): Rep[Unit]
+  def print(x: Rep[Any])(using pos: SourceContext): Rep[Unit]
+  def println(x: Rep[Any])(using pos: SourceContext): Rep[Unit]
+  def printf(f: String, x: Rep[Any]*)(using pos: SourceContext): Rep[Unit]
 
   // TODO: there is no way to override this behavior
-  def exit(status: Int)(implicit pos: SourceContext): Rep[Unit] = exit(unit(status))
-  def exit()(implicit pos: SourceContext): Rep[Unit] = exit(0)
-  def exit(status: Rep[Int])(implicit pos: SourceContext): Rep[Unit]
-  def error(s: Rep[String])(implicit pos: SourceContext): Rep[Unit]
-  def returnL(x: Rep[Any])(implicit pos: SourceContext): Rep[Unit]
+  def exit(status: Int)(using pos: SourceContext): Rep[Unit] = exit(unit(status))
+  def exit()(using pos: SourceContext): Rep[Unit] = exit(0)
+  def exit(status: Rep[Int])(using pos: SourceContext): Rep[Unit]
+  def error(s: Rep[String])(using pos: SourceContext): Rep[Unit]
+  def returnL(x: Rep[Any])(using pos: SourceContext): Rep[Unit]
 }
 
 
@@ -32,18 +32,18 @@ trait MiscOpsExp extends MiscOps with EffectExp with PrimitiveOpsExp with String
   case class Error(s: Exp[String]) extends Def[Unit]
   case class Return(x: Exp[Any]) extends Def[Unit]
 
-  def print(x: Exp[Any])(implicit pos: SourceContext) = reflectEffect(Print(x)) // TODO: simple effect
-  def println(x: Exp[Any])(implicit pos: SourceContext) = reflectEffect(PrintLn(x)) // TODO: simple effect
-  def printf(f: String, x: Rep[Any]*)(implicit pos: SourceContext): Rep[Unit] = reflectEffect(PrintF(f, x.toList))
-  def exit(s: Exp[Int])(implicit pos: SourceContext) = reflectEffect(Exit(s))
-  def error(s: Exp[String])(implicit pos: SourceContext) = reflectEffect(Error(s))
-  def returnL(x: Exp[Any])(implicit pos: SourceContext) = {
+  def print(x: Exp[Any])(using pos: SourceContext) = reflectEffect(Print(x)) // TODO: simple effect
+  def println(x: Exp[Any])(using pos: SourceContext) = reflectEffect(PrintLn(x)) // TODO: simple effect
+  def printf(f: String, x: Rep[Any]*)(using pos: SourceContext): Rep[Unit] = reflectEffect(PrintF(f, x.toList))
+  def exit(s: Exp[Int])(using pos: SourceContext) = reflectEffect(Exit(s))
+  def error(s: Exp[String])(using pos: SourceContext) = reflectEffect(Error(s))
+  def returnL(x: Exp[Any])(using pos: SourceContext) = {
     printlog("warning: staged return statements are unlikely to work because the surrounding source method does not exist in the generated code.")
     printsrc(raw"in ${quotePos(x)}")
     reflectEffect(Return(x))
   }
   
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case Reflect(Error(x), u, es) => reflectMirrored(Reflect(Error(f(x)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
     case Reflect(Print(x), u, es) => reflectMirrored(Reflect(Print(f(x)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
     case Reflect(PrintLn(x), u, es) => reflectMirrored(Reflect(PrintLn(f(x)), mapOver(f,u), f(es)))(using mtyp1[A], pos)

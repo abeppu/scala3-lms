@@ -6,38 +6,44 @@ import lms.legacy.compat.SourceContext
 
 trait OrderingOps extends Base with Variables with BooleanOps with PrimitiveOps with OverloadHack {
   // workaround for infix not working with implicits in PrimitiveOps
-  implicit def orderingToOrderingOps[T:Ordering:Typ](n: T): OrderingOpsCls[T] = new OrderingOpsCls(unit(n))
-  implicit def repOrderingToOrderingOps[T:Ordering:Typ](n: Rep[T]): OrderingOpsCls[T] = new OrderingOpsCls(n)
-  implicit def varOrderingToOrderingOps[T:Ordering:Typ](n: Var[T]): OrderingOpsCls[T] = new OrderingOpsCls(readVar(n))
+  given orderingToOrderingOps[T:Ordering:Typ]: Conversion[T, OrderingOpsCls[T]] with {
+  def apply(n: T): OrderingOpsCls[T] = new OrderingOpsCls(unit(n))
+}
+  given repOrderingToOrderingOps[T:Ordering:Typ]: Conversion[Rep[T], OrderingOpsCls[T]] with {
+  def apply(n: Rep[T]): OrderingOpsCls[T] = new OrderingOpsCls(n)
+}
+  given varOrderingToOrderingOps[T:Ordering:Typ]: Conversion[Var[T], OrderingOpsCls[T]] with {
+  def apply(n: Var[T]): OrderingOpsCls[T] = new OrderingOpsCls(readVar(n))
+}
 
   class OrderingOpsCls[T:Ordering:Typ](lhs: Rep[T]){
-    def <       (rhs: Rep[T])(implicit pos: SourceContext) = ordering_lt(lhs, rhs)
-    def <=      (rhs: Rep[T])(implicit pos: SourceContext) = ordering_lteq(lhs, rhs)
-    def >       (rhs: Rep[T])(implicit pos: SourceContext) = ordering_gt(lhs, rhs)
-    def >=      (rhs: Rep[T])(implicit pos: SourceContext) = ordering_gteq(lhs, rhs)
-    def equiv   (rhs: Rep[T])(implicit pos: SourceContext) = ordering_equiv(lhs, rhs)
-    def max     (rhs: Rep[T])(implicit pos: SourceContext) = ordering_max(lhs, rhs)
-    def min     (rhs: Rep[T])(implicit pos: SourceContext) = ordering_min(lhs, rhs)
-    def compare (rhs: Rep[T])(implicit pos: SourceContext) = ordering_compare(lhs, rhs)
+    def <       (rhs: Rep[T])(using pos: SourceContext) = ordering_lt(lhs, rhs)
+    def <=      (rhs: Rep[T])(using pos: SourceContext) = ordering_lteq(lhs, rhs)
+    def >       (rhs: Rep[T])(using pos: SourceContext) = ordering_gt(lhs, rhs)
+    def >=      (rhs: Rep[T])(using pos: SourceContext) = ordering_gteq(lhs, rhs)
+    def equiv   (rhs: Rep[T])(using pos: SourceContext) = ordering_equiv(lhs, rhs)
+    def max     (rhs: Rep[T])(using pos: SourceContext) = ordering_max(lhs, rhs)
+    def min     (rhs: Rep[T])(using pos: SourceContext) = ordering_min(lhs, rhs)
+    def compare (rhs: Rep[T])(using pos: SourceContext) = ordering_compare(lhs, rhs)
 
-    def <       [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_lt(lhs, c(rhs))
-    def <=      [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_lteq(lhs, c(rhs))
-    def >       [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_gt(lhs, c(rhs))
-    def >=      [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_gteq(lhs, c(rhs))
-    def equiv   [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_equiv(lhs, c(rhs))
-    def max     [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_max(lhs, c(rhs))
-    def min     [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_min(lhs, c(rhs))
-    def compare [B](rhs: B)(implicit c: B => Rep[T], pos: SourceContext) = ordering_compare(lhs, c(rhs))
+    def <       [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_lt(lhs, c(rhs))
+    def <=      [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_lteq(lhs, c(rhs))
+    def >       [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_gt(lhs, c(rhs))
+    def >=      [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_gteq(lhs, c(rhs))
+    def equiv   [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_equiv(lhs, c(rhs))
+    def max     [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_max(lhs, c(rhs))
+    def min     [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_min(lhs, c(rhs))
+    def compare [B](rhs: B)(using c: B => Rep[T], pos: SourceContext) = ordering_compare(lhs, c(rhs))
   }
 
-  def ordering_lt      [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[Boolean]
-  def ordering_lteq    [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[Boolean]
-  def ordering_gt      [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[Boolean]
-  def ordering_gteq    [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[Boolean]
-  def ordering_equiv   [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[Boolean]
-  def ordering_max     [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[T]
-  def ordering_min     [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[T]
-  def ordering_compare [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(implicit pos: SourceContext): Rep[Int]
+  def ordering_lt      [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[Boolean]
+  def ordering_lteq    [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[Boolean]
+  def ordering_gt      [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[Boolean]
+  def ordering_gteq    [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[Boolean]
+  def ordering_equiv   [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[Boolean]
+  def ordering_max     [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[T]
+  def ordering_min     [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[T]
+  def ordering_compare [T:Ordering:Typ](lhs: Rep[T], rhs: Rep[T])(using pos: SourceContext): Rep[Int]
 }
 
 
@@ -55,16 +61,16 @@ trait OrderingOpsExp extends OrderingOps with VariablesExp {
   case class OrderingMin     [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T]) extends OrderingDefMN[T,T]
   case class OrderingCompare [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T]) extends OrderingDefMN[T,Int]
 
-  def ordering_lt     [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = OrderingLT(lhs,rhs)
-  def ordering_lteq   [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = OrderingLTEQ(lhs,rhs)
-  def ordering_gt     [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = OrderingGT(lhs,rhs)
-  def ordering_gteq   [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = OrderingGTEQ(lhs,rhs)
-  def ordering_equiv  [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = OrderingEquiv(lhs,rhs)
-  def ordering_max    [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[T]       = OrderingMax(lhs,rhs)
-  def ordering_min    [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[T]       = OrderingMin(lhs,rhs)
-  def ordering_compare[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Int]     = OrderingCompare(lhs,rhs)
+  def ordering_lt     [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = OrderingLT(lhs,rhs)
+  def ordering_lteq   [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = OrderingLTEQ(lhs,rhs)
+  def ordering_gt     [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = OrderingGT(lhs,rhs)
+  def ordering_gteq   [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = OrderingGTEQ(lhs,rhs)
+  def ordering_equiv  [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = OrderingEquiv(lhs,rhs)
+  def ordering_max    [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[T]       = OrderingMax(lhs,rhs)
+  def ordering_min    [T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[T]       = OrderingMin(lhs,rhs)
+  def ordering_compare[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Int]     = OrderingCompare(lhs,rhs)
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case e@OrderingLT(a,b)                      => ordering_lt(f(a),f(b))(using e.aev,e.mev,pos)
     case e@OrderingLTEQ(a,b)                    => ordering_lteq(f(a),f(b))(using e.aev,e.mev,pos)
     case e@OrderingGT(a,b)                      => ordering_gt(f(a),f(b))(using e.aev,e.mev,pos)
@@ -90,49 +96,49 @@ trait OrderingOpsExp extends OrderingOps with VariablesExp {
  */
 trait OrderingOpsExpOpt extends OrderingOpsExp {
 
-  override def ordering_lt[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
+  override def ordering_lt[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].lt(a, b))
     case (a, b) if a.equals(b) => Const(false)
     case _ => super.ordering_lt(lhs, rhs)
   }
 
-  override def ordering_lteq[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
+  override def ordering_lteq[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].lteq(a, b))
     case (a, b) if a.equals(b) => Const(true)
     case _ => super.ordering_lteq(lhs, rhs)
   }
 
-  override def ordering_gt[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
+  override def ordering_gt[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].gt(a, b))
     case (a, b) if a.equals(b) => Const(false)
     case _ => super.ordering_gt(lhs, rhs)
   }
 
-  override def ordering_gteq[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
+  override def ordering_gteq[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].gteq(a, b))
     case (a, b) if a.equals(b) => Const(true)
     case _ => super.ordering_gteq(lhs, rhs)
   }
 
-  override def ordering_equiv[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
+  override def ordering_equiv[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Boolean] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].equiv(a, b))
     case (a, b) if a.equals(b) => Const(true)
     case _ => super.ordering_equiv(lhs, rhs)
   }
 
-  override def ordering_max[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[T] = (lhs, rhs) match {
+  override def ordering_max[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[T] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].max(a, b))
     case (a, b) if a.equals(b) => a
     case _ => super.ordering_max(lhs, rhs)
   }
 
-  override def ordering_min[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[T] = (lhs, rhs) match {
+  override def ordering_min[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[T] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].min(a, b))
     case (a, b) if a.equals(b) => a
     case _ => super.ordering_min(lhs, rhs)
   }
 
-  override def ordering_compare[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(implicit pos: SourceContext): Rep[Int] = (lhs, rhs) match {
+  override def ordering_compare[T:Ordering:Typ](lhs: Exp[T], rhs: Exp[T])(using pos: SourceContext): Rep[Int] = (lhs, rhs) match {
     case (Const(a), Const(b)) => Const(implicitly[Ordering[T]].compare(a, b))
     case (a, b) if a.equals(b) => Const[Int](0)
     case _ => super.ordering_compare(lhs, rhs)

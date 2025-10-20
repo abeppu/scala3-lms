@@ -23,7 +23,7 @@ trait StructOps extends Base {
 
   //def record_new[T : Typ](fields: Seq[(String, Boolean, Rep[T] => Rep[?])]): Rep[T]
   def record_select[T : Typ](record: Rep[Record], field: String): Rep[T]
-  def field[T:Typ](struct: Rep[Any], index: String)(implicit pos: SourceContext): Rep[T]
+  def field[T:Typ](struct: Rep[Any], index: String)(using pos: SourceContext): Rep[T]
 }
 
 trait StructTags {
@@ -81,11 +81,11 @@ trait StructExp extends StructOps with StructTags with BaseExp with EffectExp wi
     def mA = typ[T]
   }
 
-  def struct[T:Typ](tag: StructTag[T], elems: (String, Rep[Any])*)(implicit o: Overloaded1, pos: SourceContext): Rep[T] = struct[T](tag, elems)
-  def struct[T:Typ](tag: StructTag[T], elems: Seq[(String, Rep[Any])])(implicit pos: SourceContext): Rep[T] = SimpleStruct(tag, elems)
+  def struct[T:Typ](tag: StructTag[T], elems: (String, Rep[Any])*)(using o: Overloaded1, pos: SourceContext): Rep[T] = struct[T](tag, elems)
+  def struct[T:Typ](tag: StructTag[T], elems: Seq[(String, Rep[Any])])(using pos: SourceContext): Rep[T] = SimpleStruct(tag, elems)
 
-  def field[T:Typ](struct: Rep[Any], index: String)(implicit pos: SourceContext): Rep[T] = FieldApply[T](struct, index)
-  def var_field[T:Typ](struct: Rep[Any], index: String)(implicit pos: SourceContext): Var[T] = Variable(FieldApply[Var[T]](struct, index))
+  def field[T:Typ](struct: Rep[Any], index: String)(using pos: SourceContext): Rep[T] = FieldApply[T](struct, index)
+  def var_field[T:Typ](struct: Rep[Any], index: String)(using pos: SourceContext): Var[T] = Variable(FieldApply[Var[T]](struct, index))
   def field_update[T:Typ](struct: Exp[Any], index: String, rhs: Exp[T]): Exp[Unit] = reflectWrite(struct)(FieldUpdate(struct, index, rhs))
 
   def record_new[T:Typ](fields: Seq[(String, Boolean, Rep[T] => Rep[_])]) = {
@@ -102,7 +102,7 @@ trait StructExp extends StructOps with StructTags with BaseExp with EffectExp wi
     field[T](record, fieldName)
   }
 
-  def imm_field(struct: Exp[Any], name: String, f: Exp[Any])(implicit pos: SourceContext): Exp[Any] = f.tp match {
+  def imm_field(struct: Exp[Any], name: String, f: Exp[Any])(using pos: SourceContext): Exp[Any] = f.tp match {
     case VariableTyp(tp1) =>
       field(struct,name)(using mtype(tp1),pos)
     case tp =>
@@ -110,7 +110,7 @@ trait StructExp extends StructOps with StructTags with BaseExp with EffectExp wi
   }
 
   // don't let unsafeImmutable hide struct-ness
-  override def object_unsafe_immutable[A:Typ](lhs: Exp[A])(implicit pos: SourceContext) = lhs match {
+  override def object_unsafe_immutable[A:Typ](lhs: Exp[A])(using pos: SourceContext) = lhs match {
     case Def(Struct(tag,elems)) => struct[A](tag, elems.map(t => (t._1, imm_field(lhs, t._1, t._2))))
     case Def(d@Reflect(Struct(tag, elems), u, es)) => struct[A](tag, elems.map(t => (t._1, imm_field(lhs, t._1, t._2))))
     case _ => super.object_unsafe_immutable(lhs)
@@ -168,7 +168,7 @@ trait StructExp extends StructOps with StructTags with BaseExp with EffectExp wi
 
   // TODO: read/write/copy summary
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case SimpleStruct(tag, elems) => struct(tag, elems map { case (k,v) => (k, f(v)) })(using mtyp1[A],pos)
     case FieldApply(struct, key) => field(f(struct), key)(using mtyp1[A],pos)
     case Reflect(FieldApply(struct, key), u, es) => reflectMirrored(Reflect(FieldApply(f(struct), key), mapOver(f,u), f(es)))(using mtyp1[A], pos)
@@ -186,7 +186,7 @@ trait StructExp extends StructOps with StructTags with BaseExp with EffectExp wi
 
   def classTag[T:Typ] = ClassTag[T](structName(typ[T]))
 
-  override def object_tostring(x: Exp[Any])(implicit pos: SourceContext): Exp[String] = x match {
+  override def object_tostring(x: Exp[Any])(using pos: SourceContext): Exp[String] = x match {
     case Def(s@Struct(tag, elems)) => //tag(elem1, elem2, ...)
       val e = elems.map(e=>string_plus(unit(e._1 + " = "), object_tostring(e._2))).reduceLeft((l,r)=>string_plus(string_plus(l,unit(", ")),r))
       string_plus(unit(structName(x.tp)+"("),string_plus(e,unit(")")))
@@ -214,7 +214,7 @@ trait StructExpOpt extends StructExp {
     }
   }
 
-  override def field[T:Typ](struct: Exp[Any], index: String)(implicit pos: SourceContext): Exp[T] = fieldLookup[T](struct, index) match {
+  override def field[T:Typ](struct: Exp[Any], index: String)(using pos: SourceContext): Exp[T] = fieldLookup[T](struct, index) match {
     // the two variable pattern matches each seem to miss certain cases, so both are needed. why?
     case Some(Def(Reflect(NewVar(x),u,es))) => super.field[T](struct, index)
     // TODO match on VariableTyp instead?
@@ -225,7 +225,7 @@ trait StructExpOpt extends StructExp {
 
   //TODO: need to be careful unwrapping Structs of vars since partial unwrapping can result in reads & writes to two different memory locations in the generated code
   //(the original var and the struct)
-  /* override def var_field[T:Typ](struct: Exp[Any], index: String)(implicit pos: SourceContext): Var[T] = fieldLookup(struct, index) match {
+  /* override def var_field[T:Typ](struct: Exp[Any], index: String)(using pos: SourceContext): Var[T] = fieldLookup(struct, index) match {
     case Some(x: Exp[Var[T]]) if x.tp == typ[Var[T]] => Variable(x)
     case Some(x) => throw new RuntimeException("ERROR: " + index + " is not a variable field of type " + struct.tp)
     case None => super.var_field(struct, index)
@@ -240,7 +240,7 @@ trait StructExpOptCommon extends StructExpOpt with VariablesExp with IfThenElseE
     case _ => super.structName(m)
   }
 
-  override def var_new[T:Typ](init: Exp[T])(implicit pos: SourceContext): Var[T] = init match {
+  override def var_new[T:Typ](init: Exp[T])(using pos: SourceContext): Var[T] = init match {
     case Def(Struct(tag, elems)) =>
       //val r = Variable(struct(tag, elems.mapValues(e=>var_new(e).e))) // DON'T use mapValues!! <--lazy
       Variable(struct[Variable[T]](NestClassTag[Variable,T](tag), elems.map(p=>(p._1,var_new(p._2)(using p._2.tp,pos).e))))
@@ -248,7 +248,7 @@ trait StructExpOptCommon extends StructExpOpt with VariablesExp with IfThenElseE
       super.var_new(init)
   }
 
-  override def var_assign[T:Typ](lhs: Var[T], rhs: Exp[T])(implicit pos: SourceContext): Exp[Unit] = (lhs,rhs) match {
+  override def var_assign[T:Typ](lhs: Var[T], rhs: Exp[T])(using pos: SourceContext): Exp[Unit] = (lhs,rhs) match {
     case (Variable(Def(Struct(NestClassTag(tagL),elemsL: Seq[(String,Exp[Variable[Any]])]))), Def(Struct(tagR, elemsR))) =>
       assert(tagL == tagR)
       for (((lk,lv), (rk,rv)) <- elemsL zip elemsR) {
@@ -271,7 +271,7 @@ trait StructExpOptCommon extends StructExpOpt with VariablesExp with IfThenElseE
     case _ => printerr("warning: expect type Variable[A] but got "+m); mtyp1[Unit]
   }
 
-  override implicit def readVar[T:Typ](v: Var[T])(implicit pos: SourceContext): Exp[T] = v match {
+  override implicit def readVar[T:Typ](v: Var[T])(using pos: SourceContext): Exp[T] = v match {
     case Variable(Def(Struct(NestClassTag(tag), elems: Seq[(String,Exp[Variable[Any]])]))) =>
       struct[T](tag, elems.map(p=>(p._1,readVar(Variable(p._2))(using unwrap(p._2.tp), pos))))
     case Variable(Def(Field(struct,idx))) =>
@@ -279,7 +279,7 @@ trait StructExpOptCommon extends StructExpOpt with VariablesExp with IfThenElseE
     case _ => super.readVar(v)
   }
 
-  override def ifThenElse[T:Typ](cond: Rep[Boolean], a: Block[T], b: Block[T])(implicit pos: SourceContext) = (a,b) match {
+  override def ifThenElse[T:Typ](cond: Rep[Boolean], a: Block[T], b: Block[T])(using pos: SourceContext) = (a,b) match {
     case (Block(Def(Struct(tagA,elemsA))), Block(Def(Struct(tagB, elemsB)))) =>
       assert(tagA == tagB)
       val elemsNew = for (((lk,lv), (rk,rv)) <- elemsA zip elemsB) yield {
@@ -322,7 +322,7 @@ trait StructFatExpOptCommon extends StructFatExp with StructExpOptCommon with If
     case _ => super.boundSyms(e)
   }
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = e match {
     case p@Phi(c,a,u,b,v) => phiB[A](f(c),f(a),f(u),f(b),f(v))(f(p.parent))
     case _ => super.mirror(e,f)
   }
@@ -333,7 +333,7 @@ trait StructFatExpOptCommon extends StructFatExp with StructExpOptCommon with If
   }
 
 
-  override def ifThenElse[T:Typ](cond: Rep[Boolean], a: Block[T], b: Block[T])(implicit pos: SourceContext) = (deReify(a),deReify(b)) match {
+  override def ifThenElse[T:Typ](cond: Rep[Boolean], a: Block[T], b: Block[T])(using pos: SourceContext) = (deReify(a),deReify(b)) match {
     case ((u, Def(Struct(tagA,elemsA))), (v, Def(Struct(tagB, elemsB)))) =>
       //assert(tagA == tagB, tagA+" !== "+tagB)
       if (tagA != tagB) println("ERROR: "+tagA+" !== "+tagB)

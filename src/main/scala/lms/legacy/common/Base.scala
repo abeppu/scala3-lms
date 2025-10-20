@@ -65,13 +65,13 @@ trait EffectExp extends BaseExp with Effects {
       mayWrite = t.onlySyms(u.mayWrite), mstWrite = t.onlySyms(u.mstWrite))
   }
 
-  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Def[A] = e match {
+  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = e match {
     case Reflect(x, u, es) => Reflect(mirrorDef(x,f), mapOver(f,u), f(es))
     case Reify(x, u, es) => Reify(f(x), mapOver(f,u), f(es))
     case _ => super.mirrorDef(e,f)
   }
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = e match {
     case Reflect(x, u, es) => reflectMirrored(mirrorDef(e,f).asInstanceOf[Reflect[A]])
     case Reify(x, u, es) => Reify(f(x), mapOver(f,u), f(es))
     case _ => super.mirror(e,f)
