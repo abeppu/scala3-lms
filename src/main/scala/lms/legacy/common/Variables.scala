@@ -35,9 +35,15 @@ trait LowPriorityVariableImplicits extends ImplicitOps {
   given floatTyp: Typ[Float] = deferred
   given doubleTyp: Typ[Double] = deferred
 
-  implicit def varIntToRepDouble(x: Var[Int])(using pos: SourceContext): Rep[Double] = implicit_convert[Int,Double](readVar(x))
-  implicit def varIntToRepFloat(x: Var[Int])(using pos: SourceContext): Rep[Float] = implicit_convert[Int,Float](readVar(x))
-  implicit def varFloatToRepDouble(x: Var[Float])(using pos: SourceContext): Rep[Double] = implicit_convert[Float,Double](readVar(x))
+  given varIntToRepDouble(using pos: SourceContext): Conversion[Var[Int],Rep[Double]] with {
+    def apply(x: Var[Int]): Rep[Double] = implicit_convert[Int,Double](readVar(x))
+  }
+  given varIntToRepFloat(using pos: SourceContext): Conversion[Var[Int],Rep[Float]] with {
+    def apply(x: Var[Int]): Rep[Float] = implicit_convert[Int, Float](readVar(x))
+  }
+  given varFloatToRepDouble(using pos: SourceContext): Conversion[Var[Float],Rep[Double]] with {
+    def apply(x: Var[Float]): Rep[Double] = implicit_convert[Float,Double](readVar(x))
+  }
 }
 
 trait VariableImplicits extends LowPriorityVariableImplicits {
@@ -45,8 +51,12 @@ trait VariableImplicits extends LowPriorityVariableImplicits {
 
   // Cam: Scala 3 changed how implicit search works, and now these cause an "ambiguous implicit" error.
   // we always want to prioritize a direct conversion if any Rep will do
-  //implicit def varIntToRepInt(v: Var[Int])(using pos: SourceContext): Rep[Int] = readVar(v)
-  //implicit def varFloatToRepFloat(v: Var[Float])(using pos: SourceContext): Rep[Float] = readVar(v)
+  //given varIntToRepInt(using pos: SourceContext): Conversion[Var[Int],Rep[Int] ] with {
+  //  def apply(v): Var[Int] = readVar(v)
+  // }
+  //given varFloatToRepFloat(using pos: SourceContext): Conversion[Var[Float],Rep[Float] ] with {
+  //def apply(v): Var[Float] = readVar(v)
+  //}
 }
 
 trait Variables extends Base with OverloadHack with VariableImplicits with ReadVarImplicit {
