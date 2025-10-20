@@ -25,7 +25,9 @@ trait ReadVarImplicit {
 trait ReadVarImplicitExp extends EffectExp {
   this: VariablesExp =>
 
-  implicit def readVar[T:Typ](v: Var[T])(using pos: SourceContext) : Exp[T] = ReadVar(v)
+  given readVar[T:Typ](using pos: SourceContext): Conversion[Var[T], Exp[T]] with { 
+    def apply (v: Var[T]) = ReadVar(v) 
+  }
 }
 
 trait LowPriorityVariableImplicits extends ImplicitOps {
@@ -238,9 +240,9 @@ trait VariablesExpOpt extends VariablesExp {
         case Def(Reflect(Assign(`v`, rhs: Exp[T]), _, _)) => Some(rhs)
         case Def(Reflect(_, u, _)) if mayWrite(u, List(vs)) => None // not a simple assignment
       }
-      rhs.flatten.getOrElse(super.readVar(v))
+      rhs.flatten.getOrElse(super.readVar[T](v))
     } else {
-      super.readVar(v)
+      super.readVar[T](v)
     }
   }
   

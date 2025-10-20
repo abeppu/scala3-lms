@@ -36,7 +36,7 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
     ifThenElse(cond,a,b)
   }
 
-  def ifThenElse[T:Typ](cond: Rep[Boolean], thenp: Block[T], elsep: Block[T])(using pos: SourceContext) = {
+  def ifThenElse[T:Typ](cond: Rep[Boolean], thenp: Block[T], elsep: Block[T])(using pos: SourceContext): Exp[T] = {
     val ae = summarizeEffects(thenp)
     val be = summarizeEffects(elsep)
     

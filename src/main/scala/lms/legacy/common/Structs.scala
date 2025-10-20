@@ -277,10 +277,10 @@ trait StructExpOptCommon extends StructExpOpt with VariablesExp with IfThenElseE
       struct[T](tag, elems.map(p=>(p._1,readVar(Variable(p._2))(using unwrap(p._2.tp), pos))))
     case Variable(Def(Field(struct,idx))) =>
       field[T](struct, idx)
-    case _ => super.readVar(v)
+    case _ => super.readVar[T](v)
   }
 
-  override def ifThenElse[T:Typ](cond: Rep[Boolean], a: Block[T], b: Block[T])(using pos: SourceContext) = (a,b) match {
+  override def ifThenElse[T:Typ](cond: Rep[Boolean], a: Block[T], b: Block[T])(using pos: SourceContext): Exp[T] = (a,b) match {
     case (Block(Def(Struct(tagA,elemsA))), Block(Def(Struct(tagB, elemsB)))) =>
       assert(tagA == tagB)
       val elemsNew = for (((lk,lv), (rk,rv)) <- elemsA zip elemsB) yield {
