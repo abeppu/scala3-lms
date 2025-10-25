@@ -185,7 +185,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
     def toFloat     (using pos: SourceContext): Rep[Float] = double_to_float(lhs)
     
     def +(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_+(lhs, rhs)
-    
+    def -(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_-(lhs, rhs)
     def *(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_*(lhs, rhs)
   }
 
