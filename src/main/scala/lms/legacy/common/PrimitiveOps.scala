@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import lms.gen.{Gen, StagingCompile}
+
 import java.io.PrintWriter
 import lms.legacy.util.OverloadHack
 import lms.legacy.compat.SourceContext
@@ -165,8 +167,8 @@ trait PrimitiveOps extends Variables with OverloadHack {
   /**
    *  Double
    */
-  implicit def doubleToDoubleOps    (n: Double)     : DoubleOpsCls = new DoubleOpsCls(unit(n))
-  implicit def repDoubleToDoubleOps (n: Rep[Double]): DoubleOpsCls = new DoubleOpsCls(n)
+  given doubleToDoubleOps: Conversion[Double, DoubleOpsCls] =   (n: Double) => new DoubleOpsCls(unit(n))
+  given repDoubleToDoubleOps: Conversion[Rep[Double], DoubleOpsCls] = (n: Rep[Double]) => new DoubleOpsCls(n)
   implicit def varDoubleToDoubleOps (n: Var[Double]): DoubleOpsCls = new DoubleOpsCls(readVar(n))
   
   object Double {
@@ -181,6 +183,10 @@ trait PrimitiveOps extends Variables with OverloadHack {
     def floatValue()(using pos: SourceContext): Rep[Float] = double_float_value(lhs)
     def toInt       (using pos: SourceContext): Rep[Int]   = double_to_int(lhs)
     def toFloat     (using pos: SourceContext): Rep[Float] = double_to_float(lhs)
+    
+    def +(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_+(lhs, rhs)
+    
+    def *(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_*(lhs, rhs)
   }
 
   def obj_double_parse_double(s: Rep[String])(using pos: SourceContext): Rep[Double]
@@ -324,11 +330,16 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   case class DoubleFloatValue(lhs: Exp[Double]) extends Def[Float]
   case class DoubleToInt     (lhs: Exp[Double]) extends Def[Int]
   case class DoubleToFloat   (lhs: Exp[Double]) extends Def[Float]
-
-  case class DoublePlus   (lhs: Exp[Double], rhs: Exp[Double]) extends Def[Double]
-  case class DoubleMinus  (lhs: Exp[Double], rhs: Exp[Double]) extends Def[Double]
-  case class DoubleTimes  (lhs: Exp[Double], rhs: Exp[Double]) extends Def[Double]
-  case class DoubleDivide (lhs: Exp[Double], rhs: Exp[Double]) extends Def[Double]
+  
+  trait ArithOp[T] extends Def[T] {
+    val lhs: Exp[T]
+    val rhs: Exp[T]
+  }
+  
+  case class DoublePlus   (lhs: Exp[Double], rhs: Exp[Double]) extends ArithOp[Double]
+  case class DoubleMinus  (lhs: Exp[Double], rhs: Exp[Double]) extends ArithOp[Double]
+  case class DoubleTimes  (lhs: Exp[Double], rhs: Exp[Double]) extends ArithOp[Double]
+  case class DoubleDivide (lhs: Exp[Double], rhs: Exp[Double]) extends ArithOp[Double]
 
   def obj_double_parse_double(s: Exp[String])(using pos: SourceContext): Exp[Double] = ObjDoubleParseDouble(s)
   def obj_double_positive_infinity(using pos: SourceContext) = ObjDoublePositiveInfinity()
@@ -695,6 +706,48 @@ trait PrimitiveOpsExpOpt extends PrimitiveOpsExp {
     case _ => super.int_mod(lhs, rhs)
   }
 
+}
+
+
+import scala.quoted.*
+
+trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
+  this: StagingCompile =>
+
+  override def constantTerm[T](c: Const[T])(using q: Quotes): q.reflect.Term = {
+    import q.reflect.*
+    c match {
+      case Const(x: Double) => Literal(DoubleConstant(x))
+      case Const(x: Int) => Literal(IntConstant(x))
+      // TODO others
+      case _ =>  super.constantTerm(c)
+    }
+  }
+
+  // TODO interpretDefWithEnv
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env:Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    if (!d.isInstanceOf[ArithOp[Double]]) {
+      super.interpretDefWithEnv(d)
+    } else {
+      val dArithOp = d.asInstanceOf[ArithOp[Double]]
+      val lhs = interpretExpWithEnv(dArithOp.lhs)
+      val rhs = interpretExpWithEnv(dArithOp.rhs)
+      val method = if (d.isInstanceOf[DoublePlus]) {
+        lhs.tpe.classSymbol.get.methodMember("+").head
+      } else if (d.isInstanceOf[DoubleMinus]) {
+        lhs.tpe.classSymbol.get.methodMember("-").head
+      } else if (d.isInstanceOf[DoubleTimes]) {
+        lhs.tpe.classSymbol.get.methodMember("*").head
+      } else if (d.isInstanceOf[DoubleDivide]) {
+        lhs.tpe.classSymbol.get.methodMember("/").head
+      } else { // TODO int operations, float operations etc
+        throw new Exception(s"Unsupported Def type: ${d.getClass}")
+      }
+      Apply(Select(lhs, method), List(rhs))
+    }
+  }
 }
 
 trait ScalaGenPrimitiveOps extends ScalaGenBase {
