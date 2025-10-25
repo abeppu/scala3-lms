@@ -1,11 +1,14 @@
 package lms.legacy.common
 
+import lms.gen.{Gen, StagingCompile}
+
 import java.io.PrintWriter
 import lms.legacy.util.OverloadHack
 import lms.legacy.internal.GenerationFailedException
 import lms.legacy.compat.SourceContext
 
 import scala.compiletime.deferred
+import scala.language.implicitConversions
 
 trait LiftString {
   this: StringOps =>
@@ -17,14 +20,20 @@ trait StringOps extends Variables with OverloadHack with PrimitiveOps {
   // NOTE: if something doesn't get lifted, this won't give you a compile time error,
   //       since string concat is defined on all objects
 
+  extension (s: String) {  // note we have to re-define stuff that already worked!
+    def length: Int = s.length
+    def apply(i: Int): Char = s.charAt(i)
+    def apply(i: Rep[Int])(using o2: Overloaded2): Rep[Char] = string_charAt(unit(s), i)
+  }
+
   extension (s: Rep[String]) {
     def length: Rep[Int] = string_length(s)
-
-    def apply(i: Int)(using o1: Overloaded1) = string_charAt(s, unit(i))
-
-    def apply(i: Rep[Int])(using o2: Overloaded2) = string_charAt(s, i)
+    def apply(i: Int)(using o1: Overloaded1): Rep[Char] = string_charAt(s, unit(i))
+    def apply(i: Rep[Int])(using o2: Overloaded2): Rep[Char] = string_charAt(s, i)
   }
   
+  
+
   given stringTyp: Typ[String] = deferred
 
   def infix_+(s1: String, s2: Rep[Any])(using o: Overloaded1, pos: SourceContext) = string_plus(unit(s1), s2)
@@ -91,6 +100,8 @@ trait StringOps extends Variables with OverloadHack with PrimitiveOps {
 }
 
 trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
+
+
   given arrayTyp[T:Typ]: Typ[Array[T]] = deferred
   override given stringTyp: Typ[String] = manifestTyp
 
@@ -140,8 +151,40 @@ trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
     case StringLength(s) => string_length(f(s))
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]
+
+  //given repStrToStringOpsCls: Conversion[Exp[String], StringOpsCls] = (s: Exp[String]) => StringOpsCls(s)
+
+  //given strToStringOpsCls: Conversion[String, StringOpsCls] = (s: String) => StringOpsCls(unit[String](s))
 }
 
+import scala.quoted.*
+trait StringOpsGen extends Gen with StringOpsExp {
+  this: StagingCompile =>
+
+  override def constantTerm[T](c: Const[T])(using q: Quotes): q.reflect.Term = {
+    import q.reflect.*
+    c match {
+      case Const(x: String) => Literal(StringConstant(x))
+      // TODO others
+      case _ => super.constantTerm(c)
+    }
+  }
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    if (d.isInstanceOf[StringPlus]) {
+      val plus = d.asInstanceOf[StringPlus]
+      val s = interpretExpWithEnv(plus.s)
+      val o = interpretExpWithEnv(plus.o)
+      val method = s.tpe.classSymbol.get.methodMember("+").head
+      Apply(Select(s, method), List(o))
+    } else { // TODO other cases
+      super.interpretDefWithEnv(d)
+    }
+  }
+  
+}
 trait ScalaGenStringOps extends ScalaGenBase {
   val IR: StringOpsExp
   import IR._
