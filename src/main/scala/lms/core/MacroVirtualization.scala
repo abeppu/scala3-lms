@@ -64,11 +64,12 @@ class virt extends MacroAnnotation {
           term match {
             case ident: Ident =>
               ident.symbol.tree match {
-                case v: ValDef if v.tpt.tpe != null =>
-                  val resolved = repOrVar(v.tpt.tpe)
-                  resolved match {
-                    case Bare(_) => bare
-                    case other => other
+                case v: ValDef =>
+                  v.rhs match {
+                    case Some(rhsTerm) =>
+                      classifyTerm(rhsTerm)
+                    case None =>
+                      bare
                   }
                 case _ => bare
               }
@@ -168,8 +169,6 @@ class virt extends MacroAnnotation {
     }
     object Virtualizer extends TreeMap {
 
-      private val seenOwners = scala.collection.mutable.Set.empty[Symbol]
-
       private def isVirtualizedBoolConv(fun: Term): Boolean = fun match {
         case Select(Select(_, "__virtualizedBoolConvInternal"), "apply") => true
         case _ => false
@@ -204,16 +203,8 @@ class virt extends MacroAnnotation {
 
       // Virtualize branch by routing condition and bodies through __ifThenElse.
       private def rewriteIf(ctx: MacroCtx, ifTerm: If): Term = {
-        println(s"[virt-if] owner=${ctx.owner.fullName} term=${ifTerm.show}")
-        println(s"[virt-if-tree] ${ifTerm.cond.show(using Printer.TreeStructure)}")
         val guard = transformTerm(ifTerm.cond)(ctx.owner)
-        println(s"[virt-if-guard] ${guard.show}")
-        println(s"[virt-if-type] ${guard.tpe.show}")
-        println(s"[virt-if-type-structure] ${guard.tpe.show(using Printer.TypeReprStructure)}")
-        val guardKind = classifyTerm(guard)
-        println(s"[virt-if-kind] $guardKind")
-        report.info(s"[virt] guard type in ${ctx.owner.fullName}: ${guard.tpe.show}", ifTerm.pos)
-        guardKind match {
+        classifyTerm(guard) match {
           case Bare(_) =>
             val thenp = transformTerm(ifTerm.thenp)(ctx.owner)
             val elsep = transformTerm(ifTerm.elsep)(ctx.owner)
@@ -223,12 +214,9 @@ class virt extends MacroAnnotation {
             val elsep = ensureTrailingRep(transformTerm(ifTerm.elsep)(ctx.owner), ctx)
             val valueType = repOrVar(thenp.tpe.widen).t
             val typW = findTypW(ctx.thist, valueType)
-            report.info(s"[virt] rewriting staged if in ${ctx.owner.fullName}", ifTerm.pos)
-            val result = Apply(
+            Apply(
               Select.overloaded(ctx.thist, "__ifThenElse", List(valueType), List(guard, thenp, elsep)),
               List(typW, ctx.srcGen))
-            println(s"[virt-if-result] ${result.show}")
-            result
         }
       }
 
@@ -261,7 +249,6 @@ class virt extends MacroAnnotation {
       private def rewriteEquality(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, negate: Boolean): Term = {
         val lhs = transformTerm(lhsTree)(ctx.owner)
         val rhs = transformTerm(rhsTree)(ctx.owner)
-        println(s"[virt-eq] lhs=${lhs.show} type=${lhs.tpe.show}, rhs=${rhs.show} type=${rhs.tpe.show}")
         val combo = (classifyTerm(lhs), classifyTerm(rhs))
         val overload = combo match {
           case (RepW(l), RepW(r)) => Some((l, r, 1))
@@ -326,9 +313,6 @@ class virt extends MacroAnnotation {
       private def transformLocalDefinition(defn: Definition, owner: Symbol): Definition = defn match {
         case dd: DefDef =>
           val newRhs = dd.rhs.map(transformTerm(_)(dd.symbol))
-          report.info(s"[virt] local def ${dd.name} under ${owner.fullName}", dd.pos)
-          if dd.name == "compute" then
-            println(s"[virt-def] new rhs for compute: ${newRhs.map(_.show(using Printer.TreeStructure))}")
           DefDef.copy(dd)(name = dd.name, paramss = dd.paramss, tpt = dd.tpt, rhs = newRhs)
         case vd: ValDef if vd.rhs.nonEmpty =>
           val newRhs = vd.rhs.map(transformTerm(_)(vd.symbol))
@@ -338,9 +322,6 @@ class virt extends MacroAnnotation {
 
       override def transformTerm(term: Term)(owner: Symbol): Term = {
         val ctx = makeCtx(owner)
-        if !seenOwners.contains(owner) then
-          seenOwners += owner
-          report.info(s"[virt] visiting owner ${owner.fullName} with term ${term.show}", term.pos)
         term match {
           case inlined @ Inlined(call, bindings, body) =>
             val newBindings = bindings.map(b => transformLocalDefinition(b, owner))
@@ -348,9 +329,27 @@ class virt extends MacroAnnotation {
           case block @ Block(stats, expr) =>
             val newStats = stats.map(transformStatement(_)(owner))
             Block.copy(block)(newStats, transformTerm(expr)(owner))
-          case ifTerm: If if owner.fullName.contains("VirtualizeTest") =>
-            report.info(s"[virt] saw if term for ${owner.fullName}: ${ifTerm.show}", ifTerm.pos)
-            rewriteIf(ctx, ifTerm)
+          case Apply(sel @ Select(th, "boolToBoolRep"), List(arg)) =>
+            val source = arg match {
+              case ident: Ident =>
+                ident.symbol.tree match {
+                  case v: ValDef if v.rhs.nonEmpty =>
+                    v.rhs
+                  case _ => Some(arg)
+                }
+              case other => Some(other)
+            }
+            val value = source match {
+              case Some(rhs) => transformTerm(rhs)(owner)
+              case None => transformTerm(arg)(owner)
+            }
+            classifyTerm(value) match {
+              case Bare(_) =>
+                val receiver = transformTerm(th)(owner)
+                Apply.copy(term)(Select.copy(sel)(receiver, sel.name), List(value))
+              case _ =>
+                value
+            }
           case Apply(fun, List(arg)) if isVirtualizedBoolConv(fun) =>
             transformTerm(arg)(owner)
           case ifTerm: If =>

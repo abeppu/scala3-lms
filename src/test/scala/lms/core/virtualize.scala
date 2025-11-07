@@ -44,19 +44,18 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("function calls") {
-    @virtualize // TODO with @virt this fails b/c a Sym gets out
+    @virt
     object Snippet extends DslDriver[Int, Int] with Dsl {
+
       def snippet(x: Rep[Int]) = {
         def compute(b: Rep[Boolean]): Rep[Int] = {
           // the if is deferred to the second stage
           if (b) 1 else x
         }
-        compute(x==1)
+        compute(x == 1)
       }
     }
-    val code = Snippet.code
-    println(code)
-    check("func-tutorial", code)
+    check("func-tutorial", Snippet.code)
   }
 
   test("while empty") {
