@@ -309,8 +309,10 @@ class virtualize extends MacroAnnotation {
 
             //Apply(Apply(ite, List(xt, thent, elset)), List(typW, srcGen))
             val ifOrVirtIf = unRep(guardt.tpe) match {
+              // Rep case
               case Some(guardTpe) => Apply(Select.overloaded(thist, "__ifThenElse", List(trep), List(guardt, thent, elset)),
                 List(typW, srcGen))
+              // Var or Bare case?
               case None => If(guardt, thent, elset)
             }
             ifOrVirtIf

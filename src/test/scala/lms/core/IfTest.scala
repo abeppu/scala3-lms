@@ -9,7 +9,7 @@ class IfTest extends TutorialFunSuite {
   val under = "virtualize/"
 
   test("if-and-true") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
         if (x && true) { // I think this should just be 1?
@@ -65,4 +65,20 @@ class IfTest extends TutorialFunSuite {
     }
     check("if-const", Snippet.code)
   }
+
+  test("if-var") {
+    @virtualize
+    object Snippet extends DslDriver[Boolean, Int] with Dsl {
+      def snippet(x: Rep[Boolean]): Rep[Int] = {
+        if (x) { // I think this should just be 1?
+          1
+        } else {
+          2
+        }
+      }
+    }
+    check("if-var", Snippet.code)
+  }
+
+
 }
