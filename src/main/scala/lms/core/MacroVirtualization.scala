@@ -57,6 +57,12 @@ class virt extends MacroAnnotation {
         }
       case t => Bare(t)
     }      
+
+    def wrapBareBoolean(term: Term, thist: Term): Term = repOrVar(term.tpe) match {
+      case Bare(_) =>
+        Select.overloaded(thist, "boolToBoolRep", Nil, List(term))
+      case _ => term
+    }
     
     def makeThis(owner: Symbol): Term = This(fetchEnclosingClass(owner))
 
@@ -107,6 +113,17 @@ class virt extends MacroAnnotation {
         term match {
           case Apply(fun, List(arg)) if isVirtualizedBoolConv(fun) =>
             transformTerm(arg)(owner)
+          case applyTerm @ Apply(sel @ Select(lhsTree, "&&"), List(rhsTree)) =>
+            val lhs = transformTerm(lhsTree)(owner)
+            val rhs = transformTerm(rhsTree)(owner)
+            (repOrVar(lhs.tpe), repOrVar(rhs.tpe)) match {
+              case (Bare(_), Bare(_)) =>
+                val copiedSelect = Select.copy(sel)(lhs, sel.name)
+                Apply.copy(applyTerm)(copiedSelect, List(rhs))
+              case _ =>
+                val andCall = Select.overloaded(ctx.thist, "boolean_and", Nil, List(wrapBareBoolean(lhs, ctx.thist), wrapBareBoolean(rhs, ctx.thist)))
+                Apply(andCall, List(ctx.srcGen))
+            }
           case ifTerm @ If(cond, thenp, elsep) => rewriteIf(ctx, ifTerm)
           case _ => super.transformTerm(term)(owner)
         }
