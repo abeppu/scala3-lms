@@ -1,7 +1,5 @@
 package lms.core
 
-import lms.core.virtualize
-
 import lms.core.TutorialFunSuite
 
 class IfTest extends TutorialFunSuite {
@@ -23,7 +21,7 @@ class IfTest extends TutorialFunSuite {
   }
 
   test("if-and-xy") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver2[Boolean, Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean],y: Rep[Boolean]): Rep[Int] = {
         if (x && y) { // I think this should just be 1?
@@ -37,7 +35,7 @@ class IfTest extends TutorialFunSuite {
   }
 
   test("if-elseif-else") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Int, Int] with Dsl {
       def snippet(x: Rep[Int]): Rep[Int] = {
         if (x < 5) { // I think this should just be 1?
@@ -53,7 +51,7 @@ class IfTest extends TutorialFunSuite {
   }
 
   test("if-const") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Int, Int] with Dsl {
       def snippet(x: Rep[Int]): Rep[Int] = {
         if (true) { // I think this should just be 1?
@@ -67,7 +65,7 @@ class IfTest extends TutorialFunSuite {
   }
 
   test("if-var") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
         if (x) { // I think this should just be 1?

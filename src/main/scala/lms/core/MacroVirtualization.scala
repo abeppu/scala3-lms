@@ -43,25 +43,115 @@ class virt extends MacroAnnotation {
       else if (s.isNoSymbol) Symbol.noSymbol
       else fetchEnclosingClass(s.maybeOwner)
 
-    def repOrVar(t: TypeRepr): RepOrVar = t.widen match {
-      case AppliedType(f, List(arg)) =>
-        // XXX - do something better
-        if (f.show.endsWith("Exp") || f.show.endsWith("Rep")) {
-          RepW(arg)
-        }
-        else if (f.show.endsWith("Var") || f.show.endsWith("Variable")) {
-          VarW(arg)
-        }
-        else {
-          Bare(arg)
-        }
-      case t => Bare(t)
-    }      
+    def repOrVar(t: TypeRepr): RepOrVar = {
+      val normalized = t.dealias.widenTermRefByName.widen
+      normalized match {
+        case AppliedType(f, List(arg)) =>
+          if (f.show.endsWith("Exp") || f.show.endsWith("Rep")) {
+            RepW(arg)
+          } else if (f.show.endsWith("Var") || f.show.endsWith("Variable")) {
+            VarW(arg)
+          } else {
+            Bare(arg)
+          }
+        case other => Bare(other)
+      }
+    }
 
-    def wrapBareBoolean(term: Term, thist: Term): Term = repOrVar(term.tpe) match {
+    def classifyTerm(term: Term): RepOrVar = {
+      repOrVar(term.tpe) match {
+        case bare @ Bare(_) =>
+          term match {
+            case ident: Ident =>
+              ident.symbol.tree match {
+                case v: ValDef if v.tpt.tpe != null =>
+                  val resolved = repOrVar(v.tpt.tpe)
+                  resolved match {
+                    case Bare(_) => bare
+                    case other => other
+                  }
+                case _ => bare
+              }
+            case _ => bare
+          }
+        case other => other
+      }
+    }
+
+    case class MacroCtx(thist: Term, srcGen: Term, owner: Symbol, unitf: Select)
+
+    // Lift host booleans into Rep form so DSL boolean ops can consume them.
+    def wrapBareBoolean(term: Term, thist: Term): Term = classifyTerm(term) match {
       case Bare(_) =>
         Select.overloaded(thist, "boolToBoolRep", Nil, List(term))
       case _ => term
+    }
+
+    // Reuse LMS unit to wrap a literal Unit into Rep[Unit].
+    def makeUnit(ctx: MacroCtx, value: Term): Term = {
+      val unitTree = TypeTree.of[Unit]
+      val unitTyp = Applied(TypeSelect(ctx.thist, "Typ"), List(unitTree))
+      val unitWitness = Implicits.search(unitTyp.tpe) match {
+        case success: ImplicitSearchSuccess => success.tree
+      }
+      Apply(Apply(TypeApply(ctx.unitf, List(unitTree)), List(value)), List(unitWitness))
+    }
+
+    // Flatten nested blocks so we can replace the trailing expression safely.
+    def flattenBlockT(term: Statement): (List[Statement], Term) = term match {
+      case Block(stats, expr) =>
+        val flattened = stats.flatMap { stm =>
+          val (nested, value) = flattenBlockT(stm)
+          nested :+ value
+        }
+        val (tailStats, tailExpr) = flattenBlockT(expr)
+        (flattened ++ tailStats, tailExpr)
+      case t: Term => (Nil, t)
+      case other => (List(other), Literal(UnitConstant()))
+    }
+
+    def flattenBlock(term: Term): Term = {
+      val (stats, expr) = flattenBlockT(term)
+      Block(stats, expr)
+    }
+
+    // Guarantee the last value in a block is a Rep by inserting unit conversions when needed.
+    def ensureTrailingRep(term: Term, ctx: MacroCtx): Term = {
+      val (stats, value) = flattenBlockT(term)
+      classifyTerm(value) match {
+        case RepW(_) => Block(stats, value)
+        case RepLike(tpe) =>
+          val tTree = TypeTree.of(using tpe.asType)
+          val typTpe = Applied(TypeSelect(ctx.thist, "Typ"), List(tTree))
+          val typWitness = Implicits.search(typTpe.tpe) match {
+            case success: ImplicitSearchSuccess => success.tree
+            case _ => report.errorAndAbort(s"could not synthesize Typ for ${tpe.show}")
+          }
+          val lifted = Apply(Apply(TypeApply(ctx.unitf, List(tTree)), List(value)), List(typWitness))
+          Block(stats, lifted)
+        case _ =>
+          report.errorAndAbort(s"expected Rep or liftable term, found ${value.show}")
+      }
+    }
+
+    // Normalize while bodies to Rep[Unit] so they match __whileDo's contract.
+    def dropTrailingUnitInWhileBody(body: Term, ctx: MacroCtx): Term =
+      flattenBlock(body) match {
+        case Block(Nil, Literal(_)) =>
+          makeUnit(ctx, Literal(UnitConstant()))
+        case Block(stats, Literal(_)) =>
+          Block(stats, makeUnit(ctx, Literal(UnitConstant())))
+        case Block(_, value) =>
+          report.errorAndAbort("body of virtualized while loop should have type Rep[Unit]: " + value.show)
+        case other => other
+      }
+
+    def findOverload(thist: Term, n: Int): Term = {
+      val overloadType = TypeSelect(thist, s"Overloaded$n")
+      Implicits.search(overloadType.tpe) match {
+        case success: ImplicitSearchSuccess => success.tree
+        case _ => report.errorAndAbort(s"missing overload evidence Overloaded$n")
+      }
     }
     
     def makeThis(owner: Symbol): Term = This(fetchEnclosingClass(owner))
@@ -78,30 +168,14 @@ class virt extends MacroAnnotation {
     }
     object Virtualizer extends TreeMap {
 
-      case class Ctx(thist: Term, srcGen: Term, owner: Symbol, unitf: Select)
+      private val seenOwners = scala.collection.mutable.Set.empty[Symbol]
 
       private def isVirtualizedBoolConv(fun: Term): Boolean = fun match {
         case Select(Select(_, "__virtualizedBoolConvInternal"), "apply") => true
         case _ => false
       }
 
-      def rewriteIf(ctx: Ctx, ifTerm: If)(using Quotes): Term = {
-        ifTerm match {
-          case If(cond, thenp, elsep) => {
-            val c = transformTerm(cond)(ctx.owner)
-            val t1: Term = transformTerm(thenp)(ctx.owner)
-            val e1 = transformTerm(elsep)(ctx.owner)
-            val ttype: TypeRepr = t1.tpe.widen
-            val innerT = repOrVar(ttype).t
-            val thisClass = fetchEnclosingClass(ctx.owner)
-            val typW = findTypW(ctx.thist, innerT)
-
-            Apply(Select.overloaded(ctx.thist, "__ifThenElse", List(innerT), List(c, t1, e1)), List(typW, ctx.srcGen))
-          }
-        }
-      }
-      
-      override def transformTerm(term: Term)(owner: Symbol): Term = {
+      private def makeCtx(owner: Symbol): MacroCtx = {
         val thist = makeThis(owner)
         val srcGen = '{ SourceContext.generate }.asTerm
         val unitf: Select = findMethods(owner, "unit") match {
@@ -109,24 +183,213 @@ class virt extends MacroAnnotation {
             report.errorAndAbort("LMS-internal error: no [unit] found for self")
           case x :: _ => thist.select(x)
         }
-        val ctx = Ctx(thist, srcGen, owner, unitf)
+        MacroCtx(thist, srcGen, owner, unitf)
+      }
+
+      private def rebuildBinary(applyTerm: Apply, sel: Select, lhs: Term, rhs: Term): Term =
+        Apply.copy(applyTerm)(Select.copy(sel)(lhs, sel.name), List(rhs))
+
+      // Generic lift helper for arithmetic/ordering operands.
+      private def wrapBareTerm(term: Term, ctx: MacroCtx): Term = classifyTerm(term) match {
+        case Bare(tpe) =>
+          val tTree = TypeTree.of(using tpe.asType)
+          val typTpe = Applied(TypeSelect(ctx.thist, "Typ"), List(tTree))
+          val typWitness = Implicits.search(typTpe.tpe) match {
+            case success: ImplicitSearchSuccess => success.tree
+            case _ => report.errorAndAbort(s"missing Typ evidence for ${tpe.show}")
+          }
+          Apply(Apply(TypeApply(ctx.unitf, List(tTree)), List(term)), List(typWitness))
+        case _ => term
+      }
+
+      // Virtualize branch by routing condition and bodies through __ifThenElse.
+      private def rewriteIf(ctx: MacroCtx, ifTerm: If): Term = {
+        println(s"[virt-if] owner=${ctx.owner.fullName} term=${ifTerm.show}")
+        println(s"[virt-if-tree] ${ifTerm.cond.show(using Printer.TreeStructure)}")
+        val guard = transformTerm(ifTerm.cond)(ctx.owner)
+        println(s"[virt-if-guard] ${guard.show}")
+        println(s"[virt-if-type] ${guard.tpe.show}")
+        println(s"[virt-if-type-structure] ${guard.tpe.show(using Printer.TypeReprStructure)}")
+        val guardKind = classifyTerm(guard)
+        println(s"[virt-if-kind] $guardKind")
+        report.info(s"[virt] guard type in ${ctx.owner.fullName}: ${guard.tpe.show}", ifTerm.pos)
+        guardKind match {
+          case Bare(_) =>
+            val thenp = transformTerm(ifTerm.thenp)(ctx.owner)
+            val elsep = transformTerm(ifTerm.elsep)(ctx.owner)
+            If.copy(ifTerm)(guard, thenp, elsep)
+          case _ =>
+            val thenp = ensureTrailingRep(transformTerm(ifTerm.thenp)(ctx.owner), ctx)
+            val elsep = ensureTrailingRep(transformTerm(ifTerm.elsep)(ctx.owner), ctx)
+            val valueType = repOrVar(thenp.tpe.widen).t
+            val typW = findTypW(ctx.thist, valueType)
+            report.info(s"[virt] rewriting staged if in ${ctx.owner.fullName}", ifTerm.pos)
+            val result = Apply(
+              Select.overloaded(ctx.thist, "__ifThenElse", List(valueType), List(guard, thenp, elsep)),
+              List(typW, ctx.srcGen))
+            println(s"[virt-if-result] ${result.show}")
+            result
+        }
+      }
+
+      // Handle && / || by deferring to LMS boolean combinators only when reps are involved.
+      private def rewriteBooleanBinary(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, method: String): Term = {
+        val lhs = transformTerm(lhsTree)(ctx.owner)
+        val rhs = transformTerm(rhsTree)(ctx.owner)
+        (classifyTerm(lhs), classifyTerm(rhs)) match {
+          case (Bare(_), Bare(_)) =>
+            rebuildBinary(applyTerm, sel, lhs, rhs)
+          case _ =>
+            val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareBoolean(lhs, ctx.thist), wrapBareBoolean(rhs, ctx.thist)))
+            Apply(call, List(ctx.srcGen))
+        }
+      }
+
+      // Short helper for the unary ! select shape.
+      private def rewriteBooleanNegateSelect(ctx: MacroCtx, sel: Select, expr: Term): Term = {
+        val value = transformTerm(expr)(ctx.owner)
+        classifyTerm(value) match {
+          case Bare(_) =>
+            Select.copy(sel)(value, sel.name)
+          case _ =>
+            val call = Select.overloaded(ctx.thist, "boolean_negate", Nil, List(wrapBareBoolean(value, ctx.thist)))
+            Apply(call, List(ctx.srcGen))
+        }
+      }
+
+      // Mirror Scala equality onto LMS __equal overloads, falling back when both sides are plain.
+      private def rewriteEquality(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, negate: Boolean): Term = {
+        val lhs = transformTerm(lhsTree)(ctx.owner)
+        val rhs = transformTerm(rhsTree)(ctx.owner)
+        println(s"[virt-eq] lhs=${lhs.show} type=${lhs.tpe.show}, rhs=${rhs.show} type=${rhs.tpe.show}")
+        val combo = (classifyTerm(lhs), classifyTerm(rhs))
+        val overload = combo match {
+          case (RepW(l), RepW(r)) => Some((l, r, 1))
+          case (RepW(l), VarW(r)) => Some((l, r, 2))
+          case (VarW(l), RepW(r)) => Some((l, r, 3))
+          case (RepW(l), Bare(r)) => Some((l, r, 4))
+          case (Bare(l), RepW(r)) => Some((l, r, 5))
+          case (VarW(l), Bare(r)) => Some((l, r, 6))
+          case (Bare(l), VarW(r)) => Some((l, r, 7))
+          case (VarW(l), VarW(r)) => Some((l, r, 8))
+          case (Bare(_), Bare(_)) => None
+        }
+        overload match {
+          case None =>
+            rebuildBinary(applyTerm, sel, lhs, rhs)
+          case Some((lty, rty, idx)) =>
+            val overloadEv = findOverload(ctx.thist, idx)
+            val lTyp = findTypW(ctx.thist, lty)
+            val rTyp = findTypW(ctx.thist, rty)
+            val equalTerm = Apply(
+              Select.overloaded(ctx.thist, "__equal", List(lty, rty), List(lhs, rhs)),
+              List(overloadEv, lTyp, rTyp, ctx.srcGen))
+            if (negate) {
+              val negateCall = Select.overloaded(ctx.thist, "boolean_negate", Nil, List(equalTerm))
+              Apply(negateCall, List(ctx.srcGen))
+            } else equalTerm
+        }
+      }
+
+      // Forward ordering comparisons to the DSL once reps participate.
+      private def rewriteOrdering(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, method: String): Term = {
+        val lhs = transformTerm(lhsTree)(ctx.owner)
+        val rhs = transformTerm(rhsTree)(ctx.owner)
+        (classifyTerm(lhs), classifyTerm(rhs)) match {
+          case (Bare(_), Bare(_)) =>
+            rebuildBinary(applyTerm, sel, lhs, rhs)
+          case _ =>
+            val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(lhs, ctx), wrapBareTerm(rhs, ctx)))
+            Apply(call, List(ctx.srcGen))
+        }
+      }
+
+      // Replace while loops with __whileDo(cond, body).
+      private def rewriteWhile(ctx: MacroCtx, condTree: Term, bodyTree: Term): Term = {
+        val guard = transformTerm(condTree)(ctx.owner)
+        val body = transformTerm(bodyTree)(ctx.owner)
+        val normalizedBody = dropTrailingUnitInWhileBody(body, ctx)
+        classifyTerm(guard) match {
+          case Bare(_) =>
+            While(condTree, bodyTree) // unreachable if we matched conversion, but keep fallback
+          case _ => ()
+        }
+        val method = findMethods(ctx.owner, "__whileDo") match {
+          case _ :: symb :: _ => symb
+          case symb :: Nil => symb
+          case Nil => report.errorAndAbort("failed to virtualize: no __whileDo in scope")
+        }
+        val whileCall = Apply(ctx.thist.select(method), List(guard, normalizedBody))
+        Apply(whileCall, List(ctx.srcGen))
+      }
+      
+      private def transformLocalDefinition(defn: Definition, owner: Symbol): Definition = defn match {
+        case dd: DefDef =>
+          val newRhs = dd.rhs.map(transformTerm(_)(dd.symbol))
+          report.info(s"[virt] local def ${dd.name} under ${owner.fullName}", dd.pos)
+          if dd.name == "compute" then
+            println(s"[virt-def] new rhs for compute: ${newRhs.map(_.show(using Printer.TreeStructure))}")
+          DefDef.copy(dd)(name = dd.name, paramss = dd.paramss, tpt = dd.tpt, rhs = newRhs)
+        case vd: ValDef if vd.rhs.nonEmpty =>
+          val newRhs = vd.rhs.map(transformTerm(_)(vd.symbol))
+          ValDef.copy(vd)(name = vd.name, tpt = vd.tpt, rhs = newRhs)
+        case other => other
+      }
+
+      override def transformTerm(term: Term)(owner: Symbol): Term = {
+        val ctx = makeCtx(owner)
+        if !seenOwners.contains(owner) then
+          seenOwners += owner
+          report.info(s"[virt] visiting owner ${owner.fullName} with term ${term.show}", term.pos)
         term match {
+          case inlined @ Inlined(call, bindings, body) =>
+            val newBindings = bindings.map(b => transformLocalDefinition(b, owner))
+            Inlined.copy(inlined)(call, newBindings, transformTerm(body)(owner))
+          case block @ Block(stats, expr) =>
+            val newStats = stats.map(transformStatement(_)(owner))
+            Block.copy(block)(newStats, transformTerm(expr)(owner))
+          case ifTerm: If if owner.fullName.contains("VirtualizeTest") =>
+            report.info(s"[virt] saw if term for ${owner.fullName}: ${ifTerm.show}", ifTerm.pos)
+            rewriteIf(ctx, ifTerm)
           case Apply(fun, List(arg)) if isVirtualizedBoolConv(fun) =>
             transformTerm(arg)(owner)
-          case applyTerm @ Apply(sel @ Select(lhsTree, "&&"), List(rhsTree)) =>
-            val lhs = transformTerm(lhsTree)(owner)
-            val rhs = transformTerm(rhsTree)(owner)
-            (repOrVar(lhs.tpe), repOrVar(rhs.tpe)) match {
-              case (Bare(_), Bare(_)) =>
-                val copiedSelect = Select.copy(sel)(lhs, sel.name)
-                Apply.copy(applyTerm)(copiedSelect, List(rhs))
+          case ifTerm: If =>
+            rewriteIf(ctx, ifTerm)
+          case applyTerm @ Apply(sel @ Select(lhs, op @ ("&&" | "||")), List(rhs)) =>
+            val method = if (op == "&&") "boolean_and" else "boolean_or"
+            rewriteBooleanBinary(ctx, applyTerm, sel, lhs, rhs, method)
+          case sel @ Select(expr, "unary_!") =>
+            rewriteBooleanNegateSelect(ctx, sel, expr)
+          case applyTerm @ Apply(sel @ Select(_, "unary_!"), List(arg)) =>
+            val value = transformTerm(arg)(owner)
+            classifyTerm(value) match {
+              case Bare(_) =>
+                super.transformTerm(applyTerm)(owner)
               case _ =>
-                val andCall = Select.overloaded(ctx.thist, "boolean_and", Nil, List(wrapBareBoolean(lhs, ctx.thist), wrapBareBoolean(rhs, ctx.thist)))
-                Apply(andCall, List(ctx.srcGen))
+                val call = Select.overloaded(ctx.thist, "boolean_negate", Nil, List(wrapBareBoolean(value, ctx.thist)))
+                Apply(call, List(ctx.srcGen))
             }
-          case ifTerm @ If(cond, thenp, elsep) => rewriteIf(ctx, ifTerm)
+          case applyTerm @ Apply(sel @ Select(lhs, "=="), List(rhs)) =>
+            rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = false)
+          case applyTerm @ Apply(sel @ Select(lhs, "!="), List(rhs)) =>
+            rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = true)
+          case applyTerm @ Apply(sel @ Select(lhs, "<"), List(rhs)) =>
+            rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_lt")
+          case applyTerm @ Apply(sel @ Select(lhs, "<="), List(rhs)) =>
+            rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_lteq")
+          case applyTerm @ Apply(sel @ Select(lhs, ">"), List(rhs)) =>
+            rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_gt")
+          case applyTerm @ Apply(sel @ Select(lhs, ">="), List(rhs)) =>
+            rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_gteq")
+          case While(Apply(fun, List(cond)), body) if isVirtualizedBoolConv(fun) =>
+            rewriteWhile(ctx, cond, body)
           case _ => super.transformTerm(term)(owner)
         }
+      }
+
+      override def transformStatement(statement: Statement)(owner: Symbol): Statement = statement match {
+        case d: Definition => transformLocalDefinition(d, owner)
+        case other => super.transformStatement(other)(owner)
       }
     }
 
