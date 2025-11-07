@@ -9,7 +9,7 @@ class StringTest extends TutorialFunSuite {
   val under = "virtualize/"
 
   test("const-string-len") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
         val s = "abc"
@@ -19,7 +19,7 @@ class StringTest extends TutorialFunSuite {
     check("str-const-len", Snippet.code)
   }
   test("string-len") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[String, Int] with Dsl {
       def snippet(x: Rep[String]): Rep[Int] = {
         x.length
@@ -29,7 +29,7 @@ class StringTest extends TutorialFunSuite {
   }
 
   test("string-char-at-1") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver2[String, Int, Char] with Dsl {
       def snippet(x: Rep[String], i: Rep[Int]): Rep[Char] = {
         x(i)
@@ -39,7 +39,7 @@ class StringTest extends TutorialFunSuite {
   }
 
   test("string-char-at-2") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[String, Char] with Dsl {
       def snippet(x: Rep[String]): Rep[Char] = {
         x(1)

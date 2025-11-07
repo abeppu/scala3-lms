@@ -1,6 +1,6 @@
 package lms.core
 
-import lms.core.virtualize
+import lms.core.virt
 
 import lms.core.TutorialFunSuite
 
@@ -8,7 +8,7 @@ import lms.core.TutorialFunSuite
 class BoolTest extends TutorialFunSuite {
   val under = "virtualize/"
   test("boolean-not") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         !x
@@ -18,7 +18,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("boolean-double-not") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         !(!x)
@@ -29,7 +29,7 @@ class BoolTest extends TutorialFunSuite {
 
 
   test("const-not") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         !true
@@ -39,7 +39,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("const-double-not") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         !(!true)
@@ -50,7 +50,7 @@ class BoolTest extends TutorialFunSuite {
 
 
   test("boolean-or-rewrite") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         x || false
@@ -60,7 +60,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("boolean-or-handwritten") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         boolean_or(x, unit(false))
@@ -70,7 +70,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
     test("boolean-or-rewrite2") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         x || x
@@ -80,7 +80,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
     test("boolean-or-handwritten2") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         boolean_or(x, x)
@@ -90,7 +90,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("boolean-or-consts") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         boolean_or(false, true)
@@ -100,7 +100,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("boolean-and-handwritten1") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         boolean_and(x, x) //unit(false))
@@ -110,7 +110,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("boolean-and-handwritten2") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Boolean] = {
         boolean_and(x, unit(false))
@@ -120,7 +120,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("boolean-and-rewrite") {
-    @virtualize
+    @virt
      object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
        def snippet(x: Rep[Boolean]): Rep[Boolean] = {
          x && x
@@ -130,7 +130,7 @@ class BoolTest extends TutorialFunSuite {
   }
 
   test("boolean-and-rewrite2") {
-    @virtualize
+    @virt
     object Snippet extends DslDriver[Boolean, Boolean] with Dsl {
       def snippet(y: Rep[Boolean]): Rep[Boolean] = {
         y && false //
