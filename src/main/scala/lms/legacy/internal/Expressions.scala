@@ -44,6 +44,11 @@ trait Expressions extends Utils {
     override def toString = mf.toString
   }
 
+  protected def manifestOf[A](using Typ[A]): Manifest[A] = typ[A] match {
+    case ManifestTyp(mf) => mf
+    case other => throw new RuntimeException(s"Expected ManifestTyp for $other")
+  }
+
   object ClassTyp {
     def unapply(t: Typ[?]): Option[(Class[?], List[Typ[?]])] = Some(t.runtimeClass, t.typeArguments)
   }
@@ -65,7 +70,7 @@ trait Expressions extends Utils {
 
   case class Const[+T:Typ](x: T) extends Exp[T] {
     override def equals(other: Any) = other match {
-      case c: Const[_] => x == c.x && tp == c.tp
+      case c: Const[?] => x == c.x && tp == c.tp
       case _ => false
     }
   }
@@ -123,12 +128,12 @@ trait Expressions extends Utils {
   }
 
   def infix_defines[A](stm: Stm, sym: Sym[A]): Option[Def[A]] = stm match {
-    case TP(`sym`, rhs: Def[A]) => Some(rhs)
+    case TP(`sym`, rhs: Def[?]) => Some(rhs.asInstanceOf[Def[A]])
     case _ => None
   }
-
+  
   def infix_defines[A: Typ](stm: Stm, rhs: Def[A]): Option[Sym[A]] = stm match {
-    case TP(sym: Sym[A], `rhs`) if sym.tp <:< typ[A] => Some(sym)
+    case TP(sym, `rhs`) if sym.tp <:< typ[A] => Some(sym.asInstanceOf[Sym[A]])
     case _ => None
   }
 

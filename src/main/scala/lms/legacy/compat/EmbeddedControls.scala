@@ -57,7 +57,7 @@ trait EmbeddedControls {
    *   - the v_i' result from retyping v_i with expected type Rep[T_i'],
    *     after replacing `this` by a fresh variable `self_i` (with type `Rep[C{ (val x_i: T_i')* }]`)
    *
-   * This assumes there is a method in scope similar to: `def __new[T](args: (String, Rep[T] => Rep[_])*): Rep[T]`
+   * This assumes there is a method in scope similar to: `def __new[T](args: (String, Rep[T] => Rep[?])*): Rep[T]`
    *
    * When a selection `e.x_i` does not type check according to the normal typing rules,
    * and `e` has type `Rep[C{ (val x_i: T_i')* }]` (where `C` meets the criteria outlined above),

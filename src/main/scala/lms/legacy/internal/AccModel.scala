@@ -6,15 +6,15 @@ trait AbstractHostTransfer {
   val IR: Expressions
   import IR._
 
-  def emitSend(tp: Typ[_], peer: Targets.Value): (String,String)
-  def emitRecv(tp: Typ[_], peer: Targets.Value): (String,String)
-  def emitSendView(tp: Typ[_], peer: Targets.Value): (String,String)
-  def emitRecvView(tp: Typ[_], peer: Targets.Value): (String,String)
-  def emitSendUpdate(tp: Typ[_], peer: Targets.Value): (String,String)
-  def emitRecvUpdate(tp: Typ[_], peer: Targets.Value): (String,String)
+  def emitSend(tp: Typ[?], peer: Targets.Value): (String,String)
+  def emitRecv(tp: Typ[?], peer: Targets.Value): (String,String)
+  def emitSendView(tp: Typ[?], peer: Targets.Value): (String,String)
+  def emitRecvView(tp: Typ[?], peer: Targets.Value): (String,String)
+  def emitSendUpdate(tp: Typ[?], peer: Targets.Value): (String,String)
+  def emitRecvUpdate(tp: Typ[?], peer: Targets.Value): (String,String)
 
-  def isListType(tp: Typ[_]): Boolean = {
-    tp.runtimeClass == classOf[List[_]]
+  def isListType(tp: Typ[?]): Boolean = {
+    tp.runtimeClass == classOf[List[?]]
   }
 }
 
@@ -24,14 +24,14 @@ trait AbstractDeviceTransfer {
   val IR: Expressions
   import IR._
 
-  def emitSendSlave(tp: Typ[_]) : (String,String)
-  def emitRecvSlave(tp: Typ[_]) : (String,String)
-  //def emitSendViewSlave(tp: Typ[_]) : (String,String)
-  //def emitRecvViewSlave(tp: Typ[_]) : (String,String)
-  def emitSendUpdateSlave(tp: Typ[_]) : (String,String)
-  def emitRecvUpdateSlave(tp: Typ[_]) : (String,String)
+  def emitSendSlave(tp: Typ[?]) : (String,String)
+  def emitRecvSlave(tp: Typ[?]) : (String,String)
+  //def emitSendViewSlave(tp: Typ[?]) : (String,String)
+  //def emitRecvViewSlave(tp: Typ[?]) : (String,String)
+  def emitSendUpdateSlave(tp: Typ[?]) : (String,String)
+  def emitRecvUpdateSlave(tp: Typ[?]) : (String,String)
 
-  //def allocOutput(newSym: Sym[_], sym: Sym[_], reset: Boolean = false) : Unit
+  //def allocOutput(newSym: Sym[?], sym: Sym[?], reset: Boolean = false) : Unit
 }
 
 object Targets extends Enumeration {

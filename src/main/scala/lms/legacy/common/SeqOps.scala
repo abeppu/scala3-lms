@@ -2,7 +2,7 @@ package lms.legacy.common
 
 import java.io.PrintWriter
 import lms.legacy.internal.*
-import lms.legacy.compat.SourceContext
+import lms.legacy.compat.{Manifest, SourceContext}
 
 import scala.compiletime.deferred
 
@@ -35,12 +35,12 @@ trait SeqOps extends Variables {
 
 trait SeqOpsExp extends SeqOps with PrimitiveOps with EffectExp {
   override given seqTyp[T:Typ]: Typ[Seq[T]] = {
-    implicit val ManifestTyp(m: Manifest[T]) = typ[T]
+    implicit val m: Manifest[T] = manifestOf[T]
     manifestTyp
   }
 
   case class SeqNew[A:Typ](xs: List[Rep[A]]) extends Def[Seq[A]] {
-    def mA = typ[A]
+    def mA = (typ[A]: @unchecked)
   }
   case class SeqLength[T:Typ](a: Exp[Seq[T]]) extends Def[Int]
   case class SeqApply[T:Typ](x: Exp[Seq[T]], n: Exp[Int]) extends Def[T]

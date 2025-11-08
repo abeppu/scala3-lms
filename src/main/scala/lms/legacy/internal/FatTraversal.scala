@@ -5,7 +5,7 @@ import java.io.{File, PrintWriter}
 
 
 trait FatBlockTraversal extends NestedBlockTraversal with FatScheduling {
-  val IR: Expressions with Effects with FatExpressions
+  val IR: Expressions & Effects & FatExpressions
   import IR._  
 
 

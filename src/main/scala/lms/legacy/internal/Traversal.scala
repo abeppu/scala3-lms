@@ -27,7 +27,7 @@ trait GraphTraversal extends Scheduling {
 
 
 trait NestedGraphTraversal extends GraphTraversal with CodeMotion {
-  val IR: Expressions with Effects /* effects just for sanity check */
+  val IR: Expressions & Effects /* effects just for sanity check */
   import IR._
   
   // ----- stateful focus management

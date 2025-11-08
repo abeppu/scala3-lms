@@ -12,7 +12,7 @@ trait RegexpMatcher extends DslImpl {
 
   /* search for regexp anywhere in text */
   def matchsearch(regexp: String, text: Rep[String]): Rep[Boolean] = {
-    if (regexp(0) == '^')
+    if (regexp.charAt(0) == '^')
       matchhere(regexp, 1, text, 0)
     else {
       var start = -1
@@ -29,11 +29,11 @@ trait RegexpMatcher extends DslImpl {
   def matchhere(regexp: String, restart: Int, text: Rep[String], start: Rep[Int]): Rep[Boolean] = {
     if (restart==regexp.length)
       true
-    else if (regexp(restart)=='$' && restart+1==regexp.length)
+    else if (regexp.charAt(restart)=='$' && restart+1==regexp.length)
       start==text.length
-    else if (restart+1 < regexp.length && regexp(restart+1)=='*')
-      matchstar(regexp(restart), regexp, restart+2, text, start)
-    else if (start < text.length && matchchar(regexp(restart), text(start)))
+    else if (restart+1 < regexp.length && regexp.charAt(restart+1)=='*')
+      matchstar(regexp.charAt(restart), regexp, restart+2, text, start)
+    else if (start < text.length && matchchar(regexp.charAt(restart), text(start)))
       matchhere(regexp, restart+1, text, start+1)
     else false
   }
@@ -90,11 +90,11 @@ class RegexpMatcherTest extends TutorialFunSuite {
 
     def matchhere(restart: Int, start: Int): Boolean = {
       if (restart == regexp.length) true
-      else if (regexp(restart) == '$' && restart + 1 == regexp.length)
+      else if (regexp.charAt(restart) == '$' && restart + 1 == regexp.length)
         start == text.length
-      else if (restart + 1 < regexp.length && regexp(restart + 1) == '*')
-        matchstar(regexp(restart), restart + 2, start)
-      else if (start < text.length && matchchar(regexp(restart), text.charAt(start)))
+      else if (restart + 1 < regexp.length && regexp.charAt(restart + 1) == '*')
+        matchstar(regexp.charAt(restart), restart + 2, start)
+      else if (start < text.length && matchchar(regexp.charAt(restart), text.charAt(start)))
         matchhere(restart + 1, start + 1)
       else false
     }

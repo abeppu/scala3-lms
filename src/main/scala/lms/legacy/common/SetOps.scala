@@ -4,7 +4,7 @@ import java.io.PrintWriter
 import lms.legacy.internal.*
 
 import scala.collection.mutable.Set
-import lms.legacy.compat.SourceContext
+import lms.legacy.compat.{Manifest, SourceContext}
 
 import scala.compiletime.deferred
 
@@ -40,7 +40,7 @@ trait SetOps extends Base {
 
 trait SetOpsExp extends SetOps with ArrayOps with BooleanOps with EffectExp {
   override given setTyp[T:Typ]: Typ[Set[T]] = {
-    implicit val ManifestTyp(m: Manifest[T]) = typ[T]
+    implicit val m: Manifest[T] = manifestOf[T]
     manifestTyp
   }
 

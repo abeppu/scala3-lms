@@ -117,22 +117,22 @@ trait VariablesExp extends Variables with PrimitiveOps with ImplicitOpsExp with 
 
   case class ReadVar[T:Typ](v: Var[T]) extends Def[T]
   case class NewVar[T:Typ](init: Exp[T]) extends Def[Variable[T]] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class Assign[T:Typ](lhs: Var[T], rhs: Exp[T]) extends Def[Unit] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class VarPlusEquals[T:Typ](lhs: Var[T], rhs: Exp[T]) extends Def[Unit] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class VarMinusEquals[T:Typ](lhs: Var[T], rhs: Exp[T]) extends Def[Unit] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class VarTimesEquals[T:Typ](lhs: Var[T], rhs: Exp[T]) extends Def[Unit] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class VarDivideEquals[T:Typ](lhs: Var[T], rhs: Exp[T]) extends Def[Unit] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
 
   def var_new[T:Typ](init: Exp[T])(using pos: SourceContext): Var[T] = {
@@ -236,8 +236,8 @@ trait VariablesExpOpt extends VariablesExp {
       //TODO: could use calculateDependencies(Read(v))
       
       val rhs = context.reverse.collectFirst { 
-        case w @ Def(Reflect(NewVar(rhs: Exp[T]), _, _)) if w == vs => Some(rhs)
-        case Def(Reflect(Assign(`v`, rhs: Exp[T]), _, _)) => Some(rhs)
+        case w @ Def(Reflect(NewVar(rhs: Exp[?]), _, _)) if w == vs => Some(rhs.asInstanceOf[Exp[T]])
+        case Def(Reflect(Assign(`v`, rhs: Exp[?]), _, _)) => Some(rhs.asInstanceOf[Exp[T]])
         case Def(Reflect(_, u, _)) if mayWrite(u, List(vs)) => None // not a simple assignment
       }
       rhs.flatten.getOrElse(super.readVar[T](v))
@@ -251,19 +251,20 @@ trait VariablesExpOpt extends VariablesExp {
 
   override implicit def var_assign[T:Typ](v: Var[T], e: Exp[T])(using pos: SourceContext) : Exp[Unit] = {
     if (context ne null) {
-      // find the last modification of variable v
-      // if it is an assigment with the same value, we don't need to do anything
       val vs = v.e.asInstanceOf[Sym[Variable[T]]]
-      //TODO: could use calculateDependencies(Read(v))
-      
-      context.reverse.foreach { 
-        case w @ Def(Reflect(NewVar(rhs: Exp[T]), _, _)) if w == vs => if (rhs == e) return ()
-        case Def(Reflect(Assign(`v`, rhs: Exp[T]), _, _)) => if (rhs == e) return ()
-        case Def(Reflect(_, u, _)) if mayWrite(u, List(vs)) =>  // not a simple assignment
-        case _ => // ...
+      val skip = context.reverse.collectFirst {
+        case w @ Def(Reflect(NewVar(rhs: Exp[?]), _, _)) if w == vs && rhs == e => true
+        case Def(Reflect(Assign(`v`, rhs: Exp[?]), _, _)) if rhs == e => true
+        case Def(Reflect(_, u, _)) if mayWrite(u, List(vs)) => false
       }
+      if (skip.contains(true)) {
+        Const(())
+      } else {
+        super.var_assign(v,e)
+      }
+    } else {
+      super.var_assign(v,e)
     }
-    super.var_assign(v,e)
   }
 
 

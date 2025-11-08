@@ -5,7 +5,7 @@ import scala.collection.{immutable,mutable}
 import lms.legacy.compat.SourceContext
 
 trait AbstractTransformer {
-  val IR: Expressions with Blocks with OverloadHack
+  val IR: Expressions & Blocks & OverloadHack
   import IR._
   
   def hasContext = false
@@ -83,8 +83,8 @@ trait Transforming extends Expressions with Blocks with OverloadHack {
   /** Equivalent to `mtype(typ[A])` */
   def mtyp1[A:Typ] = new MTyp1[A]
   class MTyp1[A](using val m:Typ[A])
-  given castMTyp[B]: Conversion[MTyp1[_], Typ[B]] with {
-  def apply(m: MTyp1[_]): Typ[B] = mtype(m.m)
+  given castMTyp[B]: Conversion[MTyp1[?], Typ[B]] with {
+  def apply(m: MTyp1[?]): Typ[B] = mtype(m.m)
 }
   
   

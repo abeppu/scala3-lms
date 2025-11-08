@@ -59,9 +59,9 @@ trait DslGen extends ScalaGenNumericOps
   import IR.*
 
   override def quote(x: Exp[Any]) = x match {
-    case Const('\n') if x.tp == typ[Char] => "'\\n'"
-    case Const('\t') if x.tp == typ[Char] => "'\\t'"
-    case Const(0)    if x.tp == typ[Char] => "'\\0'"
+    case Const('\n') if x.tp == (typ[Char]: @unchecked) => "'\\n'"
+    case Const('\t') if x.tp == (typ[Char]: @unchecked) => "'\\t'"
+    case Const(0)    if x.tp == (typ[Char]: @unchecked) => "'\\0'"
     case _ => super.quote(x)
   }
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {

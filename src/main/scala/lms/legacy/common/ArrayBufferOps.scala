@@ -58,12 +58,12 @@ trait ArrayBufferOps extends Base with StringOps with ArrayOps {
 
 trait ArrayBufferOpsExp extends ArrayBufferOps with EffectExp {
   override given arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]] = {
-    given Typ[T] = typ[T]
+    given Typ[T] = (typ[T]: @unchecked)
     manifestTyp
   }
   
   case class ArrayBufferNew[A:Typ](xs: Seq[Exp[A]]) extends Def[ArrayBuffer[A]]  {
-    def mA = typ[A]
+    def mA = (typ[A]: @unchecked)
   }
   case class ArrayBufferMkString[A:Typ](l: Exp[ArrayBuffer[A]], sep: Exp[String]) extends Def[String]
   case class ArrayBufferAppend[A:Typ](l: Exp[ArrayBuffer[A]], e: Exp[A]) extends Def[Unit]

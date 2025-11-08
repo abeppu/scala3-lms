@@ -46,7 +46,7 @@ trait FunctionBlocksExp extends BaseExp with Blocks with Effects with OverloadHa
    */
    
    def transformBlockWithBound[A](t: ForwardTransformer{val IR: FunctionBlocksExp.this.type}, f: Block[A], boundVars: List[(Exp[Any],Exp[Any])]) = {
-     t.withSubstScope(boundVars: _*) {
+     t.withSubstScope(boundVars*) {
        t.reflectBlock(f)
      }
    }

@@ -4,7 +4,7 @@ import java.io.PrintWriter
 
 import lms.legacy.internal.{GenericNestedCodegen, GenerationFailedException}
 import lms.legacy.util.ClosureCompare
-import lms.legacy.compat.SourceContext
+import lms.legacy.compat.{Manifest, SourceContext}
 trait Functions extends Base {
 
   implicit def funTyp[A:Typ,B:Typ]: Typ[A => B]
@@ -77,13 +77,13 @@ trait TupledFunctions extends Functions with TupleOps {
 
 trait FunctionsExp extends Functions with EffectExp {
   implicit def funTyp[A:Typ,B:Typ]: Typ[A => B] = {
-    implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
-    implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
+    implicit val mA: Manifest[A] = manifestOf[A]
+    implicit val mB: Manifest[B] = manifestOf[B]
     manifestTyp
   }
 
-  case class Lambda[A:Typ,B:Typ](f: Exp[A] => Exp[B], x: Exp[A], y: Block[B]) extends Def[A => B] { def mA = typ[A]; def mB = typ[B] }
-  case class Apply[A:Typ,B:Typ](f: Exp[A => B], arg: Exp[A]) extends Def[B] { def mA = typ[A]; def mB = typ[B] }
+  case class Lambda[A:Typ,B:Typ](f: Exp[A] => Exp[B], x: Exp[A], y: Block[B]) extends Def[A => B] { def mA = (typ[A]: @unchecked); def mB = (typ[B]: @unchecked) }
+  case class Apply[A:Typ,B:Typ](f: Exp[A => B], arg: Exp[A]) extends Def[B] { def mA = (typ[A]: @unchecked); def mB = (typ[B]: @unchecked) }
 
   // unboxedFresh and unbox are hooks that can be overridden to
   // implement multiple-arity functions with tuples. These two methods
@@ -167,33 +167,33 @@ trait TupledFunctionsExp extends TupledFunctions with FunctionsExp with TupleOps
   private def tupledTypOf[T](m: Typ[T], arity: Int): Boolean = m.runtimeClass.getName == "scala.Tuple" + arity
 
   override def unboxedFresh[A:Typ] : Exp[A] = {
-    val mA = typ[A]
-    if (mA == typ[Unit] || tupledTyp(mA))
+    val mA = (typ[A]: @unchecked)
+    if (mA == (typ[Unit]: @unchecked) || tupledTyp(mA))
       UnboxedTuple[A](mA.typeArguments.map(fresh(using _)))
     else fresh[A]
   }
 
   override def unbox[A:Typ](x : Exp[A])(using pos: SourceContext) : Exp[A] = {
-    val mA = typ[A]
+    val mA = (typ[A]: @unchecked)
     x match {
-      case _ : UnboxedTuple[A] => x
-      case _ if mA == typ[Unit] =>
+      case _: UnboxedTuple[?] => x
+      case _ if mA == (typ[Unit]: @unchecked) =>
         UnboxedTuple[A](List())
       case _ if tupledTypOf(mA, 2) =>
-        x match { case t : Rep[(a1,a2)] =>
+        x match { case t : Rep[(a1,a2)] @unchecked =>
           UnboxedTuple[A](List(
             tuple2_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple2_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos)))
         }
       case _ if tupledTypOf(mA, 3) =>
-        x match { case t : Rep[(a1,a2,a3)] =>
+        x match { case t : Rep[(a1,a2,a3)] @unchecked =>
           UnboxedTuple[A](List(
             tuple3_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple3_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos),
             tuple3_get3(t)(using mA.typeArguments(2).asInstanceOf[Typ[a3]], pos)))
         }
       case _ if tupledTypOf(mA, 4) =>
-        x match { case t : Rep[(a1,a2,a3,a4)] =>
+        x match { case t : Rep[(a1,a2,a3,a4)] @unchecked =>
           UnboxedTuple[A](List(
             tuple4_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple4_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos),
@@ -201,7 +201,7 @@ trait TupledFunctionsExp extends TupledFunctions with FunctionsExp with TupleOps
             tuple4_get4(t)(using mA.typeArguments(3).asInstanceOf[Typ[a4]], pos)))
         }
       case _ if tupledTypOf(mA, 5) =>
-        x match { case t : Rep[(a1,a2,a3,a4,a5)] =>
+        x match { case t : Rep[(a1,a2,a3,a4,a5)] @unchecked =>
           UnboxedTuple[A](List(
             tuple5_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple5_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos),
@@ -225,7 +225,7 @@ trait TupledFunctionsExp extends TupledFunctions with FunctionsExp with TupleOps
 }
 
 trait FunctionsRecursiveExp extends FunctionsExp with ClosureCompare {
-  var funTable: List[(Sym[_], Any)] = List()
+  var funTable: List[(Sym[?], Any)] = List()
   override def doLambda[A:Typ,B:Typ](f: Exp[A] => Exp[B])(using pos: SourceContext): Exp[A => B] = {
     val can = canonicalize(f)
     funTable.find(_._2 == can) match {

@@ -4,7 +4,7 @@ import scala.collection.{immutable,mutable}
 import lms.legacy.internal.{AbstractSubstTransformer, FatBlockTraversal}
 
 trait ForwardTransformer extends AbstractSubstTransformer with FatBlockTraversal { self =>
-  val IR: BaseFatExp with EffectExp //LoopsFatExp with IfThenElseFatExp
+  val IR: BaseFatExp & EffectExp //LoopsFatExp with IfThenElseFatExp
   import IR._
   
   def transformBlock[A](block: Block[A]): Block[A] = {
@@ -81,7 +81,7 @@ trait ForwardTransformer extends AbstractSubstTransformer with FatBlockTraversal
     try {
       mirror(rhs, self.asInstanceOf[Transformer])(using mtype(sym.tp),mpos(sym.pos)) // cast needed why?
     } catch { //hack -- should not catch errors
-      case e if e.toString contains "don't know how to mirror" => 
+      case e if e.toString.contains("don't know how to mirror") => 
         printerr("error: " + e.getMessage)
       sym
       case e: Throwable => 
@@ -114,7 +114,8 @@ trait RecursiveTransformer extends ForwardTransformer { self =>
       case Some(rhsThunk) =>
         val s2 = subst.get(s) match {
           case Some(s2@Sym(_)) => assert(recursive.contains(s)); s2
-          case _ => assert(!recursive.contains(s)); fresh(using mtype(s.tp))
+          case Some(other) => other.asInstanceOf[Sym[Any]]
+          case None => assert(!recursive.contains(s)); fresh(using mtype(s.tp))
         }
         createDefinition(s2, rhsThunk())
         s2
@@ -123,6 +124,7 @@ trait RecursiveTransformer extends ForwardTransformer { self =>
           assert(recursive.contains(s))
           createDefinition(s2, Def.unapply(self_mirror(s, rhs)).get)
           s2
+        case Some(other) => other.asInstanceOf[Sym[Any]]
         case None =>
           assert(!recursive.contains(s))
           super.transformStm(stm)
@@ -134,7 +136,7 @@ trait RecursiveTransformer extends ForwardTransformer { self =>
 
 
 trait WorklistTransformer extends ForwardTransformer { // need backward version, too?
-  val IR: LoopsFatExp with IfThenElseFatExp
+  val IR: LoopsFatExp & IfThenElseFatExp
   import IR._
   var curSubst: Map[Sym[Any],() => Exp[Any]] = Map.empty
   var nextSubst: Map[Sym[Any],() => Exp[Any]] = Map.empty

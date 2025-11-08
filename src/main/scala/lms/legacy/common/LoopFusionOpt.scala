@@ -170,7 +170,7 @@ import lms.legacy.internal.{CodeMotion, FatBlockTraversal, FatScheduling, Schedu
 
 
 trait LoopFusionOpt extends FatBlockTraversal with LoopFusionCore {
-  val IR: LoopsFatExp with IfThenElseFatExp
+  val IR: LoopsFatExp & IfThenElseFatExp
   import IR._  
 
   
@@ -211,7 +211,7 @@ trait LoopFusionOpt extends FatBlockTraversal with LoopFusionCore {
 
 
 trait LoopFusionCore extends FatScheduling with CodeMotion with SimplifyTransform {
-  val IR: LoopsFatExp with IfThenElseFatExp
+  val IR: LoopsFatExp & IfThenElseFatExp
   import IR._  
   
 /*
@@ -403,6 +403,7 @@ trait LoopFusionCore extends FatScheduling with CodeMotion with SimplifyTransfor
               val fusedNeg = preNeg flatMap { s1 => postNeg map { s2 => (s1,s2) } }
               WtableNeg = (fusedNeg ++ WtableNeg).distinct
 
+            case Some(_) => partitionsOut = b :: partitionsOut
             case None => partitionsOut = b::partitionsOut
           }
         }

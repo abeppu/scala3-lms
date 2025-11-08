@@ -42,7 +42,7 @@ trait NumericOpsExp extends NumericOps with VariablesExp with BaseFatExp {
   this: PrimitiveOpsExp =>
   
   abstract class NumericDefMN[A:Typ:Numeric] extends Def[A] {
-    def mev = typ[A]
+    def mev = (typ[A]: @unchecked)
     def aev = implicitly[Numeric[A]]
   }
 

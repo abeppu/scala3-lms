@@ -17,7 +17,7 @@ trait SynchronizedArrayBufferOps extends ArrayBufferOps {
 
 trait SynchronizedArrayBufferOpsExp extends SynchronizedArrayBufferOps with ArrayBufferOpsExp {
   case class SyncArrayBufferNew[A:Typ](xs: Seq[Exp[A]]) extends Def[ArrayBuffer[A]]  {
-    def mA = typ[A]
+    def mA = (typ[A]: @unchecked)
   }
 
   // all array buffers are synchronized (nackward compat). TODO: separate constructor

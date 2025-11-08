@@ -20,12 +20,6 @@ trait StringOps extends Variables with OverloadHack with PrimitiveOps {
   // NOTE: if something doesn't get lifted, this won't give you a compile time error,
   //       since string concat is defined on all objects
 
-  extension (s: String) {  // note we have to re-define stuff that already worked!
-    def length: Int = s.length
-    def apply(i: Int): Char = s.charAt(i)
-    def apply(i: Rep[Int])(using o2: Overloaded2): Rep[Char] = string_charAt(unit(s), i)
-  }
-
   extension (s: Rep[String]) {
     def length: Rep[Int] = string_length(s)
     def apply(i: Int)(using o1: Overloaded1): Rep[Char] = string_charAt(s, unit(i))

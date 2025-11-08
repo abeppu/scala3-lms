@@ -19,10 +19,10 @@ trait ObjectOps extends Variables with StringOps with OverloadHack {
 trait ObjectOpsExp extends ObjectOps with StringOpsExp with VariablesExp {
   case class ObjectToString(o: Exp[Any]) extends Def[String]
   case class ObjectUnsafeImmutable[A:Typ](o: Exp[A]) extends Def[A] {
-    def m = typ[A]
+    def m = (typ[A]: @unchecked)
   }
   case class ObjectUnsafeMutable[A:Typ](o: Exp[A]) extends Def[A] {
-    def m = typ[A]
+    def m = (typ[A]: @unchecked)
   }
 
   def object_tostring(lhs: Exp[Any])(using pos: SourceContext) = ObjectToString(lhs)

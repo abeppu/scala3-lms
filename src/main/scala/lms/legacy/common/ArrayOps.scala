@@ -67,31 +67,31 @@ trait ArrayOps extends Variables {
 trait ArrayOpsExp extends ArrayOps with EffectExp with VariablesExp {
 
   override given arrayTyp[T:Typ]: Typ[Array[T]] = {
-    val m = typ[T]
+    val m = (typ[T]: @unchecked)
     m.arrayTyp
   }
 
   case class ArrayNew[T:Typ](n: Exp[Int]) extends Def[Array[T]] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class ArrayFromSeq[T:Typ](xs: Seq[Exp[T]]) extends Def[Array[T]] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class ArrayApply[T:Typ](a: Exp[Array[T]], n: Exp[Int]) extends Def[T] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class ArrayUpdate[T:Typ](a: Exp[Array[T]], n: Exp[Int], y: Exp[T]) extends Def[Unit] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class ArrayLength[T:Typ](a: Exp[Array[T]]) extends Def[Int] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class ArrayForeach[T](a: Exp[Array[T]], x: Sym[T], block: Block[Unit]) extends Def[Unit]
   case class ArrayCopy[T:Typ](src: Exp[Array[T]], srcPos: Exp[Int], dest: Exp[Array[T]], destPos: Exp[Int], len: Exp[Int]) extends Def[Unit] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class ArraySort[T:Typ](x: Exp[Array[T]]) extends Def[Array[T]] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
   case class ArrayMap[A:Typ,B:Typ](a: Exp[Array[A]], x: Sym[A], block: Block[B]) extends Def[Array[B]] {
     val array = NewArray[B](a.length)
@@ -167,11 +167,11 @@ trait ArrayOpsExpOpt extends ArrayOpsExp {
     case Def(ArrayNew(n: Exp[Int])) => n
     case Def(ArrayFromSeq(xs)) => Const(xs.size)
     case Def(ArraySort(x)) => array_length(x)
-    case Def(ArrayMap(x: Exp[Array[T]], _, _)) => array_length[T](x)
+    case Def(ArrayMap(x: Exp[?], _, _)) => array_length[T](x.asInstanceOf[Exp[Array[T]]])
     case Def(Reflect(ArrayNew(n: Exp[Int]), _, _)) => n
     case Def(Reflect(ArrayFromSeq(xs), _, _)) => Const(xs.size)
     case Def(Reflect(ArraySort(x), _, _)) => array_length(x)
-    case Def(Reflect(ArrayMap(x: Exp[Array[T]], _, _), _, _)) => array_length[T](x)
+    case Def(Reflect(ArrayMap(x: Exp[?], _, _), _, _)) => array_length[T](x.asInstanceOf[Exp[Array[T]]])
     case _ => super.array_length(a)
   }
 
@@ -332,4 +332,3 @@ trait CGenArrayOps extends CGenBase with BaseGenArrayOps {
       }
     }
 }
-

@@ -52,12 +52,12 @@ trait Equal extends Base with Variables with OverloadHack {
 trait EqualExpBridge extends BaseExp with BooleanOpsExp {
 
   case class Equal[A:Typ,B:Typ](a: Exp[A], b: Exp[B]) extends Def[Boolean] {
-    def mA = typ[A]
-    def mB = typ[B]
+    def mA = (typ[A]: @unchecked)
+    def mB = (typ[B]: @unchecked)
   }
   case class NotEqual[A:Typ,B:Typ](a: Exp[A], b: Exp[B]) extends Def[Boolean] {
-    def mA = typ[A]
-    def mB = typ[B]
+    def mA = (typ[A]: @unchecked)
+    def mB = (typ[B]: @unchecked)
   }
 
   def equals[A:Typ,B:Typ](a: Rep[A], b: Rep[B])(using pos: SourceContext): Rep[Boolean] = Equal(a,b)

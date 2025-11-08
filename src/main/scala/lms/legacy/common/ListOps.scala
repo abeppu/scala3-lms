@@ -59,7 +59,7 @@ trait ListOps extends Variables {
 trait ListOpsExp extends ListOps with EffectExp with VariablesExp with BooleanOpsExp with ArrayOpsExp with StringOpsExp {
   override given listTyp[T:Typ]: Typ[List[T]] = manifestTyp
   case class ListNew[A:Typ](xs: Seq[Rep[A]]) extends Def[List[A]] {
-    def mA = typ[A]
+    def mA = (typ[A]: @unchecked)
   }
   case class ListFromSeq[A:Typ](xs: Rep[Seq[A]]) extends Def[List[A]]
   case class ListMap[A:Typ,B:Typ](l: Exp[List[A]], x: Sym[A], block: Block[B]) extends Def[List[B]]
@@ -166,7 +166,7 @@ trait ScalaGenListOps extends BaseGenListOps with ScalaGenEffect {
     case ListHead(xs) => emitValDef(sym, src"$xs.head")
     case ListTail(xs) => emitValDef(sym, src"$xs.tail")
     case ListIsEmpty(xs) => emitValDef(sym, src"$xs.isEmpty")
-    case ListFromSeq(xs) => emitValDef(sym, src"List($xs: _*)")
+    case ListFromSeq(xs) => emitValDef(sym, src"List($xs*)")
     case ListMkString(xs) => emitValDef(sym, src"$xs.mkString")
     case ListMkString2(xs,s) => emitValDef(sym, src"$xs.mkString($s)")
     case ListMap(l,x,blk) => 
@@ -212,4 +212,3 @@ trait CLikeGenListOps extends BaseGenListOps with CLikeGenBase {
 trait CudaGenListOps extends CudaGenEffect with CLikeGenListOps
 trait OpenCLGenListOps extends OpenCLGenEffect with CLikeGenListOps
 trait CGenListOps extends CGenEffect with CLikeGenListOps
-

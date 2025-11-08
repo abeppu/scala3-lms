@@ -21,14 +21,14 @@ trait Arrays extends Base {
 }
 
 trait ArraysExp extends Arrays with BaseExp {
-  implicit def arrayTyp[T:Typ]: Typ[Array[T]] = typ[T].arrayTyp
+  implicit def arrayTyp[T:Typ]: Typ[Array[T]] = (typ[T]: @unchecked).arrayTyp
 
   trait ArrayDef[T] extends Def[Array[T]]
   trait ElemDef[T] extends Def[T]
   case class ArrayApply[T:Typ](x:Rep[Array[T]], i:Int) extends ElemDef[T]
   //case class ArrayUpdate[T](x:Rep[Array[T]], i:Int) extends Def[T]
   case class MakeArray[T:Typ](x:List[Rep[T]]) extends ArrayDef[T] {
-    def m = typ[T]
+    def m = (typ[T]: @unchecked)
   }
 
   def arrayApply[T:Typ](x: Rep[Array[T]], i:Int) = ArrayApply(x, i)

@@ -21,22 +21,22 @@ trait LoopsExp extends Loops with BaseExp with EffectExp {
 
 
   override def syms(e: Any): List[Sym[Any]] = e match {
-    case e: AbstractLoop[_] => syms(e.size) ::: syms(e.body) // should add super.syms(e) ?? not without a flag ...
+    case e: AbstractLoop[?] => syms(e.size) ::: syms(e.body) // should add super.syms(e) ?? not without a flag ...
     case _ => super.syms(e)
   }
 
   override def readSyms(e: Any): List[Sym[Any]] = e match {
-    case e: AbstractLoop[_] => readSyms(e.size) ::: readSyms(e.body)
+    case e: AbstractLoop[?] => readSyms(e.size) ::: readSyms(e.body)
     case _ => super.readSyms(e)
   }
 
   override def boundSyms(e: Any): List[Sym[Any]] = e match {
-    case e: AbstractLoop[_] => e.v :: boundSyms(e.body)
+    case e: AbstractLoop[?] => e.v :: boundSyms(e.body)
     case _ => super.boundSyms(e)
   }
 
   override def symsFreq(e: Any): List[(Sym[Any], Double)] = e match {
-    case e: AbstractLoop[_] => freqNormal(e.size) ::: freqHot(e.body) // should add super.syms(e) ?? not without a flag ...
+    case e: AbstractLoop[?] => freqNormal(e.size) ::: freqHot(e.body) // should add super.syms(e) ?? not without a flag ...
     case _ => super.symsFreq(e)
   }
 
@@ -54,22 +54,22 @@ trait LoopsExp extends Loops with BaseExp with EffectExp {
   // aliases and sharing
 
   override def aliasSyms(e: Any): List[Sym[Any]] = e match {
-    case e: AbstractLoop[_] => aliasSyms(e.body)
+    case e: AbstractLoop[?] => aliasSyms(e.body)
     case _ => super.aliasSyms(e)
   }
 
   override def containSyms(e: Any): List[Sym[Any]] = e match {
-    case e: AbstractLoop[_] => containSyms(e.body)
+    case e: AbstractLoop[?] => containSyms(e.body)
     case _ => super.containSyms(e)
   }
 
   override def extractSyms(e: Any): List[Sym[Any]] = e match {
-    case e: AbstractLoop[_] => extractSyms(e.body)
+    case e: AbstractLoop[?] => extractSyms(e.body)
     case _ => super.extractSyms(e)
   }
 
   override def copySyms(e: Any): List[Sym[Any]] = e match {
-    case e: AbstractLoop[_] => copySyms(e.body)
+    case e: AbstractLoop[?] => copySyms(e.body)
     case _ => super.copySyms(e)
   }
 }
@@ -135,9 +135,9 @@ trait BaseLoopsTraversalFat extends FatBlockTraversal {
   import IR._
 
   override def fatten(e: Stm): Stm = e match {
-    case TP(sym, op: AbstractLoop[_]) =>
+    case TP(sym, op: AbstractLoop[?]) =>
       TTP(List(sym), List(op), SimpleFatLoop(op.size, op.v, List(op.body)))
-    case TP(sym, p @ Reflect(op: AbstractLoop[_], u, es)) if !u.maySimple && !u.mayGlobal => // assume body will reflect, too. bring it on...
+    case TP(sym, p @ Reflect(op: AbstractLoop[?], u, es)) if !u.maySimple && !u.mayGlobal => // assume body will reflect, too. bring it on...
       printdbg("-- fatten effectful loop " + e)
       TTP(List(sym), List(p), SimpleFatLoop(op.size, op.v, List(op.body)))
     case _ => super.fatten(e)

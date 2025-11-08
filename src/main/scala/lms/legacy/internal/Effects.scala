@@ -3,6 +3,7 @@ package lms.legacy.internal
 import lms.legacy.util.GraphUtil
 import scala.collection.mutable
 import scala.annotation.unchecked.uncheckedVariance
+import scala.compiletime.uninitialized
 import lms.legacy.compat.{anyManifest,SourceContext}
 
 trait Blocks extends Expressions {
@@ -25,7 +26,7 @@ trait Effects extends Expressions with Blocks with Utils {
 
   type State = List[Exp[Any]] // TODO: maybe use TP instead to save lookup
   
-  var context: State = _
+  var context: State = uninitialized
 
   var conditionalScope = false // used to construct Control nodes
 
@@ -435,7 +436,7 @@ trait Effects extends Expressions with Blocks with Utils {
       // NOTE: reflecting mutable stuff *during mirroring* doesn't work right now.
       
       // FIXME: Reflect(Reflect(ObjectUnsafeImmutable(..))) on delite
-      assert(!x.isInstanceOf[Reflect[_]], x)
+      assert(!x.isInstanceOf[Reflect[?]], x)
 
       val deps = calculateDependencies(u)
       val zd = Reflect(x,u,deps)

@@ -4,7 +4,7 @@ import lms.legacy.util.GraphUtil
 import java.io.{File, PrintWriter}
 
 trait GenericFatCodegen extends GenericNestedCodegen with FatBlockTraversal {
-  val IR: Expressions with Effects with FatExpressions
+  val IR: Expressions & Effects & FatExpressions
   import IR._  
   
   

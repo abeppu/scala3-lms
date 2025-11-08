@@ -31,7 +31,7 @@ trait BlockTraversal extends GraphTraversal {
 
 
 trait NestedBlockTraversal extends BlockTraversal with NestedGraphTraversal {
-  val IR: Expressions with Effects
+  val IR: Expressions & Effects
   import IR._
 
   // ----- block definition

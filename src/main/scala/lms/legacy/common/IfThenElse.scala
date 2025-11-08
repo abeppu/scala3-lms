@@ -175,7 +175,7 @@ trait IfThenElseFatExp extends IfThenElseExp with BaseFatExp {
 }
 
 
-trait IfThenElseExpOpt extends IfThenElseExp { this: BooleanOpsExp with EqualExpBridge =>
+trait IfThenElseExpOpt extends IfThenElseExp { this: BooleanOpsExp & EqualExpBridge =>
   
   //TODO: eliminate conditional if both branches return same value!
 
@@ -204,9 +204,9 @@ trait BaseGenIfThenElseFat extends BaseGenIfThenElse with GenericFatCodegen {
   import IR._
 
   override def fatten(e: Stm): Stm = e match {
-    case TP(sym, o: AbstractIfThenElse[_]) => 
+    case TP(sym, o: AbstractIfThenElse[?]) => 
       TTP(List(sym), List(o), SimpleFatIfThenElse(o.cond, List(o.thenp), List(o.elsep)))
-    case TP(sym, p @ Reflect(o: AbstractIfThenElse[_], u, es)) => //if !u.maySimple && !u.mayGlobal =>  // contrary, fusing will not change observable order
+    case TP(sym, p @ Reflect(o: AbstractIfThenElse[?], u, es)) => //if !u.maySimple && !u.mayGlobal =>  // contrary, fusing will not change observable order
       // assume body will reflect, too...
       printdbg("-- fatten effectful if/then/else " + e)
       val e2 = SimpleFatIfThenElse(o.cond, List(o.thenp), List(o.elsep))
@@ -433,4 +433,3 @@ trait CGenIfThenElseFat extends CGenIfThenElse with CGenFat with BaseGenIfThenEl
     case _ => super.emitFatNode(symList, rhs)
   }
 }
-

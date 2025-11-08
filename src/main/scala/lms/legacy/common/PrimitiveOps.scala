@@ -244,7 +244,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
     // TODO Something is wrong if we just use floatValue. implicits get confused
     def floatValueL ()(using pos: SourceContext): Rep[Float]  = int_float_value(lhs)
     def doubleValue ()(using pos: SourceContext): Rep[Double] = int_double_value(lhs)
-    def unary_~     ()(using pos: SourceContext): Rep[Int]    = int_bitwise_not(lhs)
+    def unary_~     (using pos: SourceContext): Rep[Int]    = int_bitwise_not(lhs)
     def toLong        (using pos: SourceContext): Rep[Long]   = int_tolong(lhs)
     def toDouble      (using pos: SourceContext): Rep[Double] = int_to_double(lhs)
     def toFloat       (using pos: SourceContext): Rep[Float]  = int_to_float(lhs)
@@ -728,7 +728,7 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
   override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env:Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
 
-    if (!d.isInstanceOf[ArithOp[Double]]) {
+    if (!d.isInstanceOf[ArithOp[?]]) {
       super.interpretDefWithEnv(d)
     } else {
       val dArithOp = d.asInstanceOf[ArithOp[Double]]
@@ -889,4 +889,3 @@ trait CGenPrimitiveOps extends CGenBase with CLikeGenPrimitiveOps {
     }
   }
 }
-

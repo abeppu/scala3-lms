@@ -3,7 +3,7 @@ package lms.legacy.common
 import lms.legacy.internal.GenericCodegen
 
 import java.io.PrintWriter
-import lms.legacy.compat.SourceContext
+import lms.legacy.compat.{Manifest, SourceContext}
 
 import scala.compiletime.deferred
 trait TupleOps extends Base {
@@ -46,29 +46,29 @@ trait TupleOps extends Base {
 
 trait TupleOpsExp extends TupleOps with StructExpOpt {
   override given tuple2_typ[A:Typ,B:Typ]: Typ[(A,B)] = {
-    implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
-    implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
+    implicit val mA: Manifest[A] = manifestOf[A]
+    implicit val mB: Manifest[B] = manifestOf[B]
     manifestTyp
   }
   override given tuple3_typ[A:Typ,B:Typ,C:Typ]: Typ[(A,B,C)] = {
-    implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
-    implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
-    implicit val ManifestTyp(mC: Manifest[C]) = typ[C]
+    implicit val mA: Manifest[A] = manifestOf[A]
+    implicit val mB: Manifest[B] = manifestOf[B]
+    implicit val mC: Manifest[C] = manifestOf[C]
     manifestTyp
   }
   override given tuple4_typ[A:Typ,B:Typ,C:Typ,D:Typ]: Typ[(A,B,C,D)] = {
-    implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
-    implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
-    implicit val ManifestTyp(mC: Manifest[C]) = typ[C]
-    implicit val ManifestTyp(mD: Manifest[D]) = typ[D]
+    implicit val mA: Manifest[A] = manifestOf[A]
+    implicit val mB: Manifest[B] = manifestOf[B]
+    implicit val mC: Manifest[C] = manifestOf[C]
+    implicit val mD: Manifest[D] = manifestOf[D]
     manifestTyp
   }
   override given tuple5_typ[A:Typ,B:Typ,C:Typ,D:Typ,E:Typ]: Typ[(A,B,C,D,E)] = {
-    implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
-    implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
-    implicit val ManifestTyp(mC: Manifest[C]) = typ[C]
-    implicit val ManifestTyp(mD: Manifest[D]) = typ[D]
-    implicit val ManifestTyp(mE: Manifest[E]) = typ[E]
+    implicit val mA: Manifest[A] = manifestOf[A]
+    implicit val mB: Manifest[B] = manifestOf[B]
+    implicit val mC: Manifest[C] = manifestOf[C]
+    implicit val mD: Manifest[D] = manifestOf[D]
+    implicit val mE: Manifest[E] = manifestOf[E]
     manifestTyp
   }
 
@@ -77,23 +77,23 @@ trait TupleOpsExp extends TupleOps with StructExpOpt {
   implicit def make_tuple4[A:Typ,B:Typ,C:Typ,D:Typ](t: (Exp[A],Exp[B],Exp[C],Exp[D]))(using pos: SourceContext) : Exp[(A,B,C,D)] = struct(classTag[(A,B,C,D)], "_1" -> t._1, "_2" -> t._2, "_3" -> t._3, "_4" -> t._4)
   implicit def make_tuple5[A:Typ,B:Typ,C:Typ,D:Typ,E:Typ](t: (Exp[A],Exp[B],Exp[C],Exp[D],Exp[E]))(using pos: SourceContext) : Exp[(A,B,C,D,E)] = struct(classTag[(A,B,C,D,E)], "_1" -> t._1, "_2" -> t._2, "_3" -> t._3, "_4" -> t._4, "_5" -> t._5)
 
-  def tuple2_get1[A:Typ](t: Exp[(A,_)])(using pos: SourceContext) = field[A](t, "_1")
-  def tuple2_get2[B:Typ](t: Exp[(_,B)])(using pos: SourceContext) = field[B](t, "_2")
+  def tuple2_get1[A:Typ](t: Exp[(A,?)])(using pos: SourceContext) = field[A](t, "_1")
+  def tuple2_get2[B:Typ](t: Exp[(?,B)])(using pos: SourceContext) = field[B](t, "_2")
 
-  def tuple3_get1[A:Typ](t: Exp[(A,_,_)])(using pos: SourceContext) = field[A](t, "_1")
-  def tuple3_get2[B:Typ](t: Exp[(_,B,_)])(using pos: SourceContext) = field[B](t, "_2")
-  def tuple3_get3[C:Typ](t: Exp[(_,_,C)])(using pos: SourceContext) = field[C](t, "_3")
+  def tuple3_get1[A:Typ](t: Exp[(A,?,?)])(using pos: SourceContext) = field[A](t, "_1")
+  def tuple3_get2[B:Typ](t: Exp[(?,B,?)])(using pos: SourceContext) = field[B](t, "_2")
+  def tuple3_get3[C:Typ](t: Exp[(?,?,C)])(using pos: SourceContext) = field[C](t, "_3")
 
-  def tuple4_get1[A:Typ](t: Exp[(A,_,_,_)])(using pos: SourceContext) = field[A](t, "_1")
-  def tuple4_get2[B:Typ](t: Exp[(_,B,_,_)])(using pos: SourceContext) = field[B](t, "_2")
-  def tuple4_get3[C:Typ](t: Exp[(_,_,C,_)])(using pos: SourceContext) = field[C](t, "_3")
-  def tuple4_get4[D:Typ](t: Exp[(_,_,_,D)])(using pos: SourceContext) = field[D](t, "_4")
+  def tuple4_get1[A:Typ](t: Exp[(A,?,?,?)])(using pos: SourceContext) = field[A](t, "_1")
+  def tuple4_get2[B:Typ](t: Exp[(?,B,?,?)])(using pos: SourceContext) = field[B](t, "_2")
+  def tuple4_get3[C:Typ](t: Exp[(?,?,C,?)])(using pos: SourceContext) = field[C](t, "_3")
+  def tuple4_get4[D:Typ](t: Exp[(?,?,?,D)])(using pos: SourceContext) = field[D](t, "_4")
 
-  def tuple5_get1[A:Typ](t: Exp[(A,_,_,_,_)])(using pos: SourceContext) = field[A](t, "_1")
-  def tuple5_get2[B:Typ](t: Exp[(_,B,_,_,_)])(using pos: SourceContext) = field[B](t, "_2")
-  def tuple5_get3[C:Typ](t: Exp[(_,_,C,_,_)])(using pos: SourceContext) = field[C](t, "_3")
-  def tuple5_get4[D:Typ](t: Exp[(_,_,_,D,_)])(using pos: SourceContext) = field[D](t, "_4")
-  def tuple5_get5[E:Typ](t: Exp[(_,_,_,_,E)])(using pos: SourceContext) = field[E](t, "_5")
+  def tuple5_get1[A:Typ](t: Exp[(A,?,?,?,?)])(using pos: SourceContext) = field[A](t, "_1")
+  def tuple5_get2[B:Typ](t: Exp[(?,B,?,?,?)])(using pos: SourceContext) = field[B](t, "_2")
+  def tuple5_get3[C:Typ](t: Exp[(?,?,C,?,?)])(using pos: SourceContext) = field[C](t, "_3")
+  def tuple5_get4[D:Typ](t: Exp[(?,?,?,D,?)])(using pos: SourceContext) = field[D](t, "_4")
+  def tuple5_get5[E:Typ](t: Exp[(?,?,?,?,E)])(using pos: SourceContext) = field[E](t, "_5")
 
   object Both { def unapply[T](x:T):Some[(T,T)] = Some((x,x)) }
 }

@@ -11,15 +11,15 @@ trait UncheckedOps extends Base {
   implicit class richQuote(c: StringContext) {
     class QuoteOps(args: Thunk[Rep[Any]]*) {
       def as[T:Typ]: Rep[T] = {
-        //reflect(c.s(args map (a => reify(a.eval())):_*))
+        //reflect(c.s(args map (a => reify(a.eval()))*))
         def merge(a: List[Any], b: List[Any]): List[Any] = a match {
           case Nil => Nil
           case x::xs => x::merge(b,a)
         }
-        unchecked[T](merge(c.parts.toList, args.toList.map(_.eval())):_*)
+        unchecked[T](merge(c.parts.toList, args.toList.map(_.eval()))*)
       }
     }
-    def raw(args: Thunk[Rep[Any]]*) = new QuoteOps(args:_*)
+    def raw(args: Thunk[Rep[Any]]*) = new QuoteOps(args*)
   }
   
   // args: =>Code* is not allowed so we make thunks explicit
@@ -48,7 +48,7 @@ trait ScalaGenUncheckedOps extends ScalaGenBase {
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
     case Unchecked(xs) => 
-      emitValDef(sym, xs map ((x:Any)=> x match { case x: Exp[_] => quote(x) case x => x.toString }) mkString "")
+      emitValDef(sym, xs map ((x:Any)=> x match { case x: Exp[?] => quote(x) case x => x.toString }) mkString "")
     case _ => super.emitNode(sym, rhs)
   }
 }
@@ -59,7 +59,7 @@ trait CGenUncheckedOps extends CGenBase {
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
     case Unchecked(xs) => 
-      emitValDef(sym, xs map ((x:Any)=> x match { case x: Exp[_] => quote(x) case x => x.toString }) mkString "")
+      emitValDef(sym, xs map ((x:Any)=> x match { case x: Exp[?] => quote(x) case x => x.toString }) mkString "")
     case _ => super.emitNode(sym, rhs)
   }
 }

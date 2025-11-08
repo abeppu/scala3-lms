@@ -123,8 +123,8 @@ trait SimplifyTransform extends FatScheduling {
         }
 
         def infix_toIf(d: Def[Any]) = d match {
-          case l: AbstractIfThenElse[_] => l
-          case Reflect(l: AbstractIfThenElse[_], _, _) => l
+          case l: AbstractIfThenElse[?] => l
+          case Reflect(l: AbstractIfThenElse[?], _, _) => l
         }
         val cond2 = if (lhs != lhs2) mhs2.map (infix_toIf(_).cond) reduceLeft { (s1,s2) => assert(s1==s2,"conditions don't agree: "+s1+","+s2); s1 }
                     else t(c)
@@ -148,8 +148,8 @@ trait SimplifyTransform extends FatScheduling {
         }
         //val shape2 = if (lhs != lhs2) lhs2.map { case Def(SimpleLoop(s,_,_)) => s } reduceLeft { (s1,s2) => assert(s1==s2,"shapes don't agree: "+s1+","+s2); s1 }
         def infix_toLoop(d: Def[Any]) = d match {
-          case l: AbstractLoop[_] => l
-          case Reflect(l: AbstractLoop[_], _, _) => l
+          case l: AbstractLoop[?] => l
+          case Reflect(l: AbstractLoop[?], _, _) => l
         }
         val shape2 = if (lhs != lhs2) mhs2.map (infix_toLoop(_).size) reduceLeft { (s1,s2) => assert(s1==s2,"shapes don't agree: "+s1+","+s2); s1 }
                      else t(s)
