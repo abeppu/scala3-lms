@@ -4,6 +4,7 @@ import lms.legacy.compat.SourceContext
 
 import scala.Conversion
 import scala.annotation.*
+import scala.math.Ordering
 import scala.quoted.*
 
 @experimental
@@ -88,12 +89,17 @@ class virt extends MacroAnnotation {
       case _ => term
     }
 
+
     // Reuse LMS unit to wrap a literal Unit into Rep[Unit].
     def makeUnit(ctx: MacroCtx, value: Term): Term = {
       val unitTree = TypeTree.of[Unit]
       val unitTyp = Applied(TypeSelect(ctx.thist, "Typ"), List(unitTree))
       val unitWitness = Implicits.search(unitTyp.tpe) match {
         case success: ImplicitSearchSuccess => success.tree
+        case _ =>
+          // The DSL core exposes unitTyp as a member, which is still available
+          // even when the concrete implementation is deferred in a trait.
+          selectThisMember(ctx, "unitTyp", "missing Typ[Unit] evidence for virtualized unit")
       }
       Apply(Apply(TypeApply(ctx.unitf, List(unitTree)), List(value)), List(unitWitness))
     }
@@ -142,16 +148,20 @@ class virt extends MacroAnnotation {
           makeUnit(ctx, Literal(UnitConstant()))
         case Block(stats, Literal(_)) =>
           Block(stats, makeUnit(ctx, Literal(UnitConstant())))
-        case Block(_, value) =>
-          report.errorAndAbort("body of virtualized while loop should have type Rep[Unit]: " + value.show)
-        case other => other
+        case Block(stats, value) =>
+          Block(stats :+ value, makeUnit(ctx, Literal(UnitConstant())))
+        case other =>
+          Block(List(other), makeUnit(ctx, Literal(UnitConstant())))
       }
 
     def findOverload(thist: Term, n: Int): Term = {
       val overloadType = TypeSelect(thist, s"Overloaded$n")
       Implicits.search(overloadType.tpe) match {
         case success: ImplicitSearchSuccess => success.tree
-        case _ => report.errorAndAbort(s"missing overload evidence Overloaded$n")
+        case _ =>
+          try Select.unique(thist, s"overloaded$n")
+          catch
+            case _: Throwable => report.errorAndAbort(s"missing overload evidence Overloaded$n")
       }
     }
     
@@ -164,14 +174,54 @@ class virt extends MacroAnnotation {
         // Failure should be impossible, else we wouldn't have been
         // able to form the type Rep[T]
         case success: ImplicitSearchSuccess => success.tree
+        case failure: ImplicitSearchFailure =>
+          val sym = trep.typeSymbol
+          val baseCandidates: List[String] =
+            if sym.isNoSymbol then Nil
+            else
+              val fullname = sym.fullName
+              val computed =
+                if sym.name.forall(_.isLower) then sym.name + "Typ"
+                else if sym.name.nonEmpty then sym.name.head.toLower + sym.name.tail + "Typ"
+                else "Typ"
+              val special = fullname match {
+                case "scala.Boolean" => List("boolTyp")
+                case _ => Nil
+              }
+              special :+ computed
+          baseCandidates.collectFirst { cname =>
+            try Some(Select.unique(thist, cname))
+            catch case _: Throwable => None
+          }.flatten.getOrElse {
+            report.errorAndAbort(s"failed to synthesize Typ for ${trep.show}: ${failure.explanation}")
+          }
       }
       typW
     }
+
+    def findOrderingW(trep: TypeRepr): Term = {
+      val orderingTpe = TypeRepr.of[Ordering].appliedTo(trep)
+      Implicits.search(orderingTpe) match {
+        case success: ImplicitSearchSuccess => success.tree
+        case failure: ImplicitSearchFailure =>
+          report.errorAndAbort(s"failed to find Ordering evidence for ${trep.show}")
+      }
+    }
+
+    def selectThisMember(ctx: MacroCtx, name: String, error: => String): Term =
+      try Select.unique(ctx.thist, name)
+      catch
+        case _: Throwable => report.errorAndAbort(error)
     object Virtualizer extends TreeMap {
 
       private def isVirtualizedBoolConv(fun: Term): Boolean = fun match {
         case Select(Select(_, "__virtualizedBoolConvInternal"), "apply") => true
         case _ => false
+      }
+
+      private def stripBoolConv(term: Term): Term = term match {
+        case Apply(fun, List(arg)) if isVirtualizedBoolConv(fun) => stripBoolConv(arg)
+        case other => other
       }
 
       private def makeCtx(owner: Symbol): MacroCtx = {
@@ -203,8 +253,11 @@ class virt extends MacroAnnotation {
 
       // Virtualize branch by routing condition and bodies through __ifThenElse.
       private def rewriteIf(ctx: MacroCtx, ifTerm: If): Term = {
-        val guard = transformTerm(ifTerm.cond)(ctx.owner)
-        classifyTerm(guard) match {
+        val guardTree = stripBoolConv(ifTerm.cond)
+        val guard = transformTerm(guardTree)(ctx.owner)
+        val guardKind = classifyTerm(guard)
+        report.info(s"if guard kind: $guardKind", ifTerm.cond.pos)
+        guardKind match {
           case Bare(_) =>
             val thenp = transformTerm(ifTerm.thenp)(ctx.owner)
             val elsep = transformTerm(ifTerm.elsep)(ctx.owner)
@@ -222,8 +275,9 @@ class virt extends MacroAnnotation {
 
       // Handle && / || by deferring to LMS boolean combinators only when reps are involved.
       private def rewriteBooleanBinary(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, method: String): Term = {
-        val lhs = transformTerm(lhsTree)(ctx.owner)
-        val rhs = transformTerm(rhsTree)(ctx.owner)
+        val lhs = transformTerm(stripBoolConv(lhsTree))(ctx.owner)
+        val rhs = transformTerm(stripBoolConv(rhsTree))(ctx.owner)
+        report.info(s"rewriting $method", sel.pos)
         (classifyTerm(lhs), classifyTerm(rhs)) match {
           case (Bare(_), Bare(_)) =>
             rebuildBinary(applyTerm, sel, lhs, rhs)
@@ -282,25 +336,44 @@ class virt extends MacroAnnotation {
       private def rewriteOrdering(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, method: String): Term = {
         val lhs = transformTerm(lhsTree)(ctx.owner)
         val rhs = transformTerm(rhsTree)(ctx.owner)
-        (classifyTerm(lhs), classifyTerm(rhs)) match {
-          case (Bare(_), Bare(_)) =>
-            rebuildBinary(applyTerm, sel, lhs, rhs)
-          case _ =>
-            val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(lhs, ctx), wrapBareTerm(rhs, ctx)))
-            Apply(call, List(ctx.srcGen))
+        println(s"< lhs BEFORE ${lhsTree.show(using Printer.TreeCode)}")
+        println(s"< lhs AFTER ${lhs.show(using Printer.TreeCode)}")
+        println(s"< rhs: ${rhs.show(using Printer.TreeCode)}")
+        val lhsKind = classifyTerm(lhs)
+        val rhsKind = classifyTerm(rhs)
+        val elemType = lhsKind match {
+          case RepW(t) => t
+          case VarW(t) => t
+          case Bare(t) =>
+            rhsKind match {
+              case RepW(t2) => t2
+              case VarW(t2) => t2
+              case Bare(_) => t
+            }
         }
+        println(s"elemType = ${elemType.show(using Printer.TypeReprCode)}")
+        val args = List(wrapBareTerm(lhs, ctx), wrapBareTerm(rhs, ctx))
+        println(s"args = [${args.map(_.show)}]")
+        val methodSym = findMethods(ctx.owner, method) match {
+          case sym :: _ => sym
+          case Nil => report.errorAndAbort(s"failed to virtualize: no $method in scope")
+        }
+        val methodRef = Select(ctx.thist, methodSym)
+        val typedMethod = methodRef.appliedToTypes(List(elemType))
+        val applied = typedMethod.appliedToArgs(args)
+        val orderingEvidence = findOrderingW(elemType)
+        println(s"orderingEvidence : ${orderingEvidence.show}")
+        val typEvidence = findTypW(ctx.thist, elemType)
+        val ret = applied.appliedToArgs(List(orderingEvidence, typEvidence, ctx.srcGen))
+        println(s"< rewrite: ${ret.show(using Printer.TreeAnsiCode)}")
+        println(s"< rewrite: ${ret.show(using Printer.TreeCode)}")
+        println(s"< rewrite: ${ret.show(using Printer.TreeStructure)}")
+        ret
       }
 
       // Replace while loops with __whileDo(cond, body).
-      private def rewriteWhile(ctx: MacroCtx, condTree: Term, bodyTree: Term): Term = {
-        val guard = transformTerm(condTree)(ctx.owner)
-        val body = transformTerm(bodyTree)(ctx.owner)
+      private def rewriteWhile(ctx: MacroCtx, guard: Term, body: Term): Term = {
         val normalizedBody = dropTrailingUnitInWhileBody(body, ctx)
-        classifyTerm(guard) match {
-          case Bare(_) =>
-            While(condTree, bodyTree) // unreachable if we matched conversion, but keep fallback
-          case _ => ()
-        }
         val method = findMethods(ctx.owner, "__whileDo") match {
           case _ :: symb :: _ => symb
           case symb :: Nil => symb
@@ -350,8 +423,6 @@ class virt extends MacroAnnotation {
               case _ =>
                 value
             }
-          case Apply(fun, List(arg)) if isVirtualizedBoolConv(fun) =>
-            transformTerm(arg)(owner)
           case ifTerm: If =>
             rewriteIf(ctx, ifTerm)
           case applyTerm @ Apply(sel @ Select(lhs, op @ ("&&" | "||")), List(rhs)) =>
@@ -372,6 +443,7 @@ class virt extends MacroAnnotation {
             rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = false)
           case applyTerm @ Apply(sel @ Select(lhs, "!="), List(rhs)) =>
             rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = true)
+            /*
           case applyTerm @ Apply(sel @ Select(lhs, "<"), List(rhs)) =>
             rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_lt")
           case applyTerm @ Apply(sel @ Select(lhs, "<="), List(rhs)) =>
@@ -379,15 +451,27 @@ class virt extends MacroAnnotation {
           case applyTerm @ Apply(sel @ Select(lhs, ">"), List(rhs)) =>
             rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_gt")
           case applyTerm @ Apply(sel @ Select(lhs, ">="), List(rhs)) =>
-            rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_gteq")
-          case While(Apply(fun, List(cond)), body) if isVirtualizedBoolConv(fun) =>
-            rewriteWhile(ctx, cond, body)
+            rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_gteq") */
+          case whileTerm @ While(condTree, bodyTree) =>
+            val guard = transformTerm(stripBoolConv(condTree))(ctx.owner)
+            val body = transformTerm(bodyTree)(ctx.owner)
+            val guardKind = classifyTerm(guard)
+            report.info(s"while guard kind: $guardKind", condTree.pos)
+            guardKind match {
+              case Bare(_) =>
+                While.copy(whileTerm)(guard, body)
+              case _ =>
+                rewriteWhile(ctx, guard, body)
+            }
           case _ => super.transformTerm(term)(owner)
         }
       }
 
       override def transformStatement(statement: Statement)(owner: Symbol): Statement = statement match {
+        case whileTerm: While =>
+          transformTerm(whileTerm)(owner)
         case d: Definition => transformLocalDefinition(d, owner)
+        case term: Term => transformTerm(term)(owner)
         case other => super.transformStatement(other)(owner)
       }
     }

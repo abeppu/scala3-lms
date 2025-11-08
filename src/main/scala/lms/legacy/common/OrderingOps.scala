@@ -7,14 +7,14 @@ import lms.legacy.compat.SourceContext
 trait OrderingOps extends Base with Variables with BooleanOps with PrimitiveOps with OverloadHack {
   // workaround for infix not working with implicits in PrimitiveOps
   given orderingToOrderingOps[T:Ordering:Typ]: Conversion[T, OrderingOpsCls[T]] with {
-  def apply(n: T): OrderingOpsCls[T] = new OrderingOpsCls(unit(n))
-}
+    def apply(n: T): OrderingOpsCls[T] = new OrderingOpsCls(unit(n))
+  }
   given repOrderingToOrderingOps[T:Ordering:Typ]: Conversion[Rep[T], OrderingOpsCls[T]] with {
-  def apply(n: Rep[T]): OrderingOpsCls[T] = new OrderingOpsCls(n)
-}
+    def apply(n: Rep[T]): OrderingOpsCls[T] = new OrderingOpsCls(n)
+  }
   given varOrderingToOrderingOps[T:Ordering:Typ]: Conversion[Var[T], OrderingOpsCls[T]] with {
-  def apply(n: Var[T]): OrderingOpsCls[T] = new OrderingOpsCls(readVar(n))
-}
+    def apply(n: Var[T]): OrderingOpsCls[T] = new OrderingOpsCls(readVar(n))
+  }
 
   class OrderingOpsCls[T:Ordering:Typ](lhs: Rep[T]){
     def <       (rhs: Rep[T])(using pos: SourceContext) = ordering_lt(lhs, rhs)

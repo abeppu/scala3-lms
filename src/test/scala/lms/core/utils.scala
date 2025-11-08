@@ -97,7 +97,7 @@ trait DslSnippet[A:ClassTag,B:ClassTag] extends Dsl {
   def snippet(x: Rep[A]): Rep[B]
 }
 
-abstract class DslDriver[A:ClassTag,B:ClassTag] extends DslSnippet[A,B] with DslImpl {
+trait DslDriver[A:ClassTag,B:ClassTag] extends DslSnippet[A,B] with DslImpl {
   lazy val code: String = {
     val source = new java.io.StringWriter()
     codegen.emitSource(
