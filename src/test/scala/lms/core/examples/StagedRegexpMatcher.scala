@@ -72,4 +72,62 @@ class RegexpMatcherTest extends TutorialFunSuite {
     check("regex1", Snippet.code)
   }
 
+  private def matchsearchHost(regexp: String, text: String): Boolean = {
+    def matchchar(c: Char, t: Char): Boolean =
+      c == '.' || c == t
+
+    def matchstar(c: Char, restart: Int, start: Int): Boolean = {
+      var sstart = start
+      var found = matchhere(restart, sstart)
+      var failed = false
+      while (!failed && !found && sstart < text.length) {
+        failed = !matchchar(c, text.charAt(sstart))
+        sstart += 1
+        if (!failed) found = matchhere(restart, sstart)
+      }
+      !failed && found
+    }
+
+    def matchhere(restart: Int, start: Int): Boolean = {
+      if (restart == regexp.length) true
+      else if (regexp(restart) == '$' && restart + 1 == regexp.length)
+        start == text.length
+      else if (restart + 1 < regexp.length && regexp(restart + 1) == '*')
+        matchstar(regexp(restart), restart + 2, start)
+      else if (start < text.length && matchchar(regexp(restart), text.charAt(start)))
+        matchhere(restart + 1, start + 1)
+      else false
+    }
+
+    if (regexp.nonEmpty && regexp.head == '^')
+      matchhere(1, 0)
+    else {
+      var idx = 0
+      var found = false
+      while (!found && idx <= text.length) {
+        found = matchhere(0, idx)
+        idx += 1
+      }
+      found
+    }
+  }
+
+  test("matchsearch exact anchors") {
+    assert(matchsearchHost("^hello$", "hello"))
+    assert(!matchsearchHost("^hello$", "oh hello"))
+    assert(!matchsearchHost("^hello$", "hello there"))
+  }
+
+  test("matchsearch substring search") {
+    assert(matchsearchHost("world", "hello world!"))
+    assert(matchsearchHost("lo w", "hello world"))
+    assert(!matchsearchHost("world", "WORD"))
+  }
+
+  test("matchsearch wildcard star") {
+    assert(matchsearchHost("^h.*o$", "hello"))
+    assert(matchsearchHost("a.*b", "accb"))
+    assert(!matchsearchHost("^h.*o$", "hey there"))
+  }
+
 }
