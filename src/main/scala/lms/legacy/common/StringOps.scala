@@ -159,6 +159,7 @@ trait StringOpsGen extends Gen with StringOpsExp {
     import q.reflect.*
     c match {
       case Const(x: String) => Literal(StringConstant(x))
+      case Const(x: Char) => Literal(CharConstant(x))
       // TODO others
       case _ => super.constantTerm(c)
     }
@@ -167,14 +168,67 @@ trait StringOpsGen extends Gen with StringOpsExp {
   override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
 
-    if (d.isInstanceOf[StringPlus]) {
-      val plus = d.asInstanceOf[StringPlus]
-      val s = interpretExpWithEnv(plus.s)
-      val o = interpretExpWithEnv(plus.o)
-      val method = s.tpe.classSymbol.get.methodMember("+").head
-      Apply(Select(s, method), List(o))
-    } else { // TODO other cases
-      super.interpretDefWithEnv(d)
+    d match {
+      case StringPlus(sExp, oExp) =>
+        val sTerm = interpretExpWithEnv(sExp)
+        val oTerm = interpretExpWithEnv(oExp)
+        sTerm.tpe.classSymbol.flatMap(_.methodMember("+").headOption) match {
+          case Some(plusMethod) =>
+            Apply(Select(sTerm, plusMethod), List(oTerm))
+          case None =>
+            val sExpr = sTerm.asExpr
+            val oExpr = oTerm.asExpr
+            '{ $sExpr.toString + $oExpr }.asTerm
+        }
+      case StringLength(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.length }.asTerm
+      case StringCharAt(sExp, iExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val iExpr = interpretExpWithEnv(iExp).asExprOf[Int]
+        '{ $sExpr.charAt($iExpr) }.asTerm
+      case StringStartsWith(s1, s2) =>
+        val str = interpretExpWithEnv(s1).asExprOf[String]
+        val prefix = interpretExpWithEnv(s2).asExprOf[String]
+        '{ $str.startsWith($prefix) }.asTerm
+      case StringTrim(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.trim }.asTerm
+      case StringSplit(sExp, separators, limit) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val sepExpr = interpretExpWithEnv(separators).asExprOf[String]
+        val limitExpr = interpretExpWithEnv(limit).asExprOf[Int]
+        '{ $sExpr.split($sepExpr, $limitExpr) }.asTerm
+      case StringEndsWith(sExp, eExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val suffixExpr = interpretExpWithEnv(eExp).asExprOf[String]
+        '{ $sExpr.endsWith($suffixExpr) }.asTerm
+      case StringValueOf(arg) =>
+        val argExpr = interpretExpWithEnv(arg).asExpr
+        '{ java.lang.String.valueOf($argExpr) }.asTerm
+      case StringToDouble(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toDouble }.asTerm
+      case StringToFloat(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toFloat }.asTerm
+      case StringToInt(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toInt }.asTerm
+      case StringContains(s1, s2) =>
+        val haystack = interpretExpWithEnv(s1).asExprOf[String]
+        val needle = interpretExpWithEnv(s2).asExprOf[String]
+        '{ $haystack.contains($needle) }.asTerm
+      case StringToLong(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toLong }.asTerm
+      case StringSubstring(sExp, start, end) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val startExpr = interpretExpWithEnv(start).asExprOf[Int]
+        val endExpr = interpretExpWithEnv(end).asExprOf[Int]
+        '{ $sExpr.substring($startExpr, $endExpr) }.asTerm
+      case _ =>
+        super.interpretDefWithEnv(d)
     }
   }
   

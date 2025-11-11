@@ -1,11 +1,11 @@
 package lms.gen
 
 
-import lms.legacy.common.BaseExp
+import lms.legacy.common.{BaseExp, EffectExp}
 import scala.quoted.*
 
 trait StagingCompile extends QuotedGen {
-  this: BaseExp => 
+  this: EffectExp => 
   
   def compile[A:Typ, B:Typ](f: Exp[A] => Exp[B]): A => B = {
     println("starting compile")
@@ -32,9 +32,14 @@ trait StagingCompile extends QuotedGen {
       println(s"Input symbol: ${inputSym}")
 
       // 2. Reify the function body
-      val (body: Exp[B], schedule: List[Stm]) = reifySubGraph {
-        f(inputSym)
-      }
+      val savedContext = this.context
+      this.context = Nil
+      val (body: Exp[B], schedule: List[Stm]) =
+        try reifySubGraph {
+          f(inputSym)
+        }
+        finally
+          this.context = savedContext
 
       println(s"Reified body: ${body}, schedule: ${schedule}")
       // 3. Roll a lambda term

@@ -1,8 +1,13 @@
 package lms.legacy.common
 
+import lms.gen.{Gen, StagingCompile}
+
 import java.io.PrintWriter
 import lms.legacy.util.OverloadHack
 import lms.legacy.compat.SourceContext
+
+import scala.quoted.*
+import scala.math.Ordering.Implicits.given
 
 trait OrderingOps extends Base with Variables with BooleanOps with PrimitiveOps with OverloadHack {
   // workaround for infix not working with implicits in PrimitiveOps
@@ -147,6 +152,54 @@ trait OrderingOpsExpOpt extends OrderingOpsExp {
 }
 
 
+trait OrderingOpsGen extends Gen with OrderingOpsExp { this: StagingCompile =>
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    def orderingMethodTerm(lhs: Exp[?], rhs: Exp[?], methodName: String): Term = {
+      val lhsTerm = interpretExpWithEnv(lhs)
+      val rhsTerm = interpretExpWithEnv(rhs)
+      val lhsTypeRepr = lhs.tp.asTypeRepr
+      lhsTypeRepr.asType match {
+        case '[t] =>
+          Expr.summon[Ordering[t]] match {
+            case Some(ordExpr) =>
+              val ordTerm = ordExpr.asTerm
+              val methodSymbol = ordTerm.tpe.classSymbol
+                .flatMap(_.methodMember(methodName).headOption)
+                .getOrElse(report.errorAndAbort(s"Method $methodName not found on Ordering[${lhs.tp}]"))
+              Apply(Select(ordTerm, methodSymbol), List(lhsTerm, rhsTerm))
+            case None =>
+              report.errorAndAbort(s"Missing implicit Ordering for ${lhs.tp}")
+          }
+      }
+    }
+
+    d match {
+      case OrderingLT(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "lt")
+      case OrderingLTEQ(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "lteq")
+      case OrderingGT(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "gt")
+      case OrderingGTEQ(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "gteq")
+      case OrderingEquiv(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "equiv")
+      case OrderingMax(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "max")
+      case OrderingMin(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "min")
+      case OrderingCompare(lhs, rhs) =>
+        orderingMethodTerm(lhs, rhs, "compare")
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+  }
+}
+
+
 trait ScalaGenOrderingOps extends ScalaGenBase {
   val IR: OrderingOpsExp
   import IR._
@@ -219,4 +272,3 @@ trait CLikeGenOrderingOps extends CLikeGenBase {
 trait CudaGenOrderingOps extends CudaGenBase with CLikeGenOrderingOps
 trait OpenCLGenOrderingOps extends OpenCLGenBase with CLikeGenOrderingOps
 trait CGenOrderingOps extends CGenBase with CLikeGenOrderingOps
-
