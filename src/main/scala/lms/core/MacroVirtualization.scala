@@ -548,7 +548,6 @@ class virt extends MacroAnnotation {
           DefDef.copy(dd)(name = dd.name, paramss = dd.paramss, tpt = dd.tpt, rhs = newRhs)
         case vd: ValDef if vd.rhs.nonEmpty =>
           val isMutable = vd.symbol.flags.is(Flags.Mutable)
-          if isMutable then
           val rhsTree = transformTerm(vd.rhs.get)(vd.symbol)
           if isMutable then
             val ctx = makeCtx(owner)
