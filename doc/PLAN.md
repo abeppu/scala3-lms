@@ -1,4 +1,14 @@
 
+## Current status checklist
+
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`)
+- [ ] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
+- [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
+- [ ] Improve type reification (nested type params, generic code staging)
+- [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
+- [ ] Port and validate original Scala 2 LMS examples under @virt
+- [ ] Document new design decisions in `DECISIONS.md` as they land
+
 ## Hacks
 
 The fact that trees will need to typecheck _before_ macro rewriting makes
@@ -7,9 +17,7 @@ an implicit conversion method from `Rep[Bool]` to `Bool` because we'll
 rewrite it anyway, but it will make field accesses and especially pattern
 matching very difficult.
 
-- Because `Rep` and related types are trait members, it is very difficult to
-  pattern-match against them in macros. Currently, we use string-matching,
-  which is very brittle.
+- [ ] Replace string-based matching on `Rep`/`Var` with `TypeRepr`-level checks
 
 ## Notes from lms-clean
 
@@ -19,10 +27,10 @@ that and generate the code much more directly.
 
 ## Compatibility
 
-- vendor EmbeddedControls
-- alias `Manifest` and `RefinedManifest` to `ClassTag[T]`
+- [x] Vendor EmbeddedControls
+- [x] Alias `Manifest` and `RefinedManifest` to `ClassTag[T]`
 
 ## Manual fixes
 
-- tree-smashed `using` into several places (-rewrite suggested but broken)
-- changed `x.toDouble` to use a manual function
+- [ ] Unwind tree-smashed `using` insertions (-rewrite suggested but broken)
+- [ ] Replace the manual `x.toDouble` workaround with a cleaner solution

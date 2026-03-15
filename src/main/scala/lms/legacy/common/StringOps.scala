@@ -9,17 +9,22 @@ import lms.legacy.compat.SourceContext
 
 import scala.compiletime.deferred
 import scala.language.implicitConversions
+import scala.util.NotGiven
 
 trait LiftString {
   this: StringOps =>
 
-  implicit def strToRepStr(s: String): Rep[String] = unit(s)
+  implicit def strToRepStr(s: String)(using NotGiven[LiftString.SuppressAutoLift]): Rep[String] = unit(s)
+}
+
+object LiftString {
+  trait SuppressAutoLift
 }
 
 trait StringOps extends Variables with OverloadHack with PrimitiveOps {
   // NOTE: if something doesn't get lifted, this won't give you a compile time error,
   //       since string concat is defined on all objects
-
+  
   extension (s: Rep[String]) {
     def length: Rep[Int] = string_length(s)
     def apply(i: Int)(using o1: Overloaded1): Rep[Char] = string_charAt(s, unit(i))

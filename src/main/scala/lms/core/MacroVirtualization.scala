@@ -400,10 +400,28 @@ class virt extends MacroAnnotation {
         }
       }
 
+      private def stripOrderingOpsReceiver(term: Term): Term = term match {
+        case Apply(Select(conv, "apply"), List(arg)) if isLmsOrderingConversion(conv) =>
+          stripOrderingOpsReceiver(arg)
+        case _ => term
+      }
+
+      private def isLmsOrderingConversion(term: Term): Boolean = term match {
+        case Apply(TypeApply(sel: Select, _), _) =>
+          val name = sel.symbol.name
+          name == "orderingToOrderingOps" || name == "repOrderingToOrderingOps" || name == "varOrderingToOrderingOps"
+        case Apply(sel: Select, _) =>
+          val name = sel.symbol.name
+          name == "orderingToOrderingOps" || name == "repOrderingToOrderingOps" || name == "varOrderingToOrderingOps"
+        case _ => false
+      }
+
       // Forward ordering comparisons to the DSL once reps participate.
       private def rewriteOrdering(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, method: String): Term = {
-        val lhs = transformTerm(lhsTree)(ctx.owner)
-        val rhs = transformTerm(rhsTree)(ctx.owner)
+        val strippedLhs = stripOrderingOpsReceiver(lhsTree)
+        val strippedRhs = stripOrderingOpsReceiver(rhsTree)
+        val lhs = transformTerm(strippedLhs)(ctx.owner)
+        val rhs = transformTerm(strippedRhs)(ctx.owner)
         val lhsKind = classifyTerm(lhs)
         val rhsKind = classifyTerm(rhs)
         val elemType = lhsKind match {
@@ -428,6 +446,38 @@ class virt extends MacroAnnotation {
         val typEvidence = findTypW(ctx.thist, elemType)
         val ret = applied.appliedToArgs(List(orderingEvidence, typEvidence, ctx.srcGen))
         ret
+      }
+
+      private def isStringOpsApply(symbol: Symbol): Boolean = {
+        val owner = symbol.owner
+        symbol.name == "apply" && owner.fullName == "lms.legacy.common.StringOps"
+      }
+
+      private def liftIndexToRepInt(value: Term, ctx: MacroCtx): Term = {
+        val intType = TypeRepr.of[Int]
+        val (normalized, kind) = normalizeRepTerm(value, ctx)
+        kind match {
+          case RepW(t) if t =:= intType =>
+            normalized
+          case Bare(t) if t =:= intType =>
+            wrapBareTerm(value, ctx)
+          case _ =>
+            report.errorAndAbort(s"string index must be an Int or Rep[Int], found ${value.tpe.show}")
+        }
+      }
+
+      private def rewriteRepStringApply(ctx: MacroCtx, receiverTree: Term, idxTree: Term, owner: Symbol): Term = {
+        val receiverValue = transformTerm(receiverTree)(owner)
+        val (receiverRep, receiverKind) = normalizeRepTerm(receiverValue, ctx)
+        receiverKind match {
+          case RepW(strType) if strType =:= TypeRepr.of[String] =>
+            val idxValue = transformTerm(idxTree)(owner)
+            val idxRep = liftIndexToRepInt(idxValue, ctx)
+            val call = Select.overloaded(ctx.thist, "string_charAt", Nil, List(receiverRep, idxRep))
+            Apply(call, List(ctx.srcGen))
+          case _ =>
+            report.errorAndAbort(s"expected Rep[String] receiver for virtualized string apply, found ${receiverValue.tpe.show}")
+        }
       }
 
       // Replace while loops with __whileDo(cond, body).
@@ -523,14 +573,29 @@ class virt extends MacroAnnotation {
             rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = false)
           case applyTerm @ Apply(sel @ Select(lhs, "!="), List(rhs)) =>
             rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = true)
+          case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, "<"), List(rhs)), implicitArgs)
+              if implicitArgs.nonEmpty =>
+            rewriteOrdering(ctx, applyTerm, sel, lhsOuter, rhs, "ordering_lt")
           case applyTerm @ Apply(sel @ Select(lhs, "<"), List(rhs)) =>
             rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_lt")
+          case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, "<="), List(rhs)), implicitArgs)
+              if implicitArgs.nonEmpty =>
+            rewriteOrdering(ctx, applyTerm, sel, lhsOuter, rhs, "ordering_lteq")
           case applyTerm @ Apply(sel @ Select(lhs, "<="), List(rhs)) =>
             rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_lteq")
+          case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, ">"), List(rhs)), implicitArgs)
+              if implicitArgs.nonEmpty =>
+            rewriteOrdering(ctx, applyTerm, sel, lhsOuter, rhs, "ordering_gt")
           case applyTerm @ Apply(sel @ Select(lhs, ">"), List(rhs)) =>
             rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_gt")
+          case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, ">="), List(rhs)), implicitArgs)
+              if implicitArgs.nonEmpty =>
+            rewriteOrdering(ctx, applyTerm, sel, lhsOuter, rhs, "ordering_gteq")
           case applyTerm @ Apply(sel @ Select(lhs, ">="), List(rhs)) =>
             rewriteOrdering(ctx, applyTerm, sel, lhs, rhs, "ordering_gteq")
+          case applyTerm @ Apply(Apply(sel @ Select(th, "apply"), List(receiver, idx)), implicitArgs)
+              if isStringOpsApply(sel.symbol) =>
+            rewriteRepStringApply(ctx, receiver, idx, ctx.owner)
           case whileTerm @ While(condTree, bodyTree) =>
             val guardRaw = transformTerm(stripBoolConv(condTree))(ctx.owner)
             val (guard, guardKind) = normalizeRepTerm(guardRaw, ctx)

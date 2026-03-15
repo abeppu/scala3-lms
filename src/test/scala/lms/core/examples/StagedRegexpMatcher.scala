@@ -2,7 +2,7 @@ package lms.core.examples
 
 import lms.core.*
 import lms.gen.StagingCompile
-import lms.legacy.common.{BaseExp, LiftPrimitives, OrderingOpsGen, PrimitiveOpsExpOpt, PrimitiveOpsGen, StringOpsGen, VariablesExp}
+import lms.legacy.common.{BaseExp, BooleanOpsGen, EqualGen, IfThenElseGen, LiftPrimitives, LiftString, OrderingOpsGen, PrimitiveOpsExpOpt, PrimitiveOpsGen, StringOpsGen, VariablesExp}
 import lms.legacy.compat.SourceContext
 import lms.legacy.compat.SourceContext.given
 
@@ -11,19 +11,21 @@ import scala.language.implicitConversions
 
 @virt
 trait RegexpMatcher extends DslImpl {
+  given LiftString.SuppressAutoLift = new LiftString.SuppressAutoLift {}
 
   /* search for regexp anywhere in text */
   def matchsearch(regexp: String, text: Rep[String]): Rep[Boolean] = {
-    if (regexp.charAt(0) == '^')
+    if (regexp(0) == '^')
       matchhere(regexp, 1, text, 0)
     else {
-      def loop(idx: Rep[Int]): Rep[Boolean] = {
-        if (ordering_lt(idx, text.length)) {
-          val found = matchhere(regexp, 0, text, idx)
-          if (found) true else loop(idx + 1)
-        } else false
+      val start = __newVar(-1)
+      val found = __newVar(false)
+      while (!found && start < text.length) {
+        var_assign(start, start + 1)
+        var_assign(found, matchhere(regexp, 0, text, start))
       }
-      loop(0)
+      val result: Rep[Boolean] = found
+      result
     }
   }
 
@@ -31,24 +33,28 @@ trait RegexpMatcher extends DslImpl {
   def matchhere(regexp: String, restart: Int, text: Rep[String], start: Rep[Int]): Rep[Boolean] = {
     if (restart==regexp.length)
       true
-    else if (regexp.charAt(restart)=='$' && restart+1==regexp.length)
+    else if (regexp(restart)=='$' && restart+1==regexp.length)
       start==text.length
-    else if (restart+1 < regexp.length && regexp.charAt(restart+1)=='*')
-      matchstar(regexp.charAt(restart), regexp, restart+2, text, start)
-    else if (ordering_lt(start, text.length) && matchchar(regexp.charAt(restart), text(start)))
+    else if (restart+1 < regexp.length && regexp(restart+1)=='*')
+      matchstar(regexp(restart), regexp, restart+2, text, start)
+    else if (ordering_lt(start, text.length) && matchchar(regexp(restart), text(start)))
       matchhere(regexp, restart+1, text, start+1)
     else false
   }
 
   /* search for c* followed by restart of regexp at start of text */
   def matchstar(c: Char, regexp: String, restart: Int, text: Rep[String], start: Rep[Int]): Rep[Boolean] = {
-    def loop(pos: Rep[Int]): Rep[Boolean] = {
-      val found = matchhere(regexp, restart, text, pos)
-      if (found) true
-      else if (ordering_lt(pos, text.length) && matchchar(c, text(pos))) loop(pos + 1)
-      else false
+    val sstart = __newVar(start)
+    val found = __newVar(matchhere(regexp, restart, text, sstart))
+    val failed = __newVar(false)
+    while (!failed && !found && sstart < text.length) {
+      var_assign(failed, !matchchar(c, text(sstart)))
+      var_assign(sstart, sstart + 1)
+      var_assign(found, matchhere(regexp, restart, text, sstart))
     }
-    loop(start)
+    val failedRep: Rep[Boolean] = failed
+    val foundRep: Rep[Boolean] = found
+    !failedRep && foundRep
   }
 
   def matchchar(c: Char, t: Rep[Char]): Rep[Boolean] = {
@@ -70,7 +76,18 @@ class RegexpMatcherTest extends TutorialFunSuite {
     check("regex1", Snippet.code)
   }
 
-  val regexpMatcherCompiler = new RegexpMatcher with StagingCompile with BaseExp with PrimitiveOpsExpOpt with LiftPrimitives with VariablesExp with PrimitiveOpsGen with StringOpsGen with OrderingOpsGen {
+  val regexpMatcherCompiler = new RegexpMatcher
+    with StagingCompile
+    with BaseExp
+    with PrimitiveOpsExpOpt
+    with LiftPrimitives
+    with VariablesExp
+    with BooleanOpsGen
+    with IfThenElseGen
+    with EqualGen
+    with OrderingOpsGen
+    with StringOpsGen
+    with PrimitiveOpsGen {
     type API = BaseExp
   }
 
