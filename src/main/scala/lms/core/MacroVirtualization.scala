@@ -48,9 +48,15 @@ class virt extends MacroAnnotation {
       val normalized = t.dealias.widenTermRefByName.widen
       normalized match {
         case AppliedType(f, List(arg)) =>
-          if (f.show.endsWith("Exp") || f.show.endsWith("Rep")) {
+          val sym = f.dealias.typeSymbol
+          val symName = sym.name
+          def isRepLike: Boolean =
+            symName == "Exp" || symName == "Rep" || sym.fullName.endsWith(".Exp") || sym.fullName.endsWith(".Rep")
+          def isVarLike: Boolean =
+            symName == "Var" || symName == "Variable" || sym.fullName.endsWith(".Var") || sym.fullName.endsWith(".Variable")
+          if (isRepLike) {
             RepW(arg)
-          } else if (f.show.endsWith("Var") || f.show.endsWith("Variable")) {
+          } else if (isVarLike) {
             VarW(arg)
           } else {
             Bare(arg)
@@ -103,9 +109,14 @@ class virt extends MacroAnnotation {
     }
 
     def readVarValue(ctx: MacroCtx, term: Term, elemType: TypeRepr): Term = {
-      val reader = Select.overloaded(ctx.thist, "readVar", List(elemType), List(term))
+      val coerced = ensureVarTerm(ctx, term, elemType)
+      val readSym = findMethods(ctx.owner, "readVar").find(sym => !sym.flags.is(Flags.Given))
+        .getOrElse(report.errorAndAbort("failed to virtualize: no readVar def with value parameter"))
+      val reader = Select(ctx.thist, readSym)
+      val typedReader = reader.appliedToTypes(List(elemType))
+      val afterValue = typedReader.appliedToArgs(List(coerced))
       val typEvidence = findTypW(ctx.thist, elemType)
-      Apply(reader, List(typEvidence, ctx.srcGen))
+      applyImplicitArgs(afterValue, List(typEvidence, ctx.srcGen))
     }
 
     def normalizeRepTerm(term: Term, ctx: MacroCtx): (Term, RepOrVar) = {
@@ -212,33 +223,45 @@ class virt extends MacroAnnotation {
       Applied(TypeSelect(ctx.thist, "Var"), List(elemTree))
     }
 
+    def ensureVarTerm(ctx: MacroCtx, term: Term, elemType: TypeRepr): Term =
+      Typed(term, makeVarType(ctx, elemType))
+
     def newVarInit(ctx: MacroCtx, elemType: TypeRepr, init: Term, initKind: RepOrVar): Term = {
       val typEvidence = findTypW(ctx.thist, elemType)
-      val baseCall = Select.overloaded(ctx.thist, "__newVar", List(elemType), List(init))
+      val arg = initKind match {
+        case VarW(_) => ensureVarTerm(ctx, init, elemType)
+        case _ => init
+      }
+      val baseCall = Select.overloaded(ctx.thist, "__newVar", List(elemType), List(arg))
       initKind match {
         case Bare(_) =>
-          Apply(baseCall, List(typEvidence, ctx.srcGen))
+          applyImplicitArgs(baseCall, List(typEvidence, ctx.srcGen))
         case RepW(_) =>
           val overload = findOverload(ctx.thist, 1)
-          Apply(baseCall, List(overload, typEvidence, ctx.srcGen))
+          applyImplicitArgs(baseCall, List(overload, typEvidence, ctx.srcGen))
         case VarW(_) =>
           val overload = findOverload(ctx.thist, 2)
-          Apply(baseCall, List(overload, typEvidence, ctx.srcGen))
+          applyImplicitArgs(baseCall, List(overload, typEvidence, ctx.srcGen))
       }
     }
 
     def assignCall(ctx: MacroCtx, elemType: TypeRepr, lhs: Term, rhs: Term, rhsKind: RepOrVar): Term = {
       val typEvidence = findTypW(ctx.thist, elemType)
-      val baseCall = Select.overloaded(ctx.thist, "__assign", List(elemType), List(lhs, rhs))
+      val lhsVar = ensureVarTerm(ctx, lhs, elemType)
+      val rhsArg = rhsKind match {
+        case VarW(_) => ensureVarTerm(ctx, rhs, elemType)
+        case _ => rhs
+      }
+      val baseCall = Select.overloaded(ctx.thist, "__assign", List(elemType), List(lhsVar, rhsArg))
       rhsKind match {
         case Bare(_) =>
-          Apply(baseCall, List(typEvidence, ctx.srcGen))
+          applyImplicitArgs(baseCall, List(typEvidence, ctx.srcGen))
         case RepW(_) =>
           val overload = findOverload(ctx.thist, 1)
-          Apply(baseCall, List(overload, typEvidence, ctx.srcGen))
+          applyImplicitArgs(baseCall, List(overload, typEvidence, ctx.srcGen))
         case VarW(_) =>
           val overload = findOverload(ctx.thist, 2)
-          Apply(baseCall, List(overload, typEvidence, ctx.srcGen))
+          applyImplicitArgs(baseCall, List(overload, typEvidence, ctx.srcGen))
       }
     }
     
@@ -285,6 +308,25 @@ class virt extends MacroAnnotation {
       }
     }
 
+    def applyImplicitArgs(term: Term, args: List[Term]): Term = {
+      @annotation.tailrec
+      def loop(current: Term, remaining: List[Term]): Term =
+        if remaining.isEmpty then current
+        else
+          current.tpe.widenTermRefByName.dealias match {
+            case mt: MethodType if mt.isImplicit =>
+              val paramCount = mt.paramTypes.size
+              if remaining.length < paramCount then
+                report.errorAndAbort(s"insufficient implicit arguments for ${current.show}")
+              val (now, rest) = remaining.splitAt(paramCount)
+              loop(Apply(current, now), rest)
+            case _ =>
+              report.errorAndAbort(s"no implicit parameter list available on ${current.show}")
+          }
+      loop(term, args)
+    }
+
+
     def selectThisMember(ctx: MacroCtx, name: String, error: => String): Term =
       try Select.unique(ctx.thist, name)
       catch
@@ -321,7 +363,6 @@ class virt extends MacroAnnotation {
         val guardTree = stripBoolConv(ifTerm.cond)
         val guard = transformTerm(guardTree)(ctx.owner)
         val (normalizedGuard, guardKind) = normalizeRepTerm(guard, ctx)
-        report.info(s"if guard kind: $guardKind", ifTerm.cond.pos)
         guardKind match {
           case Bare(_) =>
             val thenp = transformTerm(ifTerm.thenp)(ctx.owner)
@@ -344,7 +385,6 @@ class virt extends MacroAnnotation {
         val rhsRaw = transformTerm(stripBoolConv(rhsTree))(ctx.owner)
         val (lhs, lhsKind) = normalizeRepTerm(lhsRaw, ctx)
         val (rhs, rhsKind) = normalizeRepTerm(rhsRaw, ctx)
-        report.info(s"rewriting $method", sel.pos)
         (lhsKind, rhsKind) match {
           case (Bare(_), Bare(_)) =>
             rebuildBinary(applyTerm, sel, lhs, rhs)
@@ -492,6 +532,16 @@ class virt extends MacroAnnotation {
         Apply(whileCall, List(ctx.srcGen))
       }
       
+      private val mutableVars = collection.mutable.Map.empty[Symbol, TypeRepr]
+
+      private def mutableTermSymbol(term: Term): Symbol = term match {
+        case Inlined(_, _, body) => mutableTermSymbol(body)
+        case Typed(expr, _) => mutableTermSymbol(expr)
+        case sel: Select => sel.symbol
+        case ident: Ident => ident.symbol
+        case _ => Symbol.noSymbol
+      }
+
       private def transformLocalDefinition(defn: Definition, owner: Symbol): Definition = defn match {
         case dd: DefDef =>
           val newRhs = dd.rhs.map(transformTerm(_)(dd.symbol))
@@ -499,7 +549,6 @@ class virt extends MacroAnnotation {
         case vd: ValDef if vd.rhs.nonEmpty =>
           val isMutable = vd.symbol.flags.is(Flags.Mutable)
           if isMutable then
-            report.info(s"ValDef ${vd.name} mutable=${isMutable} declared=${vd.symbol.termRef.widen.show}", vd.pos)
           val rhsTree = transformTerm(vd.rhs.get)(vd.symbol)
           if isMutable then
             val ctx = makeCtx(owner)
@@ -513,24 +562,45 @@ class virt extends MacroAnnotation {
                 case VarW(t) => t
               }
             }
-            report.info(s"rewriting var ${vd.name}: ${elemType.show}", vd.pos)
             val varType = makeVarType(ctx, elemType)
             val init = newVarInit(ctx, elemType, strippedRhs, rhsKind)
+            mutableVars.update(vd.symbol, elemType)
             ValDef.copy(vd)(name = vd.name, tpt = varType, rhs = Some(init))
           else
             ValDef.copy(vd)(name = vd.name, tpt = vd.tpt, rhs = Some(rhsTree))
         case other => other
       }
 
-      override def transformTerm(term: Term)(owner: Symbol): Term = {
+      override def transformTerm(term: Term)(owner: Symbol): Term =
+        transformTermRec(term, owner, expectVar = false)
+
+      private def transformTermRec(term: Term, owner: Symbol, expectVar: Boolean): Term = {
         val ctx = makeCtx(owner)
         term match {
           case inlined @ Inlined(call, bindings, body) =>
             val newBindings = bindings.map(b => transformLocalDefinition(b, owner))
-            Inlined.copy(inlined)(call, newBindings, transformTerm(body)(owner))
+            Inlined.copy(inlined)(call, newBindings, transformTermRec(body, owner, expectVar))
           case block @ Block(stats, expr) =>
             val newStats = stats.map(transformStatement(_)(owner))
-            Block.copy(block)(newStats, transformTerm(expr)(owner))
+            Block.copy(block)(newStats, transformTermRec(expr, owner, expectVar))
+          case ident: Ident if mutableVars.contains(ident.symbol) =>
+            val elemType = mutableVars(ident.symbol)
+            if expectVar then ident
+            else readVarValue(ctx, ident, elemType)
+          case sel @ Select(receiver, _) if mutableVars.contains(sel.symbol) =>
+            val newReceiver = transformTermRec(receiver, owner, expectVar = false)
+            val updatedSel =
+              if newReceiver eq receiver then sel
+              else Select.copy(sel)(newReceiver, sel.name)
+            val elemType = mutableVars(sel.symbol)
+            if expectVar then updatedSel
+            else readVarValue(ctx, updatedSel, elemType)
+          case assign: Assign =>
+            transformStatement(assign)(owner) match {
+              case term: Term => term
+              case other =>
+                report.errorAndAbort(s"expected assignment rewrite to yield Term, found ${other}")
+            }
           case Apply(sel @ Select(th, "boolToBoolRep"), List(arg)) =>
             val source = arg match {
               case ident: Ident =>
@@ -542,12 +612,12 @@ class virt extends MacroAnnotation {
               case other => Some(other)
             }
             val value = source match {
-              case Some(rhs) => transformTerm(rhs)(owner)
-              case None => transformTerm(arg)(owner)
+              case Some(rhs) => transformTermRec(rhs, owner, expectVar = false)
+              case None => transformTermRec(arg, owner, expectVar = false)
             }
             classifyTerm(value) match {
               case Bare(_) =>
-                val receiver = transformTerm(th)(owner)
+                val receiver = transformTermRec(th, owner, expectVar = false)
                 Apply.copy(term)(Select.copy(sel)(receiver, sel.name), List(value))
               case _ =>
                 value
@@ -560,7 +630,7 @@ class virt extends MacroAnnotation {
           case sel @ Select(expr, "unary_!") =>
             rewriteBooleanNegateSelect(ctx, sel, expr)
           case applyTerm @ Apply(sel @ Select(_, "unary_!"), List(arg)) =>
-            val raw = transformTerm(arg)(owner)
+            val raw = transformTermRec(arg, owner, expectVar = false)
             val (value, kind) = normalizeRepTerm(raw, ctx)
             kind match {
               case Bare(_) =>
@@ -597,10 +667,9 @@ class virt extends MacroAnnotation {
               if isStringOpsApply(sel.symbol) =>
             rewriteRepStringApply(ctx, receiver, idx, ctx.owner)
           case whileTerm @ While(condTree, bodyTree) =>
-            val guardRaw = transformTerm(stripBoolConv(condTree))(ctx.owner)
+            val guardRaw = transformTermRec(stripBoolConv(condTree), owner, expectVar = false)
             val (guard, guardKind) = normalizeRepTerm(guardRaw, ctx)
-            val body = transformTerm(bodyTree)(ctx.owner)
-            report.info(s"while guard kind: $guardKind", condTree.pos)
+            val body = transformTermRec(bodyTree, owner, expectVar = false)
             guardKind match {
               case Bare(_) =>
                 While.copy(whileTerm)(guard, body)
@@ -612,24 +681,26 @@ class virt extends MacroAnnotation {
       }
 
       override def transformStatement(statement: Statement)(owner: Symbol): Statement = statement match {
-        case assign: Assign =>
-          val ctx = makeCtx(owner)
-          val lhsTerm = transformTerm(assign.lhs)(owner)
-          val rhsTransformed = transformTerm(assign.rhs)(owner)
-          val strippedRhs = stripVarConversion(rhsTransformed)
-          classifyTerm(lhsTerm) match {
-            case VarW(elemType) =>
+        case assign @ Assign(lhsTree, rhsTree) =>
+          val lhsTerm = transformTermRec(lhsTree, owner, expectVar = true)
+          val rhsTerm = transformTermRec(rhsTree, owner, expectVar = false)
+          mutableVars.get(mutableTermSymbol(lhsTerm)) match {
+            case Some(elemType) =>
+              val strippedRhs = stripVarConversion(rhsTerm)
               val rhsKind = classifyTerm(strippedRhs)
-              report.info(s"rewriting assign to ${lhsTerm.show}", assign.pos)
+              val ctx = makeCtx(owner)
               assignCall(ctx, elemType, lhsTerm, strippedRhs, rhsKind)
-            case _ =>
-              Assign.copy(assign)(lhsTerm, rhsTransformed)
+            case None =>
+              Assign.copy(assign)(lhsTerm, rhsTerm)
           }
         case whileTerm: While =>
           transformTerm(whileTerm)(owner)
-        case d: Definition => transformLocalDefinition(d, owner)
-        case term: Term => transformTerm(term)(owner)
-        case other => super.transformStatement(other)(owner)
+        case d: Definition =>
+          transformLocalDefinition(d, owner)
+        case term: Term =>
+          transformTerm(term)(owner)
+        case other =>
+          super.transformStatement(other)(owner)
       }
     }
 

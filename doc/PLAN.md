@@ -3,6 +3,7 @@
 
 - [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`)
 - [ ] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
+  - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
 - [ ] Improve type reification (nested type params, generic code staging)
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
@@ -17,7 +18,7 @@ an implicit conversion method from `Rep[Bool]` to `Bool` because we'll
 rewrite it anyway, but it will make field accesses and especially pattern
 matching very difficult.
 
-- [ ] Replace string-based matching on `Rep`/`Var` with `TypeRepr`-level checks
+- [x] Replace string-based matching on `Rep`/`Var` with `TypeRepr`-level checks
 
 ## Notes from lms-clean
 
