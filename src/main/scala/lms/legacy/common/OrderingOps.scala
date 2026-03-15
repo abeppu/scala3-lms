@@ -160,19 +160,42 @@ trait OrderingOpsGen extends Gen with OrderingOpsExp { this: StagingCompile =>
     def orderingMethodTerm(lhs: Exp[?], rhs: Exp[?], methodName: String): Term = {
       val lhsTerm = interpretExpWithEnv(lhs)
       val rhsTerm = interpretExpWithEnv(rhs)
-      val lhsTypeRepr = lhs.tp.asTypeRepr
-      lhsTypeRepr.asType match {
-        case '[t] =>
-          Expr.summon[Ordering[t]] match {
-            case Some(ordExpr) =>
-              val ordTerm = ordExpr.asTerm
-              val methodSymbol = ordTerm.tpe.classSymbol
-                .flatMap(_.methodMember(methodName).headOption)
-                .getOrElse(report.errorAndAbort(s"Method $methodName not found on Ordering[${lhs.tp}]"))
-              Apply(Select(ordTerm, methodSymbol), List(lhsTerm, rhsTerm))
-            case None =>
-              report.errorAndAbort(s"Missing implicit Ordering for ${lhs.tp}")
+      lhs.tp.asTypeRepr.asType match {
+        case '[Int] =>
+          val lhsExpr = lhsTerm.asExprOf[Int]
+          val rhsExpr = rhsTerm.asExprOf[Int]
+          methodName match {
+            case "lt" => '{ $lhsExpr < $rhsExpr }.asTerm
+            case "lteq" => '{ $lhsExpr <= $rhsExpr }.asTerm
+            case "gt" => '{ $lhsExpr > $rhsExpr }.asTerm
+            case "gteq" => '{ $lhsExpr >= $rhsExpr }.asTerm
+            case "equiv" => '{ $lhsExpr == $rhsExpr }.asTerm
+            case "max" => '{ scala.math.Ordering.Int.max($lhsExpr, $rhsExpr) }.asTerm
+            case "min" => '{ scala.math.Ordering.Int.min($lhsExpr, $rhsExpr) }.asTerm
+            case "compare" => '{ scala.math.Ordering.Int.compare($lhsExpr, $rhsExpr) }.asTerm
+            case other =>
+              report.errorAndAbort(s"Unsupported ordering method $other for Int")
           }
+        case '[t] =>
+          val ordTerm = Expr.summon[Ordering[t]]
+            .map(_.asTerm)
+            .orElse {
+              Type.of[t] match
+                case '[Int] => Some('{ scala.math.Ordering.Int }.asTerm)
+                case '[Long] => Some('{ scala.math.Ordering.Long }.asTerm)
+                case '[Short] => Some('{ scala.math.Ordering.Short }.asTerm)
+                case '[Byte] => Some('{ scala.math.Ordering.Byte }.asTerm)
+                case '[Char] => Some('{ scala.math.Ordering.Char }.asTerm)
+                case '[Double] => Some('{ scala.math.Ordering.Double }.asTerm)
+                case '[Float] => Some('{ scala.math.Ordering.Float }.asTerm)
+                case '[Boolean] => Some('{ scala.math.Ordering.Boolean }.asTerm)
+                case _ => None
+            }
+            .getOrElse(report.errorAndAbort(s"Missing implicit Ordering for ${lhs.tp} (${lhs.tp.asTypeRepr.show})"))
+          val methodSymbol = ordTerm.tpe.classSymbol
+            .flatMap(_.methodMember(methodName).headOption)
+            .getOrElse(report.errorAndAbort(s"Method $methodName not found on Ordering[${lhs.tp}]"))
+          Apply(Select(ordTerm, methodSymbol), List(lhsTerm, rhsTerm))
       }
     }
 

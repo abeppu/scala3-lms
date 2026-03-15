@@ -115,7 +115,9 @@ trait VariablesExp extends Variables with PrimitiveOps with ImplicitOpsExp with 
     VariableTyp(ttyp)
   }
 
-  case class ReadVar[T:Typ](v: Var[T]) extends Def[T]
+  case class ReadVar[T:Typ](v: Var[T]) extends Def[T] {
+    def m = (typ[T]: @unchecked)
+  }
   case class NewVar[T:Typ](init: Exp[T]) extends Def[Variable[T]] {
     def m = (typ[T]: @unchecked)
   }
@@ -313,6 +315,122 @@ trait CLikeGenVariables extends CLikeGenBase {
     case VarTimesEquals(Variable(a), b) => stream.println(quote(a) + " *= " + quote(b) + ";")
     case VarDivideEquals(Variable(a), b) => stream.println(quote(a) + " /= " + quote(b) + ";")
     case _ => super.emitNode(sym, rhs)
+  }
+}
+
+import lms.gen.{Gen, StagingCompile}
+import scala.quoted.*
+
+trait VariablesGen extends Gen with VariablesExp {
+  this: StagingCompile =>
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.{Term, asTerm}
+    import scala.math.{Fractional, Integral, Numeric}
+
+    def asObjectRefExpr[t: Type](value: Exp[?]): Expr[scala.runtime.ObjectRef[t]] = {
+      val cellTerm = interpretExpWithEnv(value)
+      q.reflect.Typed(cellTerm, q.reflect.TypeTree.of[scala.runtime.ObjectRef[t]]).asExprOf[scala.runtime.ObjectRef[t]]
+    }
+
+    def handle(node: Def[?]): Option[Term] = node match {
+      case newVar: NewVar[?] =>
+        newVar.m.asTypeRepr.asType match
+          case '[t] =>
+            val initExpr = interpretExpWithEnv(newVar.init).asExprOf[t]
+            Some('{ scala.runtime.ObjectRef.create[t]($initExpr) }.asTerm)
+      case read: ReadVar[?] =>
+        read.m.asTypeRepr.asType match
+          case '[t] =>
+            val cell = asObjectRefExpr[t](read.v.e)
+            Some('{ $cell.elem }.asTerm)
+      case assign: Assign[?] =>
+        assign.m.asTypeRepr.asType match
+          case '[t] =>
+            val cell = asObjectRefExpr[t](assign.lhs.e)
+            val rhsExpr = interpretExpWithEnv(assign.rhs).asExprOf[t]
+            Some('{ $cell.elem = $rhsExpr; () }.asTerm)
+      case plusEq: VarPlusEquals[?] =>
+        plusEq.m.asTypeRepr.asType match
+          case '[t] =>
+            val cell = asObjectRefExpr[t](plusEq.lhs.e)
+            val rhsExpr = interpretExpWithEnv(plusEq.rhs).asExprOf[t]
+            Expr.summon[Numeric[t]] match
+              case Some(numExpr) =>
+                val numericExpr = numExpr.asExprOf[Numeric[t]]
+                Some('{
+                  val ref = $cell
+                  ref.elem = $numericExpr.plus(ref.elem, $rhsExpr)
+                  ()
+                }.asTerm)
+              case None =>
+                None
+      case minusEq: VarMinusEquals[?] =>
+        minusEq.m.asTypeRepr.asType match
+          case '[t] =>
+            val cell = asObjectRefExpr[t](minusEq.lhs.e)
+            val rhsExpr = interpretExpWithEnv(minusEq.rhs).asExprOf[t]
+            Expr.summon[Numeric[t]] match
+              case Some(numExpr) =>
+                val numericExpr = numExpr.asExprOf[Numeric[t]]
+                Some('{
+                  val ref = $cell
+                  ref.elem = $numericExpr.minus(ref.elem, $rhsExpr)
+                  ()
+                }.asTerm)
+              case None =>
+                None
+      case timesEq: VarTimesEquals[?] =>
+        timesEq.m.asTypeRepr.asType match
+          case '[t] =>
+            val cell = asObjectRefExpr[t](timesEq.lhs.e)
+            val rhsExpr = interpretExpWithEnv(timesEq.rhs).asExprOf[t]
+            Expr.summon[Numeric[t]] match
+              case Some(numExpr) =>
+                val numericExpr = numExpr.asExprOf[Numeric[t]]
+                Some('{
+                  val ref = $cell
+                  ref.elem = $numericExpr.times(ref.elem, $rhsExpr)
+                  ()
+                }.asTerm)
+              case None =>
+                None
+      case divEq: VarDivideEquals[?] =>
+        divEq.m.asTypeRepr.asType match
+          case '[t] =>
+            val cell = asObjectRefExpr[t](divEq.lhs.e)
+            val rhsExpr = interpretExpWithEnv(divEq.rhs).asExprOf[t]
+            val updateExpr =
+              Expr.summon[Fractional[t]]
+                .map(_.asExprOf[Fractional[t]])
+                .map { fracExpr =>
+                  '{ 
+                    val ref = $cell
+                    ref.elem = $fracExpr.div(ref.elem, $rhsExpr)
+                    ()
+                  }
+                }
+                .orElse(
+                  Expr.summon[Integral[t]]
+                    .map(_.asExprOf[Integral[t]])
+                    .map { integralExpr =>
+                      '{
+                        val ref = $cell
+                        ref.elem = $integralExpr.quot(ref.elem, $rhsExpr)
+                        ()
+                      }
+                    }
+                )
+            updateExpr.map(_.asTerm)
+      case _ => None
+    }
+
+    d match {
+      case Reflect(node, _, _) =>
+        handle(node).getOrElse(super.interpretDefWithEnv(d))
+      case _ =>
+        handle(d).getOrElse(super.interpretDefWithEnv(d))
+    }
   }
 }
 

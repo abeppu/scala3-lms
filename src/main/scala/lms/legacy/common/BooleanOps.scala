@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import lms.gen.{Gen, StagingCompile}
+
 import java.io.PrintWriter
 import lms.legacy.compat.SourceContext
 
@@ -53,6 +55,42 @@ trait BooleanOpsExp extends BooleanOps with EffectExp {
   }).asInstanceOf[Exp[A]] // why??
 }
 
+import scala.quoted.*
+trait BooleanOpsGen extends Gen with BooleanOpsExp {
+  this: StagingCompile => 
+  
+  override def constantTerm[T](c: Const[T])(using q: Quotes): q.reflect.Term = {
+    import q.reflect.*
+    c match {
+      case Const(x: Boolean) => Literal(BooleanConstant(x))
+      // TODO others
+      case _ => super.constantTerm(c)
+    }
+  }
+  
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+    
+    d match {
+      case BooleanNegate(x) => {
+        val xTerm = interpretExpWithEnv(x)
+        val xExpr = xTerm.asExprOf[Boolean]
+        '{!$xExpr}.asTerm
+      }
+      case BooleanAnd(x, y) => {
+        val xExpr = interpretExpWithEnv(x).asExprOf[Boolean]
+        val yExpr = interpretExpWithEnv(y).asExprOf[Boolean]
+        '{$xExpr && $yExpr}.asTerm
+      }
+      case BooleanOr(x, y) => {
+        val xExpr = interpretExpWithEnv(x).asExprOf[Boolean]
+        val yExpr = interpretExpWithEnv(y).asExprOf[Boolean]
+        '{$xExpr || $yExpr}.asTerm
+      }
+      case _ => super.interpretDefWithEnv(d)
+    }
+  }
+}
 
 /**
  * @author  Alen Stojanov (astojanov@inf.ethz.ch)

@@ -2,7 +2,7 @@ package lms.core.examples
 
 import lms.core.*
 import lms.gen.StagingCompile
-import lms.legacy.common.{BaseExp, BooleanOpsGen, EqualGen, IfThenElseGen, LiftPrimitives, LiftString, OrderingOpsGen, PrimitiveOpsExpOpt, PrimitiveOpsGen, StringOpsGen, VariablesExp}
+import lms.legacy.common.{BaseExp, BooleanOpsGen, EqualGen, IfThenElseGen, LiftPrimitives, LiftString, OrderingOpsGen, PrimitiveOpsExpOpt, PrimitiveOpsGen, StringOpsGen, VariablesExp, VariablesGen, VariablesExpOpt}
 import lms.legacy.compat.SourceContext
 import lms.legacy.compat.SourceContext.given
 
@@ -10,7 +10,7 @@ import scala.language.implicitConversions
 
 
 @virt
-trait RegexpMatcher extends DslImpl {
+trait RegexpMatcher extends Dsl {
   given LiftString.SuppressAutoLift = new LiftString.SuppressAutoLift {}
 
   /* search for regexp anywhere in text */
@@ -18,14 +18,13 @@ trait RegexpMatcher extends DslImpl {
     if (regexp(0) == '^')
       matchhere(regexp, 1, text, 0)
     else {
-      val start = __newVar(-1)
-      val found = __newVar(false)
+      var start = -1
+      var found = false
       while (!found && start < text.length) {
-        var_assign(start, start + 1)
-        var_assign(found, matchhere(regexp, 0, text, start))
+        start = start + 1
+        found = matchhere(regexp, 0, text, start)
       }
-      val result: Rep[Boolean] = found
-      result
+      readVar(found)
     }
   }
 
@@ -44,17 +43,15 @@ trait RegexpMatcher extends DslImpl {
 
   /* search for c* followed by restart of regexp at start of text */
   def matchstar(c: Char, regexp: String, restart: Int, text: Rep[String], start: Rep[Int]): Rep[Boolean] = {
-    val sstart = __newVar(start)
-    val found = __newVar(matchhere(regexp, restart, text, sstart))
-    val failed = __newVar(false)
+    var sstart = start
+    var found: Var[Boolean] = matchhere(regexp, restart, text, sstart)
+    var failed = false
     while (!failed && !found && sstart < text.length) {
-      var_assign(failed, !matchchar(c, text(sstart)))
-      var_assign(sstart, sstart + 1)
-      var_assign(found, matchhere(regexp, restart, text, sstart))
+      failed = !matchchar(c, text(sstart))
+      sstart = sstart + 1
+      found = matchhere(regexp, restart, text, sstart)
     }
-    val failedRep: Rep[Boolean] = failed
-    val foundRep: Rep[Boolean] = found
-    !failedRep && foundRep
+    !readVar(failed) && readVar(found)
   }
 
   def matchchar(c: Char, t: Rep[Char]): Rep[Boolean] = {
@@ -76,20 +73,7 @@ class RegexpMatcherTest extends TutorialFunSuite {
     check("regex1", Snippet.code)
   }
 
-  val regexpMatcherCompiler = new RegexpMatcher
-    with StagingCompile
-    with BaseExp
-    with PrimitiveOpsExpOpt
-    with LiftPrimitives
-    with VariablesExp
-    with BooleanOpsGen
-    with IfThenElseGen
-    with EqualGen
-    with OrderingOpsGen
-    with StringOpsGen
-    with PrimitiveOpsGen {
-    type API = BaseExp
-  }
+  val regexpMatcherCompiler = new RegexpMatcher with DslCompile
 
   private def matchsearchHost(regexp: String, text: String): Boolean = {
     val f: regexpMatcherCompiler.Exp[String] => regexpMatcherCompiler.Exp[Boolean] = regexpMatcherCompiler.matchsearch(regexp, _)

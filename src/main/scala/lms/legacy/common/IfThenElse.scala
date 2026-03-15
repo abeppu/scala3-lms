@@ -1,7 +1,9 @@
 package lms.legacy.common
 
+import lms.gen.{Gen, StagingCompile}
+
 import java.io.PrintWriter
-import lms.legacy.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenerationFailedException, GenericFatCodegen, GenericNestedCodegen}
 import lms.legacy.compat.SourceContext
 
 trait IfThenElse extends Base {
@@ -28,6 +30,20 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
   }
   
   case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Block[T], elsep: Block[T]) extends AbstractIfThenElse[T]
+
+  private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
+    case Def(Reify(_, _, effects)) =>
+      effects.asInstanceOf[List[Sym[Any]]]
+    case sym: Sym[?] =>
+      findDefinition(sym.asInstanceOf[Sym[Any]]) match {
+        case Some(TP(_, reify: Reify[?])) =>
+          reify.effects.asInstanceOf[List[Sym[Any]]]
+        case _ =>
+          effectSyms(block.res)
+      }
+    case _ =>
+      effectSyms(block.res)
+  }
 
   override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = {
     val a = reifyEffectsHere(thenp)
@@ -113,8 +129,47 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
 */
 
   override def boundSyms(e: Any): List[Sym[Any]] = e match {
-    case IfThenElse(c, t, e) => effectSyms(t):::effectSyms(e)
+    case IfThenElse(c, t, e) => blockEffectSyms(t) ::: blockEffectSyms(e)
     case _ => super.boundSyms(e)
+  }
+}
+
+import scala.quoted.*
+
+trait IfThenElseGen extends Gen with IfThenElseExp {
+  this: StagingCompile =>
+
+  override def constantTerm[T](c: Const[T])(using q: Quotes): q.reflect.Term = {
+    import q.reflect.*
+    c match {
+      // Is there such a thing as an IfThenElse lit?
+      // TODO others
+      case _ => super.constantTerm(c)
+    }
+  }
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    def interpretIf[T](cond: Exp[Boolean], thenp: this.Block[T], elsep: this.Block[T]): Term = {
+      val condExpr = interpretExpWithEnv(cond).asExprOf[Boolean]
+      val branchType = thenp.res.tp.asTypeRepr
+      branchType.asType match
+        case '[t] =>
+          val thenExpr = interpretBlockWithVars(thenp).asExprOf[t]
+          val elseExpr = interpretBlockWithVars(elsep).asExprOf[t]
+          '{ if ($condExpr) $thenExpr else $elseExpr }.asTerm
+    }
+
+    d match {
+      case Reflect(IfThenElse(cond, thenp, elsep), _, _) =>
+        interpretIf(cond, thenp, elsep)
+      case IfThenElse(cond, thenp, elsep) =>
+        interpretIf(cond, thenp, elsep)
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+
   }
 
 }

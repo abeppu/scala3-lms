@@ -2,6 +2,8 @@ package lms.legacy.common
 
 import java.io.PrintWriter
 import lms.legacy.compat.SourceContext
+import lms.gen.{Gen, StagingCompile}
+import scala.quoted.*
 trait LiftNumeric {
   this: Base =>
 
@@ -109,6 +111,90 @@ trait NumericOpsExpOpt extends NumericOpsExp {
   }
 }
 
+trait NumericOpsGen extends Gen with NumericOpsExp {
+  this: StagingCompile & PrimitiveOpsExp =>
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    def numericTerm[T: Type](lhs: Exp[T], rhs: Exp[T], op: String): Term = {
+      val lhsExpr = interpretExpWithEnv(lhs).asExprOf[T]
+      val rhsExpr = interpretExpWithEnv(rhs).asExprOf[T]
+      Type.of[T] match {
+        case '[Int] =>
+          val l = lhsExpr.asExprOf[Int]
+          val r = rhsExpr.asExprOf[Int]
+          op match {
+            case "plus" => '{ $l + $r }.asTerm
+            case "minus" => '{ $l - $r }.asTerm
+            case "times" => '{ $l * $r }.asTerm
+            case "divide" => '{ $l / $r }.asTerm
+          }
+        case '[Float] =>
+          val l = lhsExpr.asExprOf[Float]
+          val r = rhsExpr.asExprOf[Float]
+          op match {
+            case "plus" => '{ $l + $r }.asTerm
+            case "minus" => '{ $l - $r }.asTerm
+            case "times" => '{ $l * $r }.asTerm
+            case "divide" => '{ $l / $r }.asTerm
+          }
+        case '[Double] =>
+          val l = lhsExpr.asExprOf[Double]
+          val r = rhsExpr.asExprOf[Double]
+          op match {
+            case "plus" => '{ $l + $r }.asTerm
+            case "minus" => '{ $l - $r }.asTerm
+            case "times" => '{ $l * $r }.asTerm
+            case "divide" => '{ $l / $r }.asTerm
+          }
+        case _ =>
+          op match {
+            case "plus" =>
+              Expr.summon[Numeric[T]] match
+                case Some(numExpr) => '{ ${numExpr.asExprOf[Numeric[T]]}.plus($lhsExpr, $rhsExpr) }.asTerm
+                case None => report.errorAndAbort(s"Missing Numeric[${Type.show[T]}] for numeric_plus")
+            case "minus" =>
+              Expr.summon[Numeric[T]] match
+                case Some(numExpr) => '{ ${numExpr.asExprOf[Numeric[T]]}.minus($lhsExpr, $rhsExpr) }.asTerm
+                case None => report.errorAndAbort(s"Missing Numeric[${Type.show[T]}] for numeric_minus")
+            case "times" =>
+              Expr.summon[Numeric[T]] match
+                case Some(numExpr) => '{ ${numExpr.asExprOf[Numeric[T]]}.times($lhsExpr, $rhsExpr) }.asTerm
+                case None => report.errorAndAbort(s"Missing Numeric[${Type.show[T]}] for numeric_times")
+            case "divide" =>
+              Expr.summon[Fractional[T]]
+                .map(_.asExprOf[Fractional[T]])
+                .map(fracExpr => '{ $fracExpr.div($lhsExpr, $rhsExpr) }.asTerm)
+                .orElse(
+                  Expr.summon[Integral[T]]
+                    .map(_.asExprOf[Integral[T]])
+                    .map(intExpr => '{ $intExpr.quot($lhsExpr, $rhsExpr) }.asTerm)
+                )
+                .getOrElse(report.errorAndAbort(s"Missing Fractional/Integral[${Type.show[T]}] for numeric_divide"))
+          }
+      }
+    }
+
+    d match {
+      case NumericPlus(lhs, rhs) =>
+        lhs.tp.asTypeRepr.asType match
+          case '[t] => numericTerm[t](lhs.asInstanceOf[Exp[t]], rhs.asInstanceOf[Exp[t]], "plus")
+      case NumericMinus(lhs, rhs) =>
+        lhs.tp.asTypeRepr.asType match
+          case '[t] => numericTerm[t](lhs.asInstanceOf[Exp[t]], rhs.asInstanceOf[Exp[t]], "minus")
+      case NumericTimes(lhs, rhs) =>
+        lhs.tp.asTypeRepr.asType match
+          case '[t] => numericTerm[t](lhs.asInstanceOf[Exp[t]], rhs.asInstanceOf[Exp[t]], "times")
+      case NumericDivide(lhs, rhs) =>
+        lhs.tp.asTypeRepr.asType match
+          case '[t] => numericTerm[t](lhs.asInstanceOf[Exp[t]], rhs.asInstanceOf[Exp[t]], "divide")
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+  }
+}
+
 
 trait ScalaGenNumericOps extends ScalaGenFat {
   val IR: NumericOpsExp
@@ -141,4 +227,3 @@ trait CLikeGenNumericOps extends CLikeGenBase {
 trait CudaGenNumericOps extends CudaGenBase with CLikeGenNumericOps
 trait OpenCLGenNumericOps extends OpenCLGenBase with CLikeGenNumericOps
 trait CGenNumericOps extends CGenBase with CLikeGenNumericOps
-

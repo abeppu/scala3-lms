@@ -719,6 +719,7 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
     c match {
       case Const(x: Double) => Literal(DoubleConstant(x))
       case Const(x: Int) => Literal(IntConstant(x))
+      case Const(()) => Literal(UnitConstant())
       // TODO others
       case _ =>  super.constantTerm(c)
     }
@@ -728,24 +729,49 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
   override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env:Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
 
-    if (!d.isInstanceOf[ArithOp[?]]) {
-      super.interpretDefWithEnv(d)
-    } else {
-      val dArithOp = d.asInstanceOf[ArithOp[Double]]
-      val lhs = interpretExpWithEnv(dArithOp.lhs)
-      val rhs = interpretExpWithEnv(dArithOp.rhs)
-      val method = if (d.isInstanceOf[DoublePlus]) {
-        lhs.tpe.classSymbol.get.methodMember("+").head
-      } else if (d.isInstanceOf[DoubleMinus]) {
-        lhs.tpe.classSymbol.get.methodMember("-").head
-      } else if (d.isInstanceOf[DoubleTimes]) {
-        lhs.tpe.classSymbol.get.methodMember("*").head
-      } else if (d.isInstanceOf[DoubleDivide]) {
-        lhs.tpe.classSymbol.get.methodMember("/").head
-      } else { // TODO int operations, float operations etc
-        throw new Exception(s"Unsupported Def type: ${d.getClass}")
-      }
+    def interpretBinary(lhsExp: Exp[?], rhsExp: Exp[?], methodName: String): Term = {
+      val lhs = interpretExpWithEnv(lhsExp)
+      val rhs = interpretExpWithEnv(rhsExp)
+      val method = lhs.tpe.classSymbol.get.methodMember(methodName).head
       Apply(Select(lhs, method), List(rhs))
+    }
+
+    def interpretIntBinary(lhsExp: Exp[Int], rhsExp: Exp[Int], op: String): Term = {
+      val lhs = interpretExpWithEnv(lhsExp).asExprOf[Int]
+      val rhs = interpretExpWithEnv(rhsExp).asExprOf[Int]
+      op match {
+        case "+" => '{ $lhs + $rhs }.asTerm
+        case "-" => '{ $lhs - $rhs }.asTerm
+        case "*" => '{ $lhs * $rhs }.asTerm
+        case "/" => '{ $lhs / $rhs }.asTerm
+      }
+    }
+
+    d match {
+      case IntPlus(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "+")
+      case IntMinus(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "-")
+      case IntTimes(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "*")
+      case IntDivide(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "/")
+      case op: ArithOp[?] =>
+        val methodName =
+          if (d.isInstanceOf[DoublePlus] || d.isInstanceOf[FloatPlus]) {
+            "+"
+          } else if (d.isInstanceOf[DoubleMinus] || d.isInstanceOf[FloatMinus]) {
+            "-"
+          } else if (d.isInstanceOf[DoubleTimes] || d.isInstanceOf[FloatTimes]) {
+            "*"
+          } else if (d.isInstanceOf[DoubleDivide] || d.isInstanceOf[FloatDivide]) {
+            "/"
+          } else {
+            throw new Exception(s"Unsupported Def type: ${d.getClass}")
+          }
+        interpretBinary(op.lhs, op.rhs, methodName)
+      case _ =>
+        super.interpretDefWithEnv(d)
     }
   }
 }

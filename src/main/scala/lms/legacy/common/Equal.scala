@@ -93,6 +93,48 @@ trait EqualExpBridgeOpt extends EqualExpBridge {
 
 trait EqualExpOpt extends EqualExp with EqualExpBridgeOpt
 
+import scala.quoted.*
+import lms.gen.{Gen, StagingCompile}
+
+trait EqualGen extends Gen with EqualExpBridge { this: StagingCompile =>
+
+  private def castToAny(using Quotes)(term: quotes.reflect.Term): quotes.reflect.Term = {
+    import quotes.reflect.*
+    term.tpe.asType match {
+      case '[t] =>
+        '{ (${term.asExprOf[t]}: Any) }.asTerm
+    }
+  }
+
+  private def makeEquality(using Quotes)(
+      lhs: quotes.reflect.Term,
+      rhs: quotes.reflect.Term,
+      negate: Boolean
+  ): quotes.reflect.Term = {
+    import quotes.reflect.*
+    val lhsExpr = castToAny(lhs).asExprOf[Any]
+    val rhsExpr = castToAny(rhs).asExprOf[Any]
+    val eqExpr = '{ $lhsExpr == $rhsExpr }
+    if negate then '{ !$eqExpr }.asTerm else eqExpr.asTerm
+  }
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+    d match {
+      case Equal(lhs, rhs) =>
+        val lhsTerm = interpretExpWithEnv(lhs)
+        val rhsTerm = interpretExpWithEnv(rhs)
+        makeEquality(lhsTerm, rhsTerm, negate = false)
+      case NotEqual(lhs, rhs) =>
+        val lhsTerm = interpretExpWithEnv(lhs)
+        val rhsTerm = interpretExpWithEnv(rhs)
+        makeEquality(lhsTerm, rhsTerm, negate = true)
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+  }
+}
+
 
 trait ScalaGenEqual extends ScalaGenBase {
   val IR: EqualExpBridge

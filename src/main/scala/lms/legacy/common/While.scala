@@ -3,6 +3,8 @@ package lms.legacy.common
 import java.io.PrintWriter
 import lms.legacy.internal.GenericNestedCodegen
 import lms.legacy.compat.SourceContext
+import lms.gen.{Gen, StagingCompile}
+import scala.quoted.*
 trait While extends Base {
   def __whileDo(cond: => Rep[Boolean], body: => Rep[Unit])(using pos: SourceContext): Rep[Unit]
 }
@@ -10,6 +12,20 @@ trait While extends Base {
 
 trait WhileExp extends While with BooleanOps with EffectExp {
   case class While(cond: Block[Boolean], body: Block[Unit]) extends Def[Unit]
+
+  private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
+    case Def(Reify(_, _, effects)) =>
+      effects.asInstanceOf[List[Sym[Any]]]
+    case sym: Sym[?] =>
+      findDefinition(sym.asInstanceOf[Sym[Any]]) match {
+        case Some(TP(_, reify: Reify[?])) =>
+          reify.effects.asInstanceOf[List[Sym[Any]]]
+        case _ =>
+          effectSyms(block.res)
+      }
+    case _ =>
+      effectSyms(block.res)
+  }
 
   override def __whileDo(cond: => Exp[Boolean], body: => Rep[Unit])(using pos: SourceContext) = {
     val c = reifyEffects(cond)
@@ -25,7 +41,7 @@ trait WhileExp extends While with BooleanOps with EffectExp {
   }
 
   override def boundSyms(e: Any): List[Sym[Any]] = e match {
-    case While(c, b) => effectSyms(c):::effectSyms(b)
+    case While(c, b) => blockEffectSyms(c) ::: blockEffectSyms(b)
     case _ => super.boundSyms(e)
   }
 
@@ -82,6 +98,27 @@ trait WhileExpOptSpeculative extends WhileExp with PreviousIterationDummyExp {
 trait BaseGenWhile extends GenericNestedCodegen {
   val IR: WhileExp
   import IR._
+}
+
+trait WhileGen extends Gen with WhileExp {
+  this: StagingCompile =>
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    d match {
+      case Reflect(loop: this.While, _, _) =>
+        val condExpr = interpretBlockWithVars(loop.cond)(using q, env).asExprOf[Boolean]
+        val bodyExpr = interpretBlockWithVars(loop.body)(using q, env).asExprOf[Unit]
+        '{ while ($condExpr) { $bodyExpr } }.asTerm
+      case loop: this.While =>
+        val condExpr = interpretBlockWithVars(loop.cond)(using q, env).asExprOf[Boolean]
+        val bodyExpr = interpretBlockWithVars(loop.body)(using q, env).asExprOf[Unit]
+        '{ while ($condExpr) { $bodyExpr } }.asTerm
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+  }
 }
 
 trait ScalaGenWhile extends ScalaGenEffect with BaseGenWhile {

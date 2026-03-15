@@ -1,5 +1,6 @@
 package lms.core
 
+import lms.gen.StagingCompile
 import lms.legacy.common.*
 import lms.legacy.compat.SourceContext
 import org.scalatest.funsuite.AnyFunSuite
@@ -91,6 +92,20 @@ trait DslImpl extends DslExp { q =>
   val codegen = new DslGen {
     val IR: q.type = q
   }
+}
+
+trait DslCompile extends DslExp
+    with StagingCompile
+    with PrimitiveOpsGen
+    with NumericOpsGen
+    with BooleanOpsGen
+    with IfThenElseGen
+    with EqualGen
+    with OrderingOpsGen
+    with StringOpsGen
+    with VariablesGen
+    with WhileGen {
+  type API = DslExp
 }
 
 trait DslSnippet[A:ClassTag,B:ClassTag] extends Dsl {

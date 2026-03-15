@@ -1,18 +1,57 @@
 package lms.gen
 
-
-import lms.legacy.common.{BaseExp, EffectExp}
+import lms.legacy.common.{BaseExp, EffectExp, VariablesExp}
+import lms.legacy.internal.CodeMotion
 import scala.quoted.*
 
-trait StagingCompile extends QuotedGen {
+trait StagingCompile extends QuotedGen with CodeMotion {
   this: EffectExp => 
+
+  val IR: this.type = this
+
+  private var compileDefs: List[Stm] = Nil
+
+  protected def findCompileDefinition(sym: Sym[?]): Option[Stm] =
+    compileDefs.find(infix_lhs(_) contains sym)
+
+  protected def buildScheduleForResult(result: Any, scope: List[Stm], sort: Boolean = true): List[Stm] =
+    getSchedule(scope)(result, sort)
+
+  protected def buildExactScopeForResult(result: Exp[?], scope: List[Stm]): List[Stm] = {
+    val deepScope = buildScheduleForResult(result, scope)
+    getExactScope(deepScope)(List(result.asInstanceOf[Exp[Any]]))
+  }
+
+  override def interpretExpWithEnv[A](e: Exp[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    e match {
+      case c @ Const(_) =>
+        constantTerm(c)
+      case sym @ Sym(_) =>
+        env.get(sym)
+          .map(Ref(_))
+          .orElse {
+            findCompileDefinition(sym).map {
+              case TP(_, rhs) =>
+                rhs match {
+                  case reify: Reify[?] @unchecked =>
+                    interpretExpWithEnv(reify.x.asInstanceOf[Exp[A]])
+                  case Reflect(inner, _, _) =>
+                    interpretDefWithEnv(inner.asInstanceOf[Def[A]])
+                  case _ =>
+                    interpretDefWithEnv(rhs.asInstanceOf[Def[A]])
+                }
+            }
+          }
+          .getOrElse(throw new Exception(s"Symbol $sym not found in environment: $env"))
+      case _ =>
+        throw new Exception(s"Unsupported expression: $e")
+    }
+  }
   
   def compile[A:Typ, B:Typ](f: Exp[A] => Exp[B]): A => B = {
-    println("starting compile")
-
     given staging.Compiler = staging.Compiler.make(getClass.getClassLoader)
-
-    println("set up compiler")
 
     staging.run((q: Quotes) ?=> {
       //println(s"starting run with qp = ${qp}")
@@ -29,26 +68,25 @@ trait StagingCompile extends QuotedGen {
       // TODO for arity > 1, we need multiple input symbols
       // 1. Create a fresh symbol for the input
       val inputSym: Sym[A] = fresh[A](using typA)
-      println(s"Input symbol: ${inputSym}")
 
       // 2. Reify the function body
       val savedContext = this.context
       this.context = Nil
-      val (body: Exp[B], schedule: List[Stm]) =
+      val (body: Exp[B], defs: List[Stm]) =
         try reifySubGraph {
           f(inputSym)
         }
         finally
           this.context = savedContext
+      compileDefs = defs
 
-      println(s"Reified body: ${body}, schedule: ${schedule}")
+      val schedule = buildExactScopeForResult(body, compileDefs)
       // 3. Roll a lambda term
       // TODO: handle multiple parameters
       val methodType = MethodType(List("a"))(
         _ => List(typeARepr),
         _ => typeBRepr
       )
-      println(s"Method type: ${methodType}")
       val lambdaTerm = Lambda(Symbol.spliceOwner, methodType, (owner, params) => {
         // Map inputSym to the parameter symbol in the environment
         val paramSym = params.head match {
@@ -58,15 +96,166 @@ trait StagingCompile extends QuotedGen {
         }
 
         val envWithParam: Map[Sym[?], q.reflect.Symbol] = Map(inputSym -> paramSym)
-        interpretSchedule[B]((body, schedule))(using q, envWithParam).changeOwner(owner) // Change the owner to the current lambda term owner
+        interpretScheduleWithVars[B]((body, schedule))(using q, envWithParam).changeOwner(owner)
         // You may need to update interpretSchedule to accept the environment
       })
-      println(s"Lambda term: ${lambdaTerm.show}")
 
       // 4. Convert the lambda term to an Expr[A => B]
       val stagedF: Expr[A => B] = lambdaTerm.asExprOf[A => B]
-      println(s"Staged function: ${stagedF.show}")
       stagedF
     })
+  }
+
+  protected def interpretBlockWithVars[A](block: Block[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    val schedule = buildExactScopeForResult(block.res, compileDefs)
+      .filterNot(stm => infix_lhs(stm).exists(env.contains))
+    interpretScheduleWithVars((block.res, schedule))
+  }
+
+  protected def interpretScheduleWithVars[A](graph: (Exp[A], List[Stm]))(using q: Quotes, env0: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+    var env = env0
+    var varSyms = Set.empty[Sym[?]]
+
+    def varInit(defn: Def[?]): Option[Exp[?]] = defn match {
+      case Reflect(inner, _, _) => varInit(inner)
+      case nv: VariablesExp#NewVar[?] @unchecked => Some(nv.init.asInstanceOf[Exp[?]])
+      case _ => None
+    }
+
+    def reifiedResult(defn: Def[?]): Option[Exp[?]] = defn match {
+      case Reflect(inner, _, _) => reifiedResult(inner)
+      case reify: Reify[?] @unchecked => Some(reify.x.asInstanceOf[Exp[?]])
+      case _ => None
+    }
+
+    def unwrapDef(defn: Def[?]): Def[?] = defn match {
+      case Reflect(inner, _, _) => unwrapDef(inner)
+      case _ => defn
+    }
+
+    def isReadVar(defn: Def[?]): Boolean = defn match {
+      case Reflect(_: VariablesExp#ReadVar[?], _, _) => true
+      case _: VariablesExp#ReadVar[?] => true
+      case _ => false
+    }
+
+    def assignmentValue(defn: Def[?]): Option[Exp[?]] = unwrapDef(defn) match {
+      case assign: VariablesExp#Assign[?] @unchecked => Some(assign.rhs.asInstanceOf[Exp[?]])
+      case plusEq: VariablesExp#VarPlusEquals[?] @unchecked => Some(plusEq.rhs.asInstanceOf[Exp[?]])
+      case minusEq: VariablesExp#VarMinusEquals[?] @unchecked => Some(minusEq.rhs.asInstanceOf[Exp[?]])
+      case timesEq: VariablesExp#VarTimesEquals[?] @unchecked => Some(timesEq.rhs.asInstanceOf[Exp[?]])
+      case divEq: VariablesExp#VarDivideEquals[?] @unchecked => Some(divEq.rhs.asInstanceOf[Exp[?]])
+      case _ => None
+    }
+
+    def resolveResult(exp: Exp[?]): Term = exp match {
+      case c @ Const(_) => constantTerm(c)
+      case s @ Sym(_) =>
+        env.get(s)
+          .map { symbol =>
+            val ref = Ref(symbol)
+            if (varSyms.contains(s)) Select.unique(ref, "elem") else ref
+          }
+          .getOrElse(interpretExpWithEnv(exp.asInstanceOf[Exp[Any]])(using q, env))
+      case _ =>
+        throw new Exception(s"unsupported block result $exp")
+    }
+
+    val nestedBlockSymbols =
+      graph._2
+        .flatMap { case TP(_, rhs) =>
+          blocks(rhs).flatMap { block =>
+            buildExactScopeForResult(block.res, compileDefs)
+              .filter {
+                case TP(_, blockRhs) => varInit(blockRhs).isEmpty
+              }
+              .flatMap(infix_lhs)
+          }
+        }
+        .toSet
+
+    def isReifyNode(defn: Def[?]): Boolean = defn match {
+      case _: Reify[?] => true
+      case Reflect(_: Reify[?], _, _) => true
+      case _ => false
+    }
+
+    def shouldMaterialize(defn: Def[?]): Boolean = defn match {
+      case Reflect(_, summary, _) =>
+        summary.control || summary.resAlloc || summary.mayWrite.nonEmpty || summary.mstWrite.nonEmpty
+      case _ =>
+        false
+    }
+
+    def isMaterializationRoot(sym: Sym[?], rhs: Def[?]): Boolean =
+      varInit(rhs).nonEmpty ||
+      (isReadVar(rhs) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]])) ||
+      isReifyNode(rhs) ||
+      (shouldMaterialize(rhs) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]]))
+
+    val directDependencySymbols =
+      graph._2.iterator
+        .collect { case TP(sym, rhs) if isMaterializationRoot(sym, rhs) => syms(unwrapDef(rhs)) }
+        .flatten
+        .toSet
+
+    val candidateStatements = graph._2.filter {
+      case TP(sym, rhs) =>
+        isMaterializationRoot(sym, rhs) ||
+        (directDependencySymbols(sym.asInstanceOf[Sym[Any]]) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]]))
+    }
+
+    val statements = candidateStatements
+
+    def materializePureValue(exp: Exp[?]): List[ValDef] = exp match {
+      case s @ Sym(_) if !env.contains(s) =>
+        findCompileDefinition(s).toList.flatMap {
+          case TP(_, symRhs) =>
+            val inner = unwrapDef(symRhs)
+            if varInit(symRhs).nonEmpty || reifiedResult(symRhs).nonEmpty || shouldMaterialize(symRhs) then
+              Nil
+            else
+              val prereqs = syms(inner).flatMap(materializePureValue)
+              val rhsTerm = interpretDefWithEnv(symRhs)(using q, env)
+              val lhsSymbol = Symbol.newVal(Symbol.spliceOwner, s"x${s.id}", s.tp.asTypeRepr, Flags.EmptyFlags, Symbol.noSymbol)
+              env += (s -> lhsSymbol)
+              prereqs :+ ValDef(lhsSymbol, Some(rhsTerm))
+        }
+      case _ =>
+        Nil
+    }
+
+    val valDefs = statements.flatMap { case TP(sym, rhs) =>
+      varInit(rhs) match {
+        case Some(initExp) =>
+          val initTerm = interpretExpWithEnv(initExp)(using q, env)
+          initTerm.tpe.asType match {
+            case '[t] =>
+              val rhsTerm = '{ scala.runtime.ObjectRef.create[t](${initTerm.asExprOf[t]}) }.asTerm
+              val symbolName = s"x${sym.id}"
+              val lhsSymbol = Symbol.newVal(Symbol.spliceOwner, symbolName, rhsTerm.tpe, Flags.EmptyFlags, Symbol.noSymbol)
+              env += (sym -> lhsSymbol)
+              varSyms += sym
+              List(ValDef(lhsSymbol, Some(rhsTerm)))
+          }
+        case None =>
+          reifiedResult(rhs) match {
+            case Some(_) =>
+              Nil
+            case None =>
+              val prereqs = assignmentValue(rhs).toList.flatMap(materializePureValue)
+              val rhsTerm = interpretDefWithEnv(rhs)(using q, env)
+              val symbolName = s"x${sym.id}"
+              val lhsSymbol = Symbol.newVal(Symbol.spliceOwner, symbolName, sym.tp.asTypeRepr, Flags.EmptyFlags, Symbol.noSymbol)
+              env += (sym -> lhsSymbol)
+              prereqs :+ ValDef(lhsSymbol, Some(rhsTerm))
+          }
+      }
+    }
+
+    val resultTerm: Term = resolveResult(graph._1)
+
+    q.reflect.Block(valDefs, resultTerm)
   }
 }
