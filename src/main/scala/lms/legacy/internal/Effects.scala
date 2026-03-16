@@ -1,5 +1,7 @@
 package lms.legacy.internal
 
+import scala.language.implicitConversions
+
 import lms.legacy.util.GraphUtil
 import scala.collection.mutable
 import scala.annotation.unchecked.uncheckedVariance

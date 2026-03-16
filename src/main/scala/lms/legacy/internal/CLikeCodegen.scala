@@ -161,7 +161,7 @@ trait CLikeCodegen extends GenericCodegen {
   
   override def quote(x: Exp[Any]) = x match {
     case Const(s: Unit) => ""
-    case Const(s: Float) => s+"f"
+    case Const(s: Float) => s"${s}f"
     case Const(null) => "NULL"
     case Const(z) => CLikeConsts(x, z.toString)
     case Sym(-1) => "_"

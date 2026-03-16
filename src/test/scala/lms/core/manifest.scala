@@ -1,6 +1,7 @@
 package lms.core
 
-import lms.core.virtualize
+import scala.language.implicitConversions
+
 import lms.legacy.common.*
 
 

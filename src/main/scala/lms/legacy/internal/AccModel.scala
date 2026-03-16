@@ -1,5 +1,7 @@
 package lms.legacy.internal
 
+import scala.language.implicitConversions
+
 trait AbstractHostTransfer {
   this: GenericCodegen =>
 

@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import java.io.PrintWriter
 import lms.legacy.internal.{FatBlockTraversal,GenericNestedCodegen,GenericFatCodegen}
 import lms.legacy.compat.SourceContext

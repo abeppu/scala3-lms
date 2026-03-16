@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import java.io.PrintWriter
 import lms.legacy.internal.*
 import lms.legacy.compat.SourceContext
@@ -154,6 +156,11 @@ trait ArrayOpsExp extends ArrayOps with EffectExp with VariablesExp {
     case ArrayForeach(a, x, body) => freqNormal(a):::freqHot(body)
     case ArrayMap(a, x, body) => freqNormal(a):::freqHot(body)
     case _ => super.symsFreq(e)
+  }
+
+  override def isWritableSym[A](w: Sym[A]): Boolean = w.tp match {
+    case ManifestTyp(mf) if mf.runtimeClass.isArray => true
+    case _ => super.isWritableSym(w)
   }
 
 }

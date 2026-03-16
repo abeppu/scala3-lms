@@ -70,6 +70,15 @@ trait StagingCompileVarSnippets extends Dsl {
     b = next
     readVar(a) * 10 + readVar(b)
   }
+
+  def whileBodyDropsTrailingValue(limit: Rep[Int]): Rep[Int] = {
+    var i: Var[Int] = 0
+    while (readVar(i) < limit) {
+      i = readVar(i) + 1
+      readVar(i) + 99
+    }
+    readVar(i)
+  }
 }
 
 class StagingCompileVarTest extends AnyFunSuite with Matchers {
@@ -124,5 +133,14 @@ class StagingCompileVarTest extends AnyFunSuite with Matchers {
 
     staged(1) shouldBe 23
     staged(2) shouldBe 35
+  }
+
+  test("while body drops trailing non-unit expressions") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.whileBodyDropsTrailingValue(_)
+    val staged = compiler.compile(f)
+
+    staged(0) shouldBe 0
+    staged(2) shouldBe 2
+    staged(5) shouldBe 5
   }
 }

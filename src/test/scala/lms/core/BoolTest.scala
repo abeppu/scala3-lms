@@ -1,6 +1,6 @@
 package lms.core
 
-import lms.core.virt
+import scala.language.implicitConversions
 
 import lms.core.TutorialFunSuite
 

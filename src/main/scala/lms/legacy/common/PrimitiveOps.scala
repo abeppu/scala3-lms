@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import lms.gen.{Gen, StagingCompile}
 
 import java.io.PrintWriter
@@ -53,7 +55,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
    * Avoids certain fragile behavior, including compiler crashes and some erroneous or inaccessible type errors.
    */
   def infix_-(a: Int        , b: Rep[Int]   )(using                  c: SourceContext): Rep[Int]    = int_minus(unit(a), b)
-  def infix_-(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_minus(unit(a), b)
+  def infix_-(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_minus(unit(a.toFloat), b)
   def infix_-(a: Int        , b: Rep[Double])(using o: Overloaded2 , c: SourceContext): Rep[Double] = double_minus(unit(a), b)
   def infix_-(a: Float      , b: Rep[Int]   )(using                  c: SourceContext): Rep[Float]  = float_minus(unit(a),b)
   def infix_-(a: Float      , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_minus(unit(a), b)
@@ -64,7 +66,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def infix_-(a: Rep[Int]   , b: Int        )(using                  c: SourceContext): Rep[Int]    = int_minus(a, unit(b))
   def infix_-(a: Rep[Int]   , b: Double     )(using                  c: SourceContext): Rep[Double] = double_minus(a, unit(b))
   def infix_-(a: Rep[Int]   , b: Float      )(using                  c: SourceContext): Rep[Float]  = float_minus(a, unit(b))
-  def infix_-(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_minus(a, unit(b))
+  def infix_-(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_minus(a, unit(b.toFloat))
   def infix_-(a: Rep[Float] , b: Float      )(using o: Overloaded2 , c: SourceContext): Rep[Float]  = float_minus(a, unit(b))
   def infix_-(a: Rep[Float] , b: Double     )(using o: Overloaded3 , c: SourceContext): Rep[Double] = double_minus(a, unit(b))
   def infix_-(a: Rep[Double], b: Int        )(using o: Overloaded4 , c: SourceContext): Rep[Double] = double_minus(a, unit(b))
@@ -81,7 +83,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def infix_-(a: Rep[Double], b: Rep[Double])(using o: Overloaded9 , c: SourceContext): Rep[Double] = double_minus(a,b)
 
   def infix_+(a: Int        , b: Rep[Int]   )(using                  c: SourceContext): Rep[Int]    = int_plus(unit(a), b)
-  def infix_+(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_plus(unit(a), b)
+  def infix_+(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_plus(unit(a.toFloat), b)
   def infix_+(a: Int        , b: Rep[Double])(using o: Overloaded2 , c: SourceContext): Rep[Double] = double_plus(unit(a), b)
   def infix_+(a: Float      , b: Rep[Int]   )(using                  c: SourceContext): Rep[Float]  = float_plus(unit(a),b)
   def infix_+(a: Float      , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_plus(unit(a), b)
@@ -92,7 +94,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def infix_+(a: Rep[Int]   , b: Int        )(using                  c: SourceContext): Rep[Int]    = int_plus(a, unit(b))
   def infix_+(a: Rep[Int]   , b: Double     )(using                  c: SourceContext): Rep[Double] = double_plus(a, unit(b))
   def infix_+(a: Rep[Int]   , b: Float      )(using                  c: SourceContext): Rep[Float]  = float_plus(a, unit(b))
-  def infix_+(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_plus(a, unit(b))
+  def infix_+(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_plus(a, unit(b.toFloat))
   def infix_+(a: Rep[Float] , b: Float      )(using o: Overloaded2 , c: SourceContext): Rep[Float]  = float_plus(a, unit(b))
   def infix_+(a: Rep[Float] , b: Double     )(using o: Overloaded3 , c: SourceContext): Rep[Double] = double_plus(a, unit(b))
   def infix_+(a: Rep[Double], b: Int        )(using o: Overloaded4 , c: SourceContext): Rep[Double] = double_plus(a, unit(b))
@@ -109,7 +111,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def infix_+(a: Rep[Double], b: Rep[Double])(using o: Overloaded23, c: SourceContext): Rep[Double] = double_plus(a,b)
 
   def infix_*(a: Int        , b: Rep[Int]   )(using                  c: SourceContext): Rep[Int]    = int_times(unit(a), b)
-  def infix_*(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_times(unit(a), b)
+  def infix_*(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_times(unit(a.toFloat), b)
   def infix_*(a: Int        , b: Rep[Double])(using o: Overloaded2 , c: SourceContext): Rep[Double] = double_times(unit(a), b)
   def infix_*(a: Float      , b: Rep[Int]   )(using                  c: SourceContext): Rep[Float]  = float_times(unit(a),b)
   def infix_*(a: Float      , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_times(unit(a), b)
@@ -120,7 +122,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def infix_*(a: Rep[Int]   , b: Int        )(using                  c: SourceContext): Rep[Int]    = int_times(a, unit(b))
   def infix_*(a: Rep[Int]   , b: Double     )(using                  c: SourceContext): Rep[Double] = double_times(a, unit(b))
   def infix_*(a: Rep[Int]   , b: Float      )(using                  c: SourceContext): Rep[Float]  = float_times(a, unit(b))
-  def infix_*(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_times(a, unit(b))
+  def infix_*(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_times(a, unit(b.toFloat))
   def infix_*(a: Rep[Float] , b: Float      )(using o: Overloaded2 , c: SourceContext): Rep[Float]  = float_times(a, unit(b))
   def infix_*(a: Rep[Float] , b: Double     )(using o: Overloaded3 , c: SourceContext): Rep[Double] = double_times(a, unit(b))
   def infix_*(a: Rep[Double], b: Int        )(using o: Overloaded4 , c: SourceContext): Rep[Double] = double_times(a, unit(b))
@@ -137,7 +139,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def infix_*(a: Rep[Double], b: Rep[Double])(using o: Overloaded9 , c: SourceContext): Rep[Double] = double_times(a,b)
 
   def infix_/(a: Int        , b: Rep[Int]   )(using                  c: SourceContext): Rep[Int]    = int_divide(unit(a), b)
-  def infix_/(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_divide(unit(a), b)
+  def infix_/(a: Int        , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_divide(unit(a.toFloat), b)
   def infix_/(a: Int        , b: Rep[Double])(using o: Overloaded2 , c: SourceContext): Rep[Double] = double_divide(unit(a), b)
   def infix_/(a: Float      , b: Rep[Int]   )(using                  c: SourceContext): Rep[Float]  = float_divide(unit(a),b)
   def infix_/(a: Float      , b: Rep[Float] )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_divide(unit(a), b)
@@ -148,7 +150,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def infix_/(a: Rep[Int]   , b: Int        )(using                  c: SourceContext): Rep[Int]    = int_divide(a, unit(b))
   def infix_/(a: Rep[Int]   , b: Double     )(using                  c: SourceContext): Rep[Double] = double_divide(a, unit(b))
   def infix_/(a: Rep[Int]   , b: Float      )(using                  c: SourceContext): Rep[Float]  = float_divide(a, unit(b))
-  def infix_/(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_divide(a, unit(b))
+  def infix_/(a: Rep[Float] , b: Int        )(using o: Overloaded1 , c: SourceContext): Rep[Float]  = float_divide(a, unit(b.toFloat))
   def infix_/(a: Rep[Float] , b: Float      )(using o: Overloaded2 , c: SourceContext): Rep[Float]  = float_divide(a, unit(b))
   def infix_/(a: Rep[Float] , b: Double     )(using o: Overloaded3 , c: SourceContext): Rep[Double] = double_divide(a, unit(b))
   def infix_/(a: Rep[Double], b: Int        )(using o: Overloaded4 , c: SourceContext): Rep[Double] = double_divide(a, unit(b))

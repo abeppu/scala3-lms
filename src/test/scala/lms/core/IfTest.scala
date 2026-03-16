@@ -1,5 +1,7 @@
 package lms.core
 
+import scala.language.implicitConversions
+
 import lms.core.TutorialFunSuite
 
 class IfTest extends TutorialFunSuite {

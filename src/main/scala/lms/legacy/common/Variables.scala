@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import java.io.PrintWriter
 import lms.legacy.util.OverloadHack
 import lms.legacy.compat.SourceContext
@@ -41,7 +43,7 @@ trait LowPriorityVariableImplicits extends ImplicitOps {
     def apply(x: Var[Int]): Rep[Double] = implicit_convert[Int,Double](readVar(x))
   }
   given varIntToRepFloat(using pos: SourceContext): Conversion[Var[Int],Rep[Float]] with {
-    def apply(x: Var[Int]): Rep[Float] = implicit_convert[Int, Float](readVar(x))
+    def apply(x: Var[Int]): Rep[Float] = implicit_convert[Int, Float](readVar(x))(using _.toFloat, intTyp, floatTyp, pos)
   }
   given varFloatToRepDouble(using pos: SourceContext): Conversion[Var[Float],Rep[Double]] with {
     def apply(x: Var[Float]): Rep[Double] = implicit_convert[Float,Double](readVar(x))

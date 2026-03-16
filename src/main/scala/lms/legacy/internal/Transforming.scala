@@ -1,5 +1,7 @@
 package lms.legacy.internal
 
+import scala.language.implicitConversions
+
 import lms.legacy.util.OverloadHack
 import scala.collection.{immutable,mutable}
 import lms.legacy.compat.SourceContext

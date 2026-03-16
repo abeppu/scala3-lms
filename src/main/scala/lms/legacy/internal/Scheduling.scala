@@ -91,7 +91,7 @@ trait Scheduling {
 
   def getScheduleM(scope: List[Stm])(result: Any, cold: Boolean, hot: Boolean): List[Stm] = {
     def mysyms(st: Any) = {
-      val db = symsFreq(st).groupBy(_._1).mapValues(_.map(_._2).sum).toList
+      val db = symsFreq(st).groupBy(_._1).view.mapValues(_.map(_._2).sum).toList
       assert(syms(st).toSet == db.map(_._1).toSet, "different list of syms: "+syms(st)+"!="+db+" for "+st)
       if (cold && hot) db.map(_._1)
       else if (cold && !hot) db.withFilter(_._2 < 100.0).map(_._1)

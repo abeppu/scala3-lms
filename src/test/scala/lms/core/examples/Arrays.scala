@@ -1,5 +1,7 @@
 package lms.core.examples
 
+import scala.language.implicitConversions
+
 import lms.gen.{Gen, StagingCompile}
 import lms.legacy.common.{Base, BaseExp, ScalaGenBase}
 
@@ -53,28 +55,25 @@ trait ArraysGen extends Gen with ArraysExp {
 
   override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
-    if (d.isInstanceOf[ArrayApply[A]]) {
-      val arrayApply = d.asInstanceOf[ArrayApply[A]]
-      val arrayTerm = interpretExpWithEnv(arrayApply.x)(using q, env)
-      val indexTerm = Literal(IntConstant(arrayApply.i))
-      Apply(Select.unique(arrayTerm, "apply"), List(indexTerm))
-    } else if (d.isInstanceOf[MakeArray[A]]) {
-      val makeArray = d.asInstanceOf[MakeArray[A]]
-      val dx = makeArray.x
-      dx.head.tp.asTypeRepr.asType match {
-        case '[t] => {
-          val elems: List[Term] = makeArray.x.map(interpretExpWithEnv(_)(using q, env))
-          val elemExprs: List[Expr[t]] = elems.map { elem => elem.asExprOf[t]}
-          val classTag: ClassTag[t] = ClassTag(dx.head.tp.runtimeClass)
-          val classTagExpr: Expr[ClassTag[t]] = Expr(classTag)
-          val expr = '{
-            Array.from[t](${Expr.ofList(elemExprs)})(using $classTagExpr)
-          }
-          expr.asTerm
+    d match {
+      case arrayApply: ArrayApply[?] =>
+        val arrayTerm = interpretExpWithEnv(arrayApply.x)(using q, env)
+        val indexTerm = Literal(IntConstant(arrayApply.i))
+        Apply(Select.unique(arrayTerm, "apply"), List(indexTerm))
+      case makeArray: MakeArray[?] =>
+        val elems = makeArray.x
+        elems.head.tp.asTypeRepr.asType match {
+          case '[t] =>
+            val elemTerms: List[Term] = elems.map(interpretExpWithEnv(_)(using q, env))
+            val elemExprs: List[Expr[t]] = elemTerms.map(_.asExprOf[t])
+            val classTag: ClassTag[t] = ClassTag(elems.head.tp.runtimeClass)
+            val classTagExpr: Expr[ClassTag[t]] = Expr(classTag)
+            '{
+              Array.from[t](${Expr.ofList(elemExprs)})(using $classTagExpr)
+            }.asTerm
         }
-      }
-    } else {
-      super.interpretDefWithEnv(d)
+      case _ =>
+        super.interpretDefWithEnv(d)
     }
   }
 }

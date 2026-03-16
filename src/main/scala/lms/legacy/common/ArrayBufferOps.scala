@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import java.io.PrintWriter
 import scala.collection.mutable.ArrayBuffer
 import lms.legacy.internal.GenericNestedCodegen
@@ -140,4 +142,3 @@ trait CLikeGenArrayBufferOps extends BaseGenArrayBufferOps with CLikeGenBase {
 trait CudaGenArrayBufferOps extends CudaGenEffect with CLikeGenArrayBufferOps
 trait OpenCLGenArrayBufferOps extends OpenCLGenEffect with CLikeGenArrayBufferOps
 trait CGenArrayBufferOps extends CGenEffect with CLikeGenArrayBufferOps
-

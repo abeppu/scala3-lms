@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import lms.legacy.util.OverloadHack
 
 import java.io.PrintWriter

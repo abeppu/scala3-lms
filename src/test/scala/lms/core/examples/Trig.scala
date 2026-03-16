@@ -1,5 +1,7 @@
 package lms.core.examples
 
+import scala.language.implicitConversions
+
 import lms.gen.{Gen, StagingCompile}
 import lms.legacy.common.{Base, BaseExp, PrimitiveOpsExp}
 

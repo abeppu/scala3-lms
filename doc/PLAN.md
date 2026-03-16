@@ -1,13 +1,13 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`)
-- [ ] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 43 passing)
+- [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
 - [ ] Improve type reification (nested type params, generic code staging)
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
-  - [ ] Re-enable the ignored `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
+  - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
 - [ ] Port and validate original Scala 2 LMS examples under @virt
 - [ ] Document new design decisions in `DECISIONS.md` as they land
 

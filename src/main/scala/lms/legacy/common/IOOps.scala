@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import java.io.{BufferedReader, BufferedWriter, File, FileReader, FileWriter, PrintWriter}
 import lms.legacy.internal.GenerationFailedException
 import lms.legacy.util.OverloadHack
@@ -162,5 +164,4 @@ trait CLikeGenIOOps extends CLikeGenBase {
 trait CudaGenIOOps extends CudaGenBase with CLikeGenIOOps
 trait OpenCLGenIOOps extends OpenCLGenBase with CLikeGenIOOps
 trait CGenIOOps extends CGenBase with CLikeGenIOOps
-
 

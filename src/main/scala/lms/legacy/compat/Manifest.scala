@@ -1,5 +1,7 @@
 package lms.legacy.compat
 
+import scala.language.implicitConversions
+
 import scala.reflect.ClassTag
 import scala.quoted.*
 

@@ -1,4 +1,7 @@
 package lms.core
+
+import scala.language.implicitConversions
+
 import lms.legacy.common.*
 
 

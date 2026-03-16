@@ -1,6 +1,5 @@
 package lms.core.examples
 
-import lms.core.virtualize
 import lms.gen.StagingCompile
 import lms.legacy.common.*
 import org.scalatest.flatspec.AnyFlatSpec

@@ -7,6 +7,23 @@ import scala.annotation.*
 import scala.math.Ordering
 import scala.quoted.*
 
+/**
+ * Local virtualization for Scala 3 LMS.
+ *
+ * The original Scala 2 LMS relied on a compiler plugin to reinterpret control flow and selected
+ * operators in terms of the staged DSL. This annotation performs the same job locally by rewriting
+ * the annotated definitions after typer, routing `if`/`while`, boolean ops, arithmetic, equality,
+ * ordering, string indexing, and mutable locals through the LMS surface when staged values are
+ * involved.
+ *
+ * The central discipline in this file is to classify every term as one of:
+ * - `RepW(T)`: already staged as `Rep[T]`
+ * - `VarW(T)`: staged mutable cell `Var[T]`
+ * - `Bare(T)`: ordinary host Scala value
+ *
+ * Rewrites preserve plain host semantics when both sides stay `Bare`, and switch to LMS methods as
+ * soon as any staged value participates.
+ */
 @experimental
 class virt extends MacroAnnotation {
 
@@ -14,6 +31,8 @@ class virt extends MacroAnnotation {
     
     import q.reflect.*
 
+    // Internal classification used by the rewriter to decide whether a tree should stay as ordinary
+    // host Scala or be redirected through the LMS interface.
     sealed trait RepOrVar {
       def t: TypeRepr
     }
@@ -65,17 +84,23 @@ class virt extends MacroAnnotation {
       }
     }
 
-    val mutableVars = collection.mutable.Map.empty[Symbol, TypeRepr]
-    val mutableVarAliases = collection.mutable.Map.empty[Symbol, Symbol]
+    // Local definitions whose rewritten type no longer matches the original typed tree are rebound
+    // to fresh symbols. Later references still mention the pre-rewrite symbol, so we redirect them
+    // through this alias table during the recursive walk.
+    val reboundAliases = collection.mutable.Map.empty[Symbol, Symbol]
 
-    def resolveMutableSymbol(sym: Symbol): Symbol =
-      mutableVarAliases.getOrElse(sym, sym)
+    // Mutable Scala locals become freshly rebound immutable vals of LMS type Var[T]. We additionally
+    // track the element type of those Var symbols so reads and writes can be recognized quickly.
+    val mutableVars = collection.mutable.Map.empty[Symbol, TypeRepr]
+
+    def resolveReboundSymbol(sym: Symbol): Symbol =
+      reboundAliases.getOrElse(sym, sym)
 
     def mutableTermSymbol(term: Term): Symbol = term match {
       case Inlined(_, _, body) => mutableTermSymbol(body)
       case Typed(expr, _) => mutableTermSymbol(expr)
-      case sel: Select => resolveMutableSymbol(sel.symbol)
-      case ident: Ident => resolveMutableSymbol(ident.symbol)
+      case sel: Select => resolveReboundSymbol(sel.symbol)
+      case ident: Ident => resolveReboundSymbol(ident.symbol)
       case _ => Symbol.noSymbol
     }
 
@@ -127,6 +152,9 @@ class virt extends MacroAnnotation {
       }
     }
 
+    // Classify a term using both its surface type and its contents. This is the key heuristic that
+    // lets us recognize host-typed expressions such as `x + 1` that already contain staged pieces
+    // and therefore need virtualization even though their outer tree is not yet `Rep[...]`.
     def classifyTerm(term: Term): RepOrVar = {
       directClassifyTerm(term) match {
         case bare @ Bare(_) =>
@@ -150,6 +178,7 @@ class virt extends MacroAnnotation {
       }
     }
 
+    // Frequently reused pieces of context for one rewrite site.
     case class MacroCtx(thist: Term, srcGen: Term, owner: Symbol, unitf: Select)
 
     // Lift host booleans into Rep form so DSL boolean ops can consume them.
@@ -234,11 +263,7 @@ class virt extends MacroAnnotation {
           Block(stats, read)
         case RepLike(tpe) =>
           val tTree = TypeTree.of(using tpe.asType)
-          val typTpe = Applied(TypeSelect(ctx.thist, "Typ"), List(tTree))
-          val typWitness = Implicits.search(typTpe.tpe) match {
-            case success: ImplicitSearchSuccess => success.tree
-            case _ => report.errorAndAbort(s"could not synthesize Typ for ${tpe.show}")
-          }
+          val typWitness = findTypW(ctx.thist, tpe)
           val lifted = Apply(Apply(TypeApply(ctx.unitf, List(tTree)), List(value)), List(typWitness))
           Block(stats, lifted)
         case _ =>
@@ -294,6 +319,8 @@ class virt extends MacroAnnotation {
     def ensureVarTerm(ctx: MacroCtx, term: Term, elemType: TypeRepr): Term =
       Typed(term, makeVarType(ctx, elemType))
 
+    // Materialize a Scala `var` as the correct overloaded LMS `__newVar` call, preserving whether
+    // the initializer came from a host value, a Rep, or another Var.
     def newVarInit(ctx: MacroCtx, elemType: TypeRepr, init: Term, initKind: RepOrVar): Term = {
       val typEvidence = findTypW(ctx.thist, elemType)
       val arg = initKind match {
@@ -313,6 +340,9 @@ class virt extends MacroAnnotation {
       }
     }
 
+    // Resolve `lhs = rhs` against the right LMS `__assign` overload. We search concrete methods
+    // instead of relying on a single overloaded select because Scala 3 macro trees are brittle once
+    // the lhs/rhs mix host, Rep, and Var values.
     def assignCall(ctx: MacroCtx, elemType: TypeRepr, lhs: Term, rhs: Term, rhsKind: RepOrVar): Term = {
       val typEvidence = findTypW(ctx.thist, elemType)
       val lhsVar = ensureVarTerm(ctx, lhs, elemType)
@@ -375,6 +405,9 @@ class virt extends MacroAnnotation {
     
     def makeThis(owner: Symbol): Term = This(fetchEnclosingClass(owner))
 
+    // Recover Typ[T] evidence for synthesized trees. Raw implicit search is not always enough for
+    // members inherited from the LMS stack, so we fall back to the conventional field names used by
+    // the DSL (`intTyp`, `boolTyp`, ...).
     def findTypW(thist: Term, trep: TypeRepr): Term = {
       val t = TypeTree.of(using trep.asType)
       val ttyp = Applied(TypeSelect(thist, "Typ"), List(t))
@@ -390,7 +423,7 @@ class virt extends MacroAnnotation {
               val fullname = sym.fullName
               val computed =
                 if sym.name.forall(_.isLower) then sym.name + "Typ"
-                else if sym.name.nonEmpty then sym.name.head.toLower + sym.name.tail + "Typ"
+                else if sym.name.nonEmpty then s"${sym.name.head.toLower}${sym.name.tail}Typ"
                 else "Typ"
               val special = fullname match {
                 case "scala.Boolean" => List("boolTyp")
@@ -470,6 +503,11 @@ class virt extends MacroAnnotation {
       try Select.unique(ctx.thist, name)
       catch
         case _: Throwable => report.errorAndAbort(error)
+    // Main tree transformer. The strategy is:
+    // 1. rewrite local mutable definitions into LMS Vars
+    // 2. normalize terms so Vars become readable Reps when needed
+    // 3. preserve host operations when everything is Bare
+    // 4. otherwise reroute through the staged LMS combinators
     object Virtualizer extends TreeMap {
 
       private def isVirtualizedBoolConv(fun: Term): Boolean = fun match {
@@ -748,6 +786,8 @@ class virt extends MacroAnnotation {
         Apply(whileCall, List(ctx.srcGen))
       }
       
+      // Rewrite local `var` definitions before we recurse into later terms, so subsequent reads and
+      // assignments can recognize the symbol as a staged mutable cell.
       private def transformLocalDefinition(defn: Definition, owner: Symbol): Definition = defn match {
         case dd: DefDef =>
           val newRhs = dd.rhs.map(transformTerm(_)(dd.symbol))
@@ -770,17 +810,26 @@ class virt extends MacroAnnotation {
             val varType = makeVarType(ctx, elemType)
             val init = newVarInit(ctx, elemType, strippedRhs, rhsKind)
             val reboundSym = Symbol.newVal(owner, vd.name, varType.tpe, Flags.EmptyFlags, Symbol.noSymbol)
-            mutableVarAliases.update(vd.symbol, reboundSym)
+            reboundAliases.update(vd.symbol, reboundSym)
             mutableVars.update(reboundSym, elemType)
             ValDef(reboundSym, Some(init))
           else
-            ValDef.copy(vd)(name = vd.name, tpt = vd.tpt, rhs = Some(rhsTree))
+            classifyTerm(rhsTree) match {
+              case Bare(_) =>
+                ValDef.copy(vd)(name = vd.name, tpt = vd.tpt, rhs = Some(rhsTree))
+              case _ =>
+                val reboundSym = Symbol.newVal(owner, vd.name, rhsTree.tpe.widenTermRefByName, Flags.EmptyFlags, Symbol.noSymbol)
+                reboundAliases.update(vd.symbol, reboundSym)
+                ValDef(reboundSym, Some(rhsTree))
+            }
         case other => other
       }
 
       override def transformTerm(term: Term)(owner: Symbol): Term =
         transformTermRec(term, owner, expectVar = false)
 
+      // Recursive tree walk. `expectVar` is carried through a few call sites where we want to keep a
+      // Var-valued expression as a Var instead of eagerly rewriting it to `readVar(...)`.
       private def transformTermRec(term: Term, owner: Symbol, expectVar: Boolean): Term = {
         val ctx = makeCtx(owner)
         term match {
@@ -790,12 +839,12 @@ class virt extends MacroAnnotation {
           case block @ Block(stats, expr) =>
             val newStats = stats.map(transformStatement(_)(owner))
             Block.copy(block)(newStats, transformTermRec(expr, owner, expectVar))
-          case ident: Ident if mutableVarAliases.contains(ident.symbol) =>
-            Ref(mutableVarAliases(ident.symbol))
+          case ident: Ident if reboundAliases.contains(ident.symbol) =>
+            Ref(reboundAliases(ident.symbol))
           case ident: Ident if mutableVars.contains(ident.symbol) =>
             ident
-          case sel @ Select(receiver, _) if mutableVarAliases.contains(sel.symbol) =>
-            Ref(mutableVarAliases(sel.symbol))
+          case sel @ Select(receiver, _) if reboundAliases.contains(sel.symbol) =>
+            Ref(reboundAliases(sel.symbol))
           case sel @ Select(receiver, _) if mutableVars.contains(sel.symbol) =>
             val newReceiver = transformTermRec(receiver, owner, expectVar = false)
             val updatedSel =

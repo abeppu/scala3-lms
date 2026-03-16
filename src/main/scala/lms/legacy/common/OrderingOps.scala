@@ -1,5 +1,7 @@
 package lms.legacy.common
 
+import scala.language.implicitConversions
+
 import lms.gen.{Gen, StagingCompile}
 
 import java.io.PrintWriter

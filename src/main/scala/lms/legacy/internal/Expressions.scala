@@ -1,5 +1,7 @@
 package lms.legacy.internal
 
+import scala.language.implicitConversions
+
 import lms.legacy.compat.{Manifest, SourceContext}
 
 import scala.annotation.unchecked.uncheckedVariance

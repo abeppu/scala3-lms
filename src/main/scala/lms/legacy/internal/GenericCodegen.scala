@@ -217,7 +217,7 @@ trait GenericCodegen extends BlockTraversal {
     }
 
     def gen(args: Any*): Unit = {
-      sc.checkLengths(args)
+      StringContext.checkLengths(args, sc.parts.toIndexedSeq)
       val start :: contextStrings = (sc.parts.iterator.toList: @unchecked)
       printToStream(start.stripMargin)
       for ((arg, contextString) <- args zip contextStrings) {

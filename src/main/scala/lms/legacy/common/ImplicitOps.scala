@@ -1,4 +1,6 @@
 package lms.legacy.common
+
+import scala.language.implicitConversions
 import lms.legacy.compat.SourceContext
 import java.io.PrintWriter
 
