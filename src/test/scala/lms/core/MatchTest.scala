@@ -19,6 +19,24 @@ trait MatchSnippets extends Dsl {
       case 1 | 2 => 12
       case _ => x
     }
+
+  def dispatchExample(opcode: Rep[Int]): Rep[Int] = {
+    val normalized: Rep[Int] =
+      opcode match {
+        case 0 => 100
+        case 1 | 2 => opcode + 10
+        case 3 if opcode < 5 => 30
+        case 4 | 5 if opcode == 4 => 40
+        case _ => opcode * 2
+      }
+
+    val routed: Rep[Int] = (normalized - 10) match {
+      case 20 => normalized + 200
+      case 30 | 90 => normalized + 300
+      case _ => normalized
+    }
+    routed
+  }
 }
 
 class MatchTest extends AnyFunSuite with Matchers {
@@ -41,5 +59,17 @@ class MatchTest extends AnyFunSuite with Matchers {
     staged(1) shouldBe 12
     staged(2) shouldBe 12
     staged(7) shouldBe 7
+  }
+
+  test("virtualized match can drive a staged dispatch pipeline") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.dispatchExample(_)
+    val staged = compiler.compile(f)
+
+    staged(0) shouldBe 400
+    staged(1) shouldBe 11
+    staged(2) shouldBe 12
+    staged(3) shouldBe 230
+    staged(4) shouldBe 340
+    staged(7) shouldBe 14
   }
 }
