@@ -5,6 +5,11 @@
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
+  - [ ] Fix effectful staged `if` values flowing into later generic numeric/operator call sites
+  - [ ] Add support for `match` / pattern matching on staged values
+  - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
+  - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
+  - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks
 - [ ] Improve type reification (nested type params, generic code staging)
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
