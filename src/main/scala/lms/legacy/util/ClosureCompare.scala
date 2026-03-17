@@ -14,7 +14,7 @@ trait ClosureCompare extends Externalizable {
     throw new NotSerializableException("this is just a mock-up!")
   }
 
-  def canonicalize(f: Function[?,?]): Unit  = {
+  def canonicalize(f: Function[?,?]): String = {
     val s = new java.io.ByteArrayOutputStream()
     val o = new java.io.ObjectOutputStream(s)
     o.writeObject(f)
