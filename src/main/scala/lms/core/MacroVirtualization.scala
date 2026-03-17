@@ -659,6 +659,48 @@ class virt extends MacroAnnotation {
         }
       }
 
+      private def emitBooleanBinary(ctx: MacroCtx, lhs: Term, rhs: Term, method: String): Term = {
+        val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareBoolean(lhs, ctx), wrapBareBoolean(rhs, ctx)))
+        Apply(call, List(ctx.srcGen))
+      }
+
+      private def emitEquality(ctx: MacroCtx, lhs: Term, rhs: Term): Term = {
+        val combo = (classifyTerm(lhs), classifyTerm(rhs))
+        val overload = combo match {
+          case (RepW(l), RepW(r)) => Some((l, r, 1))
+          case (RepW(l), VarW(r)) => Some((l, r, 2))
+          case (VarW(l), RepW(r)) => Some((l, r, 3))
+          case (RepW(l), Bare(r)) => Some((l, r, 4))
+          case (Bare(l), RepW(r)) => Some((l, r, 5))
+          case (VarW(l), Bare(r)) => Some((l, r, 6))
+          case (Bare(l), VarW(r)) => Some((l, r, 7))
+          case (VarW(l), VarW(r)) => Some((l, r, 8))
+          case (Bare(_), Bare(_)) => None
+        }
+        overload match {
+          case None =>
+            Apply(Select.unique(lhs, "=="), List(rhs))
+          case Some((lty, rty, idx)) =>
+            val overloadEv = findOverload(ctx.thist, idx)
+            val lTyp = findTypW(ctx.thist, lty)
+            val rTyp = findTypW(ctx.thist, rty)
+            Apply(
+              Select.overloaded(ctx.thist, "__equal", List(lty, rty), List(lhs, rhs)),
+              List(overloadEv, lTyp, rTyp, ctx.srcGen))
+        }
+      }
+
+      private def emitVirtualIf(ctx: MacroCtx, guard: Term, thenp: Term, elsep: Term): Term = {
+        val normalizedGuard = wrapBareBoolean(guard, ctx)
+        val thenRep = ensureTrailingRep(thenp, ctx)
+        val elseRep = ensureTrailingRep(elsep, ctx)
+        val valueType = repOrVar(thenRep.tpe.widen).t
+        val typW = findTypW(ctx.thist, valueType)
+        Apply(
+          Select.overloaded(ctx.thist, "__ifThenElse", List(valueType), List(normalizedGuard, thenRep, elseRep)),
+          List(typW, ctx.srcGen))
+      }
+
       // Mirror Scala equality onto LMS __equal overloads, falling back when both sides are plain.
       private def rewriteEquality(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, negate: Boolean): Term = {
         val lhs = transformTerm(lhsTree)(ctx.owner)
@@ -689,6 +731,72 @@ class virt extends MacroAnnotation {
               val negateCall = Select.overloaded(ctx.thist, "boolean_negate", Nil, List(equalTerm))
               Apply(negateCall, List(ctx.srcGen))
             } else equalTerm
+        }
+      }
+
+      private def stripPattern(pattern: Tree): Tree = pattern match {
+        case Inlined(_, _, inner) => stripPattern(inner)
+        case Typed(inner, _) => stripPattern(inner)
+        case _ => pattern
+      }
+
+      private def isWildcardPattern(pattern: Tree): Boolean = stripPattern(pattern) match {
+        case Ident(name) if name == "_" => true
+        case Bind(name, inner) if name == "_" => isWildcardPattern(inner)
+        case _ => false
+      }
+
+      private def patternCondition(ctx: MacroCtx, scrutinee: Term, pattern: Tree): Option[Term] = {
+        def loop(tree: Tree): Option[Term] = stripPattern(tree) match {
+          case pattern if isWildcardPattern(pattern) =>
+            None
+          case lit: Literal =>
+            Some(emitEquality(ctx, scrutinee, lit.asExpr.asTerm))
+          case Alternatives(patterns) =>
+            patterns.flatMap(loop).reduceOption((lhs, rhs) => emitBooleanBinary(ctx, lhs, rhs, "boolean_or"))
+          case ref: Term if ref.symbol.flags.is(Flags.StableRealizable) || ref.symbol.flags.is(Flags.Module) =>
+            Some(emitEquality(ctx, scrutinee, transformTerm(ref)(ctx.owner)))
+          case Bind(name, inner) if name != "_" =>
+            report.errorAndAbort("virtualized match does not yet support pattern bindings")
+          case _ =>
+            report.errorAndAbort(s"unsupported virtualized match pattern: ${tree.show}")
+        }
+        loop(pattern)
+      }
+
+      private def caseCondition(ctx: MacroCtx, scrutinee: Term, cdef: CaseDef): Option[Term] = {
+        val patCond = patternCondition(ctx, scrutinee, cdef.pattern)
+        val guardCond = cdef.guard.map(guard => transformTerm(guard)(ctx.owner))
+        (patCond, guardCond) match {
+          case (None, None) => None
+          case (Some(p), None) => Some(p)
+          case (None, Some(g)) => Some(g)
+          case (Some(p), Some(g)) => Some(emitBooleanBinary(ctx, p, g, "boolean_and"))
+        }
+      }
+
+      // Lower a supported staged `match` into a chain of staged conditionals.
+      // First pass only handles literal/stable-id/alternative cases plus `_`, with optional guards
+      // that do not introduce pattern bindings.
+      private def rewriteMatch(ctx: MacroCtx, matchTerm: Match): Term = {
+        val scrutineeRaw = transformTerm(matchTerm.scrutinee)(ctx.owner)
+        val (scrutinee, scrutineeKind) = normalizeRepTerm(scrutineeRaw, ctx)
+        scrutineeKind match {
+          case Bare(_) =>
+            super.transformTerm(matchTerm)(ctx.owner)
+          case _ =>
+            def build(cases: List[CaseDef]): Term = cases match {
+              case Nil =>
+                report.errorAndAbort("virtualized match requires a wildcard/default case")
+              case cdef :: rest =>
+                val rhs = transformTerm(cdef.rhs)(ctx.owner)
+                caseCondition(ctx, scrutinee, cdef) match {
+                  case None => rhs
+                  case Some(cond) =>
+                    emitVirtualIf(ctx, cond, rhs, build(rest))
+                }
+            }
+            build(matchTerm.cases)
         }
       }
 
@@ -909,6 +1017,8 @@ class virt extends MacroAnnotation {
             transformTermRec(arg, owner, expectVar = false)
           case ifTerm: If =>
             rewriteIf(ctx, ifTerm)
+          case matchTerm: Match =>
+            rewriteMatch(ctx, matchTerm)
           case applyTerm @ Apply(sel @ Select(lhs, op @ ("&&" | "||")), List(rhs)) =>
             val method = if (op == "&&") "boolean_and" else "boolean_or"
             rewriteBooleanBinary(ctx, applyTerm, sel, lhs, rhs, method)

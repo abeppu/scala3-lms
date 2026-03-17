@@ -7,6 +7,8 @@
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
   - [ ] Fix effectful staged `if` values flowing into later generic numeric/operator call sites
   - [ ] Add support for `match` / pattern matching on staged values
+    - [x] First pass: staged scrutinee with literal/stable-id/alternative cases, wildcard fallback, and non-binding guards
+    - [ ] Remaining gaps: binder patterns, extractor patterns, typed patterns, and full host-match preservation for richer pattern trees
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
   - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks
