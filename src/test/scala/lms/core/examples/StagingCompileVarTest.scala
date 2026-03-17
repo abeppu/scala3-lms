@@ -79,6 +79,19 @@ trait StagingCompileVarSnippets extends Dsl {
     }
     readVar(i)
   }
+
+  def effectfulIfValue(flag: Rep[Boolean]): Rep[Int] = {
+    var acc: Var[Int] = 0
+    val chosen =
+      if (flag) {
+        acc = 1
+        10
+      } else {
+        acc = 2
+        20
+      }
+    chosen + readVar(acc)
+  }
 }
 
 class StagingCompileVarTest extends AnyFunSuite with Matchers {
@@ -142,5 +155,13 @@ class StagingCompileVarTest extends AnyFunSuite with Matchers {
     staged(0) shouldBe 0
     staged(2) shouldBe 2
     staged(5) shouldBe 5
+  }
+
+  test("effectful staged if values stay staged through later arithmetic") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.effectfulIfValue(_)
+    val staged = compiler.compile(f)
+
+    staged(true) shouldBe 11
+    staged(false) shouldBe 22
   }
 }

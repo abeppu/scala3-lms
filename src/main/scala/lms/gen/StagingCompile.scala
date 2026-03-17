@@ -25,25 +25,31 @@ trait StagingCompile extends QuotedGen with CodeMotion {
   override def interpretExpWithEnv[A](e: Exp[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
 
+    def resolveSym(sym: Sym[?]): Option[Term] =
+      env.get(sym)
+        .map(Ref(_))
+        .orElse {
+          findCompileDefinition(sym).map {
+            case TP(_, rhs) =>
+              rhs match {
+                case reify: Reify[?] @unchecked =>
+                  interpretExpWithEnv(reify.x.asInstanceOf[Exp[Any]])(using q, env)
+                case Reflect(inner, _, _) =>
+                  interpretDefWithEnv(inner.asInstanceOf[Def[Any]])(using q, env)
+                case _ =>
+                  interpretDefWithEnv(rhs.asInstanceOf[Def[Any]])(using q, env)
+              }
+          }
+        }
+
     e match {
+      case Const(sym: Sym[?]) =>
+        resolveSym(sym)
+          .getOrElse(constantTerm(e.asInstanceOf[Const[A]]))
       case c @ Const(_) =>
         constantTerm(c)
       case sym @ Sym(_) =>
-        env.get(sym)
-          .map(Ref(_))
-          .orElse {
-            findCompileDefinition(sym).map {
-              case TP(_, rhs) =>
-                rhs match {
-                  case reify: Reify[?] @unchecked =>
-                    interpretExpWithEnv(reify.x.asInstanceOf[Exp[A]])
-                  case Reflect(inner, _, _) =>
-                    interpretDefWithEnv(inner.asInstanceOf[Def[A]])
-                  case _ =>
-                    interpretDefWithEnv(rhs.asInstanceOf[Def[A]])
-                }
-            }
-          }
+        resolveSym(sym)
           .getOrElse(throw new Exception(s"Symbol $sym not found in environment: $env"))
       case _ =>
         throw new Exception(s"Unsupported expression: $e")
