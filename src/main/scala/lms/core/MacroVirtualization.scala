@@ -756,17 +756,52 @@ class virt extends MacroAnnotation {
             patterns.flatMap(loop).reduceOption((lhs, rhs) => emitBooleanBinary(ctx, lhs, rhs, "boolean_or"))
           case ref: Term if ref.symbol.flags.is(Flags.StableRealizable) || ref.symbol.flags.is(Flags.Module) =>
             Some(emitEquality(ctx, scrutinee, transformTerm(ref)(ctx.owner)))
-          case Bind(name, inner) if name != "_" =>
-            report.errorAndAbort("virtualized match does not yet support pattern bindings")
+          case Bind(_, inner) =>
+            loop(inner)
           case _ =>
             report.errorAndAbort(s"unsupported virtualized match pattern: ${tree.show}")
         }
         loop(pattern)
       }
 
+      private def patternBindings(scrutinee: Term, pattern: Tree): List[(Symbol, Term)] = {
+        def loop(tree: Tree): List[(Symbol, Term)] = stripPattern(tree) match {
+          case Bind(name, inner) if name != "_" =>
+            (tree.symbol, scrutinee) :: loop(inner)
+          case _ =>
+            Nil
+        }
+        loop(pattern)
+      }
+
+      private def withPatternBindings(bindings: List[(Symbol, Term)], owner: Symbol)(body: => Term): Term = {
+        if bindings.isEmpty then body
+        else {
+          val savedAliases = bindings.map { case (sym, _) => sym -> reboundAliases.get(sym) }
+          val defs = bindings.map { case (sym, value) =>
+            val reboundSym = Symbol.newVal(owner, sym.name, value.tpe.widenTermRefByName, Flags.EmptyFlags, Symbol.noSymbol)
+            reboundAliases.update(sym, reboundSym)
+            ValDef(reboundSym, Some(value))
+          }
+          val transformed =
+            try body
+            finally
+              savedAliases.foreach {
+                case (sym, Some(prev)) => reboundAliases.update(sym, prev)
+                case (sym, None) => reboundAliases.remove(sym)
+              }
+          Block(defs, transformed)
+        }
+      }
+
       private def caseCondition(ctx: MacroCtx, scrutinee: Term, cdef: CaseDef): Option[Term] = {
+        val bindings = patternBindings(scrutinee, cdef.pattern)
         val patCond = patternCondition(ctx, scrutinee, cdef.pattern)
-        val guardCond = cdef.guard.map(guard => transformTerm(guard)(ctx.owner))
+        val guardCond = cdef.guard.map { guard =>
+          withPatternBindings(bindings, ctx.owner) {
+            transformTerm(guard)(ctx.owner)
+          }
+        }
         (patCond, guardCond) match {
           case (None, None) => None
           case (Some(p), None) => Some(p)
@@ -789,7 +824,10 @@ class virt extends MacroAnnotation {
               case Nil =>
                 report.errorAndAbort("virtualized match requires a wildcard/default case")
               case cdef :: rest =>
-                val rhs = transformTerm(cdef.rhs)(ctx.owner)
+                val bindings = patternBindings(scrutinee, cdef.pattern)
+                val rhs = withPatternBindings(bindings, ctx.owner) {
+                  transformTerm(cdef.rhs)(ctx.owner)
+                }
                 caseCondition(ctx, scrutinee, cdef) match {
                   case None => rhs
                   case Some(cond) =>

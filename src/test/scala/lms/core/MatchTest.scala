@@ -37,6 +37,20 @@ trait MatchSnippets extends Dsl {
     }
     routed
   }
+
+  def binderMatch(x: Rep[Int]): Rep[Int] =
+    x match {
+      case n if n < 0 => 0 - n
+      case n => n + 1
+    }
+
+  def aliasLiteralMatch(x: Rep[Int]): Rep[Int] =
+    x match {
+      case n @ 0 => n + 100
+      case n @ 1 => n + 200
+      case 2 => 202
+      case n => n * 3
+    }
 }
 
 class MatchTest extends AnyFunSuite with Matchers {
@@ -71,5 +85,24 @@ class MatchTest extends AnyFunSuite with Matchers {
     staged(3) shouldBe 230
     staged(4) shouldBe 340
     staged(7) shouldBe 14
+  }
+
+  test("virtualized match supports binder patterns in guards and rhs") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.binderMatch(_)
+    val staged = compiler.compile(f)
+
+    staged(-3) shouldBe 3
+    staged(0) shouldBe 1
+    staged(7) shouldBe 8
+  }
+
+  test("virtualized match supports simple alias patterns") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.aliasLiteralMatch(_)
+    val staged = compiler.compile(f)
+
+    staged(0) shouldBe 100
+    staged(1) shouldBe 201
+    staged(2) shouldBe 202
+    staged(7) shouldBe 21
   }
 }
