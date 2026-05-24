@@ -557,6 +557,12 @@ class virt extends MacroAnnotation {
         case _ => false
       }
 
+      private def isUnitLift(fun: Term): Boolean = fun match {
+        case TypeApply(inner, _) => isUnitLift(inner)
+        case Select(_, "unit") => true
+        case _ => false
+      }
+
       private def rebuildBinary(applyTerm: Apply, sel: Select, lhs: Term, rhs: Term): Term =
         Apply.copy(applyTerm)(Select.copy(sel)(lhs, sel.name), List(rhs))
 
@@ -590,6 +596,40 @@ class virt extends MacroAnnotation {
             rebuildBinary(applyTerm, sel, lhsNorm, rhsNorm)
           case _ =>
             rebuildBinary(applyTerm, sel, lhsNorm, rhsNorm)
+        }
+      }
+
+      private def isIntKind(kind: RepOrVar): Boolean = kind match {
+        case RepW(t) => t =:= TypeRepr.of[Int]
+        case VarW(t) => t =:= TypeRepr.of[Int]
+        case Bare(t) => t =:= TypeRepr.of[Int]
+      }
+
+      private def rewriteIntBinary(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, method: String): Term = {
+        val lhs = transformTerm(lhsTree)(ctx.owner)
+        val rhs = transformTerm(rhsTree)(ctx.owner)
+        val (lhsNorm, lhsKind) = normalizeRepTerm(lhs, ctx)
+        val (rhsNorm, rhsKind) = normalizeRepTerm(rhs, ctx)
+        if lhsKind.isInstanceOf[Bare] && rhsKind.isInstanceOf[Bare] then
+          rebuildBinary(applyTerm, sel, lhsNorm, rhsNorm)
+        else if isIntKind(lhsKind) && isIntKind(rhsKind) then
+          val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(lhsNorm, ctx), wrapBareTerm(rhsNorm, ctx)))
+          Apply(call, List(ctx.srcGen))
+        else
+          rebuildBinary(applyTerm, sel, lhsNorm, rhsNorm)
+      }
+
+      private def rewriteIntUnary(ctx: MacroCtx, sel: Select, expr: Term, method: String): Term = {
+        val raw = transformTerm(expr)(ctx.owner)
+        val (value, kind) = normalizeRepTerm(raw, ctx)
+        kind match {
+          case Bare(t) if t =:= TypeRepr.of[Int] =>
+            Select.copy(sel)(value, sel.name)
+          case _ if isIntKind(kind) =>
+            val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(value, ctx)))
+            Apply(call, List(ctx.srcGen))
+          case _ =>
+            Select.copy(sel)(value, sel.name)
         }
       }
 
@@ -1033,6 +1073,14 @@ class virt extends MacroAnnotation {
             val newBase = transformTermRec(base, owner, expectVar = false)
             val newArg = stripVarConversion(transformTermRec(arg, owner, expectVar = true))
             Apply.copy(applyTerm)(newBase, List(newArg))
+          case applyTerm @ Apply(inner @ Apply(base, List(arg)), implicitArgs) if isUnitLift(base) =>
+            val value = transformTermRec(arg, owner, expectVar = false)
+            if sameElementRepLift(applyTerm, value) then value
+            else {
+              val newBase = transformTermRec(base, owner, expectVar = false)
+              val newInner = Apply.copy(inner)(newBase, List(value))
+              Apply.copy(applyTerm)(newInner, implicitArgs.map(transformTermRec(_, owner, expectVar = false)))
+            }
           case Apply(fun, List(arg)) if isVarConversion(fun) =>
             val value = transformTermRec(arg, owner, expectVar = true)
             classifyTerm(value) match {
@@ -1062,6 +1110,8 @@ class virt extends MacroAnnotation {
             rewriteBooleanBinary(ctx, applyTerm, sel, lhs, rhs, method)
           case sel @ Select(expr, "unary_!") =>
             rewriteBooleanNegateSelect(ctx, sel, expr)
+          case sel @ Select(expr, "unary_~") =>
+            rewriteIntUnary(ctx, sel, expr, "int_bitwise_not")
           case applyTerm @ Apply(sel @ Select(_, "unary_!"), List(arg)) =>
             val raw = transformTermRec(arg, owner, expectVar = false)
             val (value, kind) = normalizeRepTerm(raw, ctx)
@@ -1076,6 +1126,20 @@ class virt extends MacroAnnotation {
             rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = false)
           case applyTerm @ Apply(sel @ Select(lhs, "!="), List(rhs)) =>
             rewriteEquality(ctx, applyTerm, sel, lhs, rhs, negate = true)
+          case applyTerm @ Apply(sel @ Select(lhs, "%"), List(rhs)) =>
+            rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_mod")
+          case applyTerm @ Apply(sel @ Select(lhs, "&"), List(rhs)) =>
+            rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_binaryand")
+          case applyTerm @ Apply(sel @ Select(lhs, "|"), List(rhs)) =>
+            rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_binaryor")
+          case applyTerm @ Apply(sel @ Select(lhs, "^"), List(rhs)) =>
+            rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_binaryxor")
+          case applyTerm @ Apply(sel @ Select(lhs, "<<"), List(rhs)) =>
+            rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_leftshift")
+          case applyTerm @ Apply(sel @ Select(lhs, ">>"), List(rhs)) =>
+            rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_rightshiftarith")
+          case applyTerm @ Apply(sel @ Select(lhs, ">>>"), List(rhs)) =>
+            rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_rightshiftlogical")
           case applyTerm @ Apply(sel @ Select(lhs, op @ ("+" | "-" | "*" | "/")), List(rhs)) =>
             rewriteArithmeticBinary(ctx, applyTerm, sel, lhs, rhs, op)
           case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, "<"), List(rhs)), implicitArgs)

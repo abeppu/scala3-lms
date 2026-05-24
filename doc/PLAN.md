@@ -11,6 +11,7 @@
     - [ ] Remaining gaps: extractor patterns, typed patterns, and full host-match preservation for richer pattern trees
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
+    - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
   - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks
 - [ ] Improve type reification (nested type params, generic code staging)
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)

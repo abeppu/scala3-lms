@@ -250,6 +250,13 @@ trait PrimitiveOps extends Variables with OverloadHack {
     def toLong        (using pos: SourceContext): Rep[Long]   = int_tolong(lhs)
     def toDouble      (using pos: SourceContext): Rep[Double] = int_to_double(lhs)
     def toFloat       (using pos: SourceContext): Rep[Float]  = int_to_float(lhs)
+    def %(rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_mod(lhs, rhs)
+    def &(rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_binaryand(lhs, rhs)
+    def |(rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_binaryor(lhs, rhs)
+    def ^(rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_binaryxor(lhs, rhs)
+    def <<(rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_leftshift(lhs, rhs)
+    def >>(rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_rightshiftarith(lhs, rhs)
+    def >>>(rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_rightshiftlogical(lhs, rhs)
   }
 
   def infix_%  (lhs: Rep[Int], rhs: Rep[Int])(using o: Overloaded1, pos: SourceContext): Rep[Int] = int_mod(lhs, rhs)
@@ -746,6 +753,20 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
         case "-" => '{ $lhs - $rhs }.asTerm
         case "*" => '{ $lhs * $rhs }.asTerm
         case "/" => '{ $lhs / $rhs }.asTerm
+        case "%" => '{ $lhs % $rhs }.asTerm
+        case "&" => '{ $lhs & $rhs }.asTerm
+        case "|" => '{ $lhs | $rhs }.asTerm
+        case "^" => '{ $lhs ^ $rhs }.asTerm
+        case "<<" => '{ $lhs << $rhs }.asTerm
+        case ">>" => '{ $lhs >> $rhs }.asTerm
+        case ">>>" => '{ $lhs >>> $rhs }.asTerm
+      }
+    }
+
+    def interpretIntUnary(argExp: Exp[Int], op: String): Term = {
+      val arg = interpretExpWithEnv(argExp).asExprOf[Int]
+      op match {
+        case "~" => '{ ~$arg }.asTerm
       }
     }
 
@@ -758,6 +779,22 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
         interpretIntBinary(lhs, rhs, "*")
       case IntDivide(lhs, rhs) =>
         interpretIntBinary(lhs, rhs, "/")
+      case IntMod(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "%")
+      case IntBinaryAnd(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "&")
+      case IntBinaryOr(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "|")
+      case IntBinaryXor(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "^")
+      case IntShiftLeft(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, "<<")
+      case IntShiftRightArith(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, ">>")
+      case IntShiftRightLogical(lhs, rhs) =>
+        interpretIntBinary(lhs, rhs, ">>>")
+      case IntBitwiseNot(arg) =>
+        interpretIntUnary(arg, "~")
       case op: ArithOp[?] =>
         val methodName =
           if (d.isInstanceOf[DoublePlus] || d.isInstanceOf[FloatPlus]) {
