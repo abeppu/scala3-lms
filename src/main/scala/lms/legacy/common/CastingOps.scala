@@ -2,9 +2,11 @@ package lms.legacy.common
 
 import scala.language.implicitConversions
 
+import lms.gen.{Gen, StagingCompile}
 import java.io.PrintWriter
 import lms.legacy.util.OverloadHack
 import lms.legacy.compat.SourceContext
+import scala.quoted.*
 
 trait CastingOps extends Variables with OverloadHack {
   this: ImplicitOps =>
@@ -64,6 +66,41 @@ trait CLikeGenCastingOps extends CLikeGenBase {
         case _ => super.emitNode(sym, rhs)
       }
     }
+}
+
+trait CastingOpsGen extends Gen with CastingOpsExp {
+  this: StagingCompile =>
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    def interpretIsInstanceOf[F: Type, T: Type](lhs: Exp[F]): Term = {
+      val lhsExpr = interpretExpWithEnv(lhs).asExprOf[F]
+      '{ $lhsExpr.isInstanceOf[T] }.asTerm
+    }
+
+    def interpretAsInstanceOf[F: Type, T: Type](lhs: Exp[F]): Term = {
+      val lhsExpr = interpretExpWithEnv(lhs).asExprOf[F]
+      '{ $lhsExpr.asInstanceOf[T] }.asTerm
+    }
+
+    d match {
+      case repIs: RepIsInstanceOf[?, ?] =>
+        repIs.mA.asTypeRepr.asType match
+          case '[from] =>
+            repIs.mB.asTypeRepr.asType match
+              case '[to] =>
+                interpretIsInstanceOf[from, to](repIs.lhs.asInstanceOf[Exp[from]])
+      case repAs: RepAsInstanceOf[?, ?] =>
+        repAs.mA.asTypeRepr.asType match
+          case '[from] =>
+            repAs.mB.asTypeRepr.asType match
+              case '[to] =>
+                interpretAsInstanceOf[from, to](repAs.lhs.asInstanceOf[Exp[from]])
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+  }
 }
 
 trait CudaGenCastingOps extends CudaGenBase with CLikeGenCastingOps 

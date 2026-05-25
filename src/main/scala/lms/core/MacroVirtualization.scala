@@ -704,6 +704,28 @@ class virt extends MacroAnnotation {
         Apply(call, List(ctx.srcGen))
       }
 
+      private def emitRepIsInstanceOf(ctx: MacroCtx, scrutinee: Term, scrutineeType: TypeRepr, targetType: TypeRepr): Term = {
+        val srcTyp = findTypW(ctx.thist, scrutineeType)
+        val dstTyp = findTypW(ctx.thist, targetType)
+        val method = findMethods(ctx.owner, "rep_isinstanceof").find(sym => !sym.flags.is(Flags.Given))
+          .getOrElse(report.errorAndAbort("failed to virtualize: no rep_isinstanceof in scope"))
+        val typedMethod = Select(ctx.thist, method).appliedToTypes(List(scrutineeType, targetType))
+        Apply(typedMethod.appliedToArgs(List(scrutinee, srcTyp, dstTyp)), List(ctx.srcGen))
+      }
+
+      private def emitRepAsInstanceOf(ctx: MacroCtx, scrutinee: Term, scrutineeType: TypeRepr, targetType: TypeRepr): Term = {
+        val srcTyp = findTypW(ctx.thist, scrutineeType)
+        val dstTyp = findTypW(ctx.thist, targetType)
+        val method = findMethods(ctx.owner, "rep_asinstanceof").find(sym => !sym.flags.is(Flags.Given))
+          .getOrElse(report.errorAndAbort("failed to virtualize: no rep_asinstanceof in scope"))
+        val typedMethod = Select(ctx.thist, method).appliedToTypes(List(scrutineeType, targetType))
+        Apply(typedMethod.appliedToArgs(List(scrutinee, srcTyp, dstTyp)), List(ctx.srcGen))
+      }
+
+      private def emitHostTypeTest(term: Term, targetType: TypeRepr, method: String): Term = {
+        TypeApply(Select.unique(term, method), List(TypeTree.of(using targetType.asType)))
+      }
+
       private def emitEquality(ctx: MacroCtx, lhs: Term, rhs: Term): Term = {
         val combo = (classifyTerm(lhs), classifyTerm(rhs))
         val overload = combo match {
@@ -776,7 +798,6 @@ class virt extends MacroAnnotation {
 
       private def stripPattern(pattern: Tree): Tree = pattern match {
         case Inlined(_, _, inner) => stripPattern(inner)
-        case Typed(inner, _) => stripPattern(inner)
         case _ => pattern
       }
 
@@ -787,9 +808,30 @@ class virt extends MacroAnnotation {
       }
 
       private def patternCondition(ctx: MacroCtx, scrutinee: Term, pattern: Tree): Option[Term] = {
+        def typeTest(targetType: TypeRepr): Option[Term] =
+          classifyTerm(scrutinee) match {
+            case RepW(scrutineeType) =>
+              if scrutineeType <:< targetType then None
+              else Some(emitRepIsInstanceOf(ctx, scrutinee, scrutineeType, targetType))
+            case Bare(scrutineeType) =>
+              if scrutineeType <:< targetType then None
+              else Some(emitHostTypeTest(scrutinee, targetType, "isInstanceOf"))
+            case VarW(_) =>
+              report.errorAndAbort("virtualized match scrutinee should have been normalized before typed-pattern handling")
+          }
+
         def loop(tree: Tree): Option[Term] = stripPattern(tree) match {
           case pattern if isWildcardPattern(pattern) =>
             None
+          case Typed(inner, tpt) =>
+            val typedCond = typeTest(tpt.tpe)
+            val innerCond = loop(inner)
+            (typedCond, innerCond) match {
+              case (None, None) => None
+              case (Some(cond), None) => Some(cond)
+              case (None, Some(cond)) => Some(cond)
+              case (Some(lhs), Some(rhs)) => Some(emitBooleanBinary(ctx, lhs, rhs, "boolean_and"))
+            }
           case lit: Literal =>
             Some(emitEquality(ctx, scrutinee, lit.asExpr.asTerm))
           case Alternatives(patterns) =>
@@ -804,10 +846,35 @@ class virt extends MacroAnnotation {
         loop(pattern)
       }
 
-      private def patternBindings(scrutinee: Term, pattern: Tree): List[(Symbol, Term)] = {
+      private def patternBindings(ctx: MacroCtx, scrutinee: Term, pattern: Tree): List[(Symbol, Term)] = {
+        def castedScrutinee(targetType: TypeRepr): Term =
+          classifyTerm(scrutinee) match {
+            case RepW(scrutineeType) =>
+              if scrutineeType <:< targetType then scrutinee
+              else emitRepAsInstanceOf(ctx, scrutinee, scrutineeType, targetType)
+            case Bare(scrutineeType) =>
+              if scrutineeType <:< targetType then scrutinee
+              else emitHostTypeTest(scrutinee, targetType, "asInstanceOf")
+            case VarW(_) =>
+              report.errorAndAbort("virtualized match scrutinee should have been normalized before typed-pattern binding")
+          }
+
+        def boundValue(tree: Tree): Term = stripPattern(tree) match {
+          case Bind(_, inner) =>
+            boundValue(inner)
+          case Typed(_, tpt) =>
+            castedScrutinee(tpt.tpe)
+          case _ =>
+            scrutinee
+        }
+
         def loop(tree: Tree): List[(Symbol, Term)] = stripPattern(tree) match {
           case Bind(name, inner) if name != "_" =>
-            (tree.symbol, scrutinee) :: loop(inner)
+            (tree.symbol, boundValue(tree)) :: loop(inner)
+          case Typed(bind @ Bind(name, inner), tpt) if name != "_" =>
+            (bind.symbol, castedScrutinee(tpt.tpe)) :: loop(inner)
+          case Typed(inner, _) =>
+            loop(inner)
           case _ =>
             Nil
         }
@@ -835,7 +902,7 @@ class virt extends MacroAnnotation {
       }
 
       private def caseCondition(ctx: MacroCtx, scrutinee: Term, cdef: CaseDef): Option[Term] = {
-        val bindings = patternBindings(scrutinee, cdef.pattern)
+        val bindings = patternBindings(ctx, scrutinee, cdef.pattern)
         val patCond = patternCondition(ctx, scrutinee, cdef.pattern)
         val guardCond = cdef.guard.map { guard =>
           withPatternBindings(bindings, ctx.owner) {
@@ -851,8 +918,8 @@ class virt extends MacroAnnotation {
       }
 
       // Lower a supported staged `match` into a chain of staged conditionals.
-      // First pass only handles literal/stable-id/alternative cases plus `_`, with optional guards
-      // that do not introduce pattern bindings.
+      // Supported staged patterns currently include literals, stable ids, alternatives, wildcard
+      // fallback, simple binders/aliases, and typed patterns.
       private def rewriteMatch(ctx: MacroCtx, matchTerm: Match): Term = {
         val scrutineeRaw = transformTerm(matchTerm.scrutinee)(ctx.owner)
         val (scrutinee, scrutineeKind) = normalizeRepTerm(scrutineeRaw, ctx)
@@ -864,7 +931,7 @@ class virt extends MacroAnnotation {
               case Nil =>
                 report.errorAndAbort("virtualized match requires a wildcard/default case")
               case cdef :: rest =>
-                val bindings = patternBindings(scrutinee, cdef.pattern)
+                val bindings = patternBindings(ctx, scrutinee, cdef.pattern)
                 val rhs = withPatternBindings(bindings, ctx.owner) {
                   transformTerm(cdef.rhs)(ctx.owner)
                 }

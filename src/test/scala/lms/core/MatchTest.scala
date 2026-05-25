@@ -51,6 +51,14 @@ trait MatchSnippets extends Dsl {
       case 2 => 202
       case n => n * 3
     }
+
+  def typedMatch(x: Rep[Any]): Rep[Int] =
+    x match {
+      case _: Int => 101
+      case _: String => 200
+      case _ => 300
+    }
+
 }
 
 class MatchTest extends AnyFunSuite with Matchers {
@@ -105,4 +113,14 @@ class MatchTest extends AnyFunSuite with Matchers {
     staged(2) shouldBe 202
     staged(7) shouldBe 21
   }
+
+  test("virtualized match supports typed patterns on staged Any scrutinees") {
+    val f: compiler.Exp[Any] => compiler.Exp[Int] = compiler.typedMatch(_)
+    val staged = compiler.compile[Any, Int](f)
+
+    staged(7) shouldBe 101
+    staged("zzz") shouldBe 200
+    staged(true) shouldBe 300
+  }
+
 }

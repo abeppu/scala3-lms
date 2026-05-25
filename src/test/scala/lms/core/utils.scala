@@ -10,12 +10,14 @@ import scala.reflect.ClassTag
 
 // CR cam: should we try to use Packages.scala here?
 
-trait Dsl extends PrimitiveOps with NumericOps with BooleanOps with LiftString with LiftPrimitives with LiftNumeric with LiftBoolean with IfThenElse with Equal with RangeOps with OrderingOps with MiscOps with ArrayOps with StringOps with SeqOps with Functions with While with StaticData with Variables with LiftVariables with ObjectOps {
+trait Dsl extends PrimitiveOps with NumericOps with BooleanOps with LiftString with LiftPrimitives with LiftNumeric with LiftBoolean with IfThenElse with Equal with RangeOps with OrderingOps with MiscOps with ArrayOps with StringOps with SeqOps with Functions with While with StaticData with Variables with LiftVariables with ObjectOps with CastingOps {
+  given anyTyp: Typ[Any]
   def generate_comment(l: String): Rep[Unit]
   def comment[A:Typ](l: String, verbose: Boolean = true)(b: => Rep[A]): Rep[A]
 }
 
-trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with BooleanOpsExpOpt with IfThenElseExpOpt with EqualExpBridgeOpt with RangeOpsExp with OrderingOpsExp with MiscOpsExp with EffectExp with ArrayOpsExpOpt with StringOpsExp with SeqOpsExp with FunctionsRecursiveExp with WhileExp with StaticDataExp with VariablesExpOpt with ObjectOpsExpOpt {
+trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with BooleanOpsExpOpt with IfThenElseExpOpt with EqualExpBridgeOpt with RangeOpsExp with OrderingOpsExp with MiscOpsExp with EffectExp with ArrayOpsExpOpt with StringOpsExp with SeqOpsExp with FunctionsRecursiveExp with WhileExp with StaticDataExp with VariablesExpOpt with ObjectOpsExpOpt with CastingOpsExp {
+  override given anyTyp: Typ[Any] = manifestTyp
   override def boolean_or(lhs: Exp[Boolean], rhs: Exp[Boolean])(using pos: SourceContext) : Exp[Boolean] = lhs match {
     case Const(false) => rhs
     case _ => super.boolean_or(lhs, rhs)
@@ -53,7 +55,7 @@ trait DslGen extends ScalaGenNumericOps
     with ScalaGenMiscOps with ScalaGenArrayOps with ScalaGenStringOps
     with ScalaGenSeqOps with ScalaGenFunctions with ScalaGenWhile
     with ScalaGenStaticData with ScalaGenVariables
-    with ScalaGenObjectOps
+    with ScalaGenObjectOps with ScalaGenCastingOps
 {
   val IR: DslExp
 
@@ -104,6 +106,7 @@ trait DslCompile extends DslExp
     with OrderingOpsGen
     with StringOpsGen
     with VariablesGen
+    with CastingOpsGen
     with WhileGen {
   type API = DslExp
 }
