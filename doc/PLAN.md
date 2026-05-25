@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 70 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 78 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -12,6 +12,8 @@
     - [x] Add typed binders and typed aliases over staged `Rep[Any]` scrutinees
     - [ ] Remaining gaps: extractor patterns and full host-match preservation for richer pattern trees
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
+    - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
+    - [ ] Remaining gaps: `finally`, `throw` syntax virtualization, `return`, guarded catch cases, and catch binders whose values are referenced in the handler
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
   - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks

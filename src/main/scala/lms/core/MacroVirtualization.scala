@@ -23,6 +23,9 @@ import scala.quoted.*
  *
  * Rewrites preserve plain host semantics when both sides stay `Bare`, and switch to LMS methods as
  * soon as any staged value participates.
+ *
+ * Control-flow coverage is still intentionally selective. `match` and `try/catch` are lowered only
+ * for subsets that can be represented by the existing LMS IR.
  */
 @experimental
 class virt extends MacroAnnotation {
@@ -1062,6 +1065,67 @@ class virt extends MacroAnnotation {
         }
       }
 
+      private def isEmptyFinally(term: Option[Term]): Boolean = term match {
+        case None => true
+        case Some(Literal(UnitConstant())) => true
+        case Some(Inlined(_, _, inner)) => isEmptyFinally(Some(inner))
+        case Some(Block(Nil, inner)) => isEmptyFinally(Some(inner))
+        case _ => false
+      }
+
+      private def tryCatchCaseExceptionName(pattern: Tree): Option[String] = {
+        def loop(tree: Tree): Option[String] = stripPattern(tree) match {
+          case pattern if isWildcardPattern(pattern) =>
+            Some("java.lang.Throwable")
+          case Typed(inner, tpt) if tpt.tpe <:< TypeRepr.of[Throwable] =>
+            val normalized = tpt.tpe.dealias.widenTermRefByName.widen
+            Some(normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName)
+          case Bind(name, inner) if name == "_" =>
+            loop(inner)
+          case Bind(_, inner) =>
+            loop(inner)
+          case _ =>
+            None
+        }
+        loop(pattern)
+      }
+
+      private def transformCaseDefHost(cdef: CaseDef, owner: Symbol): CaseDef =
+        CaseDef.copy(cdef)(cdef.pattern, cdef.guard.map(transformTermRec(_, owner, expectVar = false)), transformTermRec(cdef.rhs, owner, expectVar = false))
+
+      private def rewriteTryCatch(ctx: MacroCtx, tryTerm: Try): Term = {
+        val body = transformTerm(tryTerm.body)(ctx.owner)
+        val transformedCases = tryTerm.cases.map(transformCaseDefHost(_, ctx.owner))
+
+        def caseHandler(cdef: CaseDef): Option[(String, Term)] =
+          if cdef.guard.nonEmpty then None
+          else tryCatchCaseExceptionName(cdef.pattern).map { exceptionClassName =>
+            exceptionClassName -> ensureTrailingRep(transformTerm(cdef.rhs)(ctx.owner), ctx)
+          }
+
+        val handlers = tryTerm.cases.map(caseHandler)
+        val hasStagedBody = !classifyTerm(body).isInstanceOf[Bare]
+        val hasStagedHandler = handlers.flatten.exists { case (_, rhs) => !classifyTerm(rhs).isInstanceOf[Bare] }
+        val shouldVirtualize = hasStagedBody || hasStagedHandler
+
+        if !shouldVirtualize then
+          Try.copy(tryTerm)(body, transformedCases, tryTerm.finalizer.map(transformTermRec(_, ctx.owner, expectVar = false)))
+        else if !isEmptyFinally(tryTerm.finalizer) then
+          report.errorAndAbort("virtualized try/catch does not support finally yet")
+        else if handlers.contains(None) then
+          report.errorAndAbort("virtualized try/catch currently supports only unguarded wildcard or Throwable-typed catch cases")
+        else {
+          val bodyRep = ensureTrailingRep(body, ctx)
+          val valueType = repOrVar(bodyRep.tpe.widen).t
+          val catchTerms = handlers.flatten.map { case (exceptionClassName, handler) =>
+            Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
+          }
+          Apply(
+            Select.overloaded(ctx.thist, "__tryCatch", List(valueType), bodyRep :: catchTerms),
+            List(findTypW(ctx.thist, valueType), ctx.srcGen))
+        }
+      }
+
       private def stripOrderingOpsReceiver(term: Term): Term = term match {
         case Apply(Select(conv, "apply"), List(arg)) if isLmsOrderingConversion(conv) =>
           stripOrderingOpsReceiver(arg)
@@ -1294,6 +1358,8 @@ class virt extends MacroAnnotation {
             }
           case ifTerm: If =>
             rewriteIf(ctx, ifTerm)
+          case tryTerm: Try =>
+            rewriteTryCatch(ctx, tryTerm)
           case matchTerm: Match =>
             rewriteMatch(ctx, matchTerm)
           case applyTerm @ Apply(sel @ Select(lhs, op @ ("&&" | "||")), List(rhs)) =>

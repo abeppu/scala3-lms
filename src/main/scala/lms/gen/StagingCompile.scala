@@ -113,9 +113,32 @@ trait StagingCompile extends QuotedGen with CodeMotion {
   }
 
   protected def interpretBlockWithVars[A](block: Block[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
-    val schedule = buildExactScopeForResult(block.res, compileDefs)
-      .filterNot(stm => infix_lhs(stm).exists(env.contains))
-    interpretScheduleWithVars((block.res, schedule))
+    def blockReify(block: Block[?]): Option[Reify[?]] = block.res match {
+      case Def(reify: Reify[?]) =>
+        Some(reify)
+      case sym: Sym[?] =>
+        findCompileDefinition(sym.asInstanceOf[Sym[Any]]) match {
+          case Some(TP(_, reify: Reify[?])) => Some(reify)
+          case Some(TP(_, Reflect(reify: Reify[?], _, _))) => Some(reify)
+          case _ => None
+        }
+      case _ =>
+        None
+    }
+
+    val schedule =
+      blockReify(block) match {
+        case Some(reify) =>
+          val effectTargets = reify.effects.asInstanceOf[List[Exp[Any]]].distinct
+          val effectScope = effectTargets.flatMap(exp => buildExactScopeForResult(exp, compileDefs))
+          val resultScope = buildExactScopeForResult(reify.x.asInstanceOf[Exp[Any]], compileDefs)
+          val wanted = (effectScope ++ resultScope).toSet
+          compileDefs.filter(wanted)
+        case None =>
+          buildExactScopeForResult(block.res, compileDefs)
+      }
+    val filtered = schedule.filterNot(stm => infix_lhs(stm).exists(env.contains))
+    interpretScheduleWithVars((block.res, filtered))
   }
 
   protected def interpretScheduleWithVars[A](graph: (Exp[A], List[Stm]))(using q: Quotes, env0: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
@@ -189,7 +212,7 @@ trait StagingCompile extends QuotedGen with CodeMotion {
 
     def shouldMaterialize(defn: Def[?]): Boolean = defn match {
       case Reflect(_, summary, _) =>
-        summary.control || summary.resAlloc || summary.mayWrite.nonEmpty || summary.mstWrite.nonEmpty
+        summary.control || summary.resAlloc || summary.mayGlobal || summary.mstGlobal || summary.mayWrite.nonEmpty || summary.mstWrite.nonEmpty
       case _ =>
         false
     }
