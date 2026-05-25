@@ -9,7 +9,8 @@
   - [ ] Add support for `match` / pattern matching on staged values
     - [x] First pass: staged scrutinee with literal/stable-id/alternative cases, wildcard fallback, guards, and simple binders/aliases
     - [x] Initial typed-pattern support for staged wildcard type tests over `Rep[Any]`
-    - [ ] Remaining gaps: extractor patterns, typed binders/aliases, and full host-match preservation for richer pattern trees
+    - [x] Add typed binders and typed aliases over staged `Rep[Any]` scrutinees
+    - [ ] Remaining gaps: extractor patterns and full host-match preservation for richer pattern trees
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`

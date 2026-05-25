@@ -59,6 +59,20 @@ trait MatchSnippets extends Dsl {
       case _ => 300
     }
 
+  def typedBinderMatch(x: Rep[Any]): Rep[Int] =
+    x match {
+      case n: Int => n + 1
+      case s: String => 200
+      case _ => 300
+    }
+
+  def typedAliasMatch(x: Rep[Any]): Rep[Int] =
+    x match {
+      case n @ (_: Int) if n > 0 => n * 2
+      case s @ (_: String) => 200
+      case _ => 300
+    }
+
 }
 
 class MatchTest extends AnyFunSuite with Matchers {
@@ -119,6 +133,25 @@ class MatchTest extends AnyFunSuite with Matchers {
     val staged = compiler.compile[Any, Int](f)
 
     staged(7) shouldBe 101
+    staged("zzz") shouldBe 200
+    staged(true) shouldBe 300
+  }
+
+  test("virtualized match supports typed binders on staged Any scrutinees") {
+    val f: compiler.Exp[Any] => compiler.Exp[Int] = compiler.typedBinderMatch(_)
+    val staged = compiler.compile[Any, Int](f)
+
+    staged(7) shouldBe 8
+    staged("zzz") shouldBe 200
+    staged(true) shouldBe 300
+  }
+
+  test("virtualized match supports typed alias binders on staged Any scrutinees") {
+    val f: compiler.Exp[Any] => compiler.Exp[Int] = compiler.typedAliasMatch(_)
+    val staged = compiler.compile[Any, Int](f)
+
+    staged(7) shouldBe 14
+    staged(-2) shouldBe 300
     staged("zzz") shouldBe 200
     staged(true) shouldBe 300
   }

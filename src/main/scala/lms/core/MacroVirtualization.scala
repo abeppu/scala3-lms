@@ -88,6 +88,8 @@ class virt extends MacroAnnotation {
     // to fresh symbols. Later references still mention the pre-rewrite symbol, so we redirect them
     // through this alias table during the recursive walk.
     val reboundAliases = collection.mutable.Map.empty[Symbol, Symbol]
+    val reboundPatternNames = collection.mutable.Map.empty[String, Symbol]
+    val activeTypedPatternNames = collection.mutable.Set.empty[String]
 
     // Mutable Scala locals become freshly rebound immutable vals of LMS type Var[T]. We additionally
     // track the element type of those Var symbols so reads and writes can be recognized quickly.
@@ -530,12 +532,12 @@ class virt extends MacroAnnotation {
             }
           case _ =>
             false
-        }
+          }
       }
 
-      private def isRedundantRepLift(fun: Term, applyTerm: Apply, arg: Term): Boolean = fun match {
+      private def isRepLiftConversion(fun: Term): Boolean = fun match {
         case Select(conv, "apply") =>
-          conv.tpe.baseClasses.exists(_.fullName == "scala.Conversion") && sameElementRepLift(applyTerm, arg)
+          conv.tpe.baseClasses.exists(_.fullName == "scala.Conversion")
         case _ =>
           false
       }
@@ -566,6 +568,39 @@ class virt extends MacroAnnotation {
       private def rebuildBinary(applyTerm: Apply, sel: Select, lhs: Term, rhs: Term): Term =
         Apply.copy(applyTerm)(Select.copy(sel)(lhs, sel.name), List(rhs))
 
+      private def stripNumericOpsReceiver(term: Term): Term = term match {
+        case Apply(Select(conv, "apply"), List(arg)) if isLmsNumericConversion(conv) =>
+          stripNumericOpsReceiver(arg)
+        case _ => term
+      }
+
+      private def isLmsNumericConversion(term: Term): Boolean = term match {
+        case Apply(TypeApply(sel: Select, _), _) =>
+          val name = sel.symbol.name
+          name == "numericToNumericOps" || name == "repNumericToNumericOps" || name == "varNumericToNumericOps"
+        case Apply(sel: Select, _) =>
+          val name = sel.symbol.name
+          name == "numericToNumericOps" || name == "repNumericToNumericOps" || name == "varNumericToNumericOps"
+        case _ => false
+      }
+
+      private def mentionsTypedPattern(term: Term, owner: Symbol): Boolean = {
+        var found = false
+        object Finder extends TreeTraverser {
+          override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
+            tree match {
+              case id: Ident if activeTypedPatternNames.contains(id.name) =>
+                found = true
+              case _ if !found =>
+                super.traverseTree(tree)(owner)
+              case _ =>
+            }
+          }
+        }
+        Finder.traverseTree(term)(owner)
+        found
+      }
+
       private def rewriteArithmeticBinary(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, op: String): Term = {
         val lhs = transformTerm(lhsTree)(ctx.owner)
         val rhs = transformTerm(rhsTree)(ctx.owner)
@@ -582,20 +617,69 @@ class virt extends MacroAnnotation {
                 case _ => false
               }
           }
-        (lhsRawKind, rhsRawKind) match {
-          case _ if intVarInvolved =>
-            val method = op match {
-              case "+" => "int_plus"
-              case "-" => "int_minus"
-              case "*" => "int_times"
-              case "/" => "int_divide"
-            }
-            val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(lhsNorm, ctx), wrapBareTerm(rhsNorm, ctx)))
-            Apply(call, List(ctx.srcGen))
-          case _ if lhsKind.isInstanceOf[Bare] && rhsKind.isInstanceOf[Bare] =>
-            rebuildBinary(applyTerm, sel, lhsNorm, rhsNorm)
-          case _ =>
-            rebuildBinary(applyTerm, sel, lhsNorm, rhsNorm)
+        val typedPatternArithmetic =
+          activeTypedPatternNames.nonEmpty &&
+            (mentionsTypedPattern(lhsTree, ctx.owner) || mentionsTypedPattern(rhsTree, ctx.owner)) &&
+            isIntKind(lhsKind) && isIntKind(rhsKind) &&
+            !(lhsKind.isInstanceOf[Bare] && rhsKind.isInstanceOf[Bare])
+        if intVarInvolved || typedPatternArithmetic then
+          val method = op match {
+            case "+" => "int_plus"
+            case "-" => "int_minus"
+            case "*" => "int_times"
+            case "/" => "int_divide"
+          }
+          val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(lhsNorm, ctx), wrapBareTerm(rhsNorm, ctx)))
+          Apply(call, List(ctx.srcGen))
+        else
+          rebuildBinary(applyTerm, sel, lhsNorm, rhsNorm)
+      }
+
+      private def rewriteArithmeticBinaryWithImplicit(ctx: MacroCtx, outer: Apply, inner: Apply, sel: Select, lhsTree: Term, rhsTree: Term, op: String, implicitArgs: List[Term]): Term = {
+        val lhs = transformTerm(lhsTree)(ctx.owner)
+        val rhs = transformTerm(rhsTree)(ctx.owner)
+        val lhsDirect = transformTerm(stripNumericOpsReceiver(lhsTree))(ctx.owner)
+        val rhsDirect = transformTerm(stripNumericOpsReceiver(rhsTree))(ctx.owner)
+        val (lhsNorm, lhsKind) = normalizeRepTerm(lhsDirect, ctx)
+        val (rhsNorm, rhsKind) = normalizeRepTerm(rhsDirect, ctx)
+        val stagedIntArithmetic =
+          isIntKind(lhsKind) && isIntKind(rhsKind) &&
+            !(lhsKind.isInstanceOf[Bare] && rhsKind.isInstanceOf[Bare])
+        if stagedIntArithmetic then
+          val method = op match {
+            case "+" => "int_plus"
+            case "-" => "int_minus"
+            case "*" => "int_times"
+            case "/" => "int_divide"
+          }
+          val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(lhsNorm, ctx), wrapBareTerm(rhsNorm, ctx)))
+          Apply(call, List(ctx.srcGen))
+        else {
+          val rebuiltInner = Apply.copy(inner)(Select.copy(sel)(lhs, sel.name), List(rhs))
+          Apply.copy(outer)(rebuiltInner, implicitArgs.map(transformTerm(_)(ctx.owner)))
+        }
+      }
+
+      private def rewriteArithmeticBinaryTypeApply(ctx: MacroCtx, applyTerm: Apply, tapply: TypeApply, sel: Select, lhsTree: Term, rhsTree: Term, op: String): Term = {
+        val lhs = transformTerm(stripNumericOpsReceiver(lhsTree))(ctx.owner)
+        val rhs = transformTerm(stripNumericOpsReceiver(rhsTree))(ctx.owner)
+        val (lhsNorm, lhsKind) = normalizeRepTerm(lhs, ctx)
+        val (rhsNorm, rhsKind) = normalizeRepTerm(rhs, ctx)
+        val stagedIntArithmetic =
+          isIntKind(lhsKind) && isIntKind(rhsKind) &&
+            !(lhsKind.isInstanceOf[Bare] && rhsKind.isInstanceOf[Bare])
+        if stagedIntArithmetic then
+          val method = op match {
+            case "+" => "int_plus"
+            case "-" => "int_minus"
+            case "*" => "int_times"
+            case "/" => "int_divide"
+          }
+          val call = Select.overloaded(ctx.thist, method, Nil, List(wrapBareTerm(lhsNorm, ctx), wrapBareTerm(rhsNorm, ctx)))
+          Apply(call, List(ctx.srcGen))
+        else {
+          val rebuiltTypeApply = TypeApply.copy(tapply)(Select.copy(sel)(lhsNorm, sel.name), tapply.args)
+          Apply.copy(applyTerm)(rebuiltTypeApply, List(rhsNorm))
         }
       }
 
@@ -719,7 +803,7 @@ class virt extends MacroAnnotation {
         val method = findMethods(ctx.owner, "rep_asinstanceof").find(sym => !sym.flags.is(Flags.Given))
           .getOrElse(report.errorAndAbort("failed to virtualize: no rep_asinstanceof in scope"))
         val typedMethod = Select(ctx.thist, method).appliedToTypes(List(scrutineeType, targetType))
-        Apply(typedMethod.appliedToArgs(List(scrutinee, srcTyp, dstTyp)), List(ctx.srcGen))
+        applyImplicitArgs(typedMethod.appliedToArgs(List(scrutinee, srcTyp, dstTyp)), List(dstTyp, ctx.srcGen))
       }
 
       private def emitHostTypeTest(term: Term, targetType: TypeRepr, method: String): Term = {
@@ -871,6 +955,8 @@ class virt extends MacroAnnotation {
         def loop(tree: Tree): List[(Symbol, Term)] = stripPattern(tree) match {
           case Bind(name, inner) if name != "_" =>
             (tree.symbol, boundValue(tree)) :: loop(inner)
+          case Typed(id: Ident, tpt) if id.name != "_" =>
+            (id.symbol, castedScrutinee(tpt.tpe)) :: Nil
           case Typed(bind @ Bind(name, inner), tpt) if name != "_" =>
             (bind.symbol, castedScrutinee(tpt.tpe)) :: loop(inner)
           case Typed(inner, _) =>
@@ -881,15 +967,38 @@ class virt extends MacroAnnotation {
         loop(pattern)
       }
 
-      private def withPatternBindings(bindings: List[(Symbol, Term)], owner: Symbol)(body: => Term): Term = {
+      private def patternTypedBindingNames(pattern: Tree): Set[String] = {
+        def loop(tree: Tree): Set[String] = stripPattern(tree) match {
+          case Typed(id: Ident, _) if id.name != "_" =>
+            Set(id.name)
+          case Typed(Bind(name, inner), _) if name != "_" =>
+            Set(name) ++ loop(inner)
+          case Bind(name, inner: Typed) if name != "_" =>
+            Set(name) ++ loop(inner)
+          case Bind(name, inner) if name != "_" =>
+            val nested = loop(inner)
+            if nested.nonEmpty then Set(name) ++ nested else nested
+          case _ =>
+            Set.empty
+        }
+        loop(pattern)
+      }
+
+      private def withPatternBindings(bindings: List[(Symbol, Term)], typedNames: Set[String], owner: Symbol)(body: => Term): Term = {
         if bindings.isEmpty then body
         else {
           val savedAliases = bindings.map { case (sym, _) => sym -> reboundAliases.get(sym) }
+          val savedNames = bindings.map { case (sym, _) => sym.name -> reboundPatternNames.get(sym.name) }
+          val savedTypedNames = activeTypedPatternNames.toSet
           val defs = bindings.map { case (sym, value) =>
             val reboundSym = Symbol.newVal(owner, sym.name, value.tpe.widenTermRefByName, Flags.EmptyFlags, Symbol.noSymbol)
             reboundAliases.update(sym, reboundSym)
+            reboundPatternNames.update(sym.name, reboundSym)
             ValDef(reboundSym, Some(value))
           }
+          activeTypedPatternNames.clear()
+          activeTypedPatternNames ++= savedTypedNames
+          activeTypedPatternNames ++= typedNames
           val transformed =
             try body
             finally
@@ -897,15 +1006,22 @@ class virt extends MacroAnnotation {
                 case (sym, Some(prev)) => reboundAliases.update(sym, prev)
                 case (sym, None) => reboundAliases.remove(sym)
               }
+              savedNames.foreach {
+                case (name, Some(prev)) => reboundPatternNames.update(name, prev)
+                case (name, None) => reboundPatternNames.remove(name)
+              }
+              activeTypedPatternNames.clear()
+              activeTypedPatternNames ++= savedTypedNames
           Block(defs, transformed)
         }
       }
 
       private def caseCondition(ctx: MacroCtx, scrutinee: Term, cdef: CaseDef): Option[Term] = {
         val bindings = patternBindings(ctx, scrutinee, cdef.pattern)
+        val typedNames = patternTypedBindingNames(cdef.pattern)
         val patCond = patternCondition(ctx, scrutinee, cdef.pattern)
         val guardCond = cdef.guard.map { guard =>
-          withPatternBindings(bindings, ctx.owner) {
+          withPatternBindings(bindings, typedNames, ctx.owner) {
             transformTerm(guard)(ctx.owner)
           }
         }
@@ -932,7 +1048,8 @@ class virt extends MacroAnnotation {
                 report.errorAndAbort("virtualized match requires a wildcard/default case")
               case cdef :: rest =>
                 val bindings = patternBindings(ctx, scrutinee, cdef.pattern)
-                val rhs = withPatternBindings(bindings, ctx.owner) {
+                val typedNames = patternTypedBindingNames(cdef.pattern)
+                val rhs = withPatternBindings(bindings, typedNames, ctx.owner) {
                   transformTerm(cdef.rhs)(ctx.owner)
                 }
                 caseCondition(ctx, scrutinee, cdef) match {
@@ -1094,6 +1211,8 @@ class virt extends MacroAnnotation {
             Block.copy(block)(newStats, transformTermRec(expr, owner, expectVar))
           case ident: Ident if reboundAliases.contains(ident.symbol) =>
             Ref(reboundAliases(ident.symbol))
+          case ident: Ident if activeTypedPatternNames.contains(ident.name) && reboundPatternNames.contains(ident.name) =>
+            Ref(reboundPatternNames(ident.name))
           case ident: Ident if mutableVars.contains(ident.symbol) =>
             ident
           case sel @ Select(receiver, _) if reboundAliases.contains(sel.symbol) =>
@@ -1166,8 +1285,13 @@ class virt extends MacroAnnotation {
               case _ =>
                 value
             }
-          case applyTerm @ Apply(fun, List(arg)) if isRedundantRepLift(fun, applyTerm, arg) =>
-            transformTermRec(arg, owner, expectVar = false)
+          case applyTerm @ Apply(fun, List(arg)) if isRepLiftConversion(fun) =>
+            val value = transformTermRec(arg, owner, expectVar = false)
+            if sameElementRepLift(applyTerm, value) then value
+            else {
+              val newFun = transformTermRec(fun, owner, expectVar = false)
+              Apply.copy(applyTerm)(newFun, List(value))
+            }
           case ifTerm: If =>
             rewriteIf(ctx, ifTerm)
           case matchTerm: Match =>
@@ -1207,6 +1331,14 @@ class virt extends MacroAnnotation {
             rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_rightshiftarith")
           case applyTerm @ Apply(sel @ Select(lhs, ">>>"), List(rhs)) =>
             rewriteIntBinary(ctx, applyTerm, sel, lhs, rhs, "int_rightshiftlogical")
+          case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, op @ ("+" | "-" | "*" | "/")), List(rhs)), implicitArgs)
+              if implicitArgs.nonEmpty =>
+            rewriteArithmeticBinaryWithImplicit(ctx, applyTerm, inner, sel, lhsOuter, rhs, op, implicitArgs)
+          case applyTerm @ Apply(inner @ Apply(TypeApply(sel @ Select(lhsOuter, op @ ("+" | "-" | "*" | "/")), _), List(rhs)), implicitArgs)
+              if implicitArgs.nonEmpty =>
+            rewriteArithmeticBinaryWithImplicit(ctx, applyTerm, inner, sel, lhsOuter, rhs, op, implicitArgs)
+          case applyTerm @ Apply(tapply @ TypeApply(sel @ Select(lhs, op @ ("+" | "-" | "*" | "/")), _), List(rhs)) =>
+            rewriteArithmeticBinaryTypeApply(ctx, applyTerm, tapply, sel, lhs, rhs, op)
           case applyTerm @ Apply(sel @ Select(lhs, op @ ("+" | "-" | "*" | "/")), List(rhs)) =>
             rewriteArithmeticBinary(ctx, applyTerm, sel, lhs, rhs, op)
           case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, "<"), List(rhs)), implicitArgs)
