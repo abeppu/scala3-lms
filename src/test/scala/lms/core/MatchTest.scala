@@ -73,6 +73,13 @@ trait MatchSnippets extends Dsl {
       case _ => 300
     }
 
+  def typedBinderArithmeticMatch(x: Rep[Any]): Rep[Int] =
+    x match {
+      case n: Int if n < 0 => 0 - n
+      case n: Int => n + 10
+      case _ => 300
+    }
+
 }
 
 class MatchTest extends AnyFunSuite with Matchers {
@@ -154,6 +161,15 @@ class MatchTest extends AnyFunSuite with Matchers {
     staged(-2) shouldBe 300
     staged("zzz") shouldBe 200
     staged(true) shouldBe 300
+  }
+
+  test("virtualized match keeps typed binder arithmetic staged on both branches") {
+    val f: compiler.Exp[Any] => compiler.Exp[Int] = compiler.typedBinderArithmeticMatch(_)
+    val staged = compiler.compile[Any, Int](f)
+
+    staged(-7) shouldBe 7
+    staged(5) shouldBe 15
+    staged("zzz") shouldBe 300
   }
 
 }

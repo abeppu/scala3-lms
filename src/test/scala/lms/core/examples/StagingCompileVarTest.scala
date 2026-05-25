@@ -92,6 +92,27 @@ trait StagingCompileVarSnippets extends Dsl {
       }
     chosen + readVar(acc)
   }
+
+  def directVarArithmetic(seed: Rep[Int]): Rep[Int] = {
+    var current = seed
+    val plusWrapped = current + 1
+    val minusWrapped = current - 1
+    plusWrapped * 100 + minusWrapped
+  }
+
+  def nestedVarArithmetic(seed: Rep[Int]): Rep[Int] = {
+    var current = seed
+    val outer = current + 1
+    val combined =
+      if (seed > 0) {
+        val inner = current + 2
+        inner
+      } else {
+        val inner = current - 2
+        inner
+      }
+    outer * 100 + combined
+  }
 }
 
 class StagingCompileVarTest extends AnyFunSuite with Matchers {
@@ -163,5 +184,21 @@ class StagingCompileVarTest extends AnyFunSuite with Matchers {
 
     staged(true) shouldBe 11
     staged(false) shouldBe 22
+  }
+
+  test("direct mutable-local arithmetic survives numeric wrapper desugaring") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.directVarArithmetic(_)
+    val staged = compiler.compile(f)
+
+    staged(7) shouldBe 806
+    staged(-3) shouldBe -204
+  }
+
+  test("nested mutable-local arithmetic survives numeric wrapper desugaring") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.nestedVarArithmetic(_)
+    val staged = compiler.compile(f)
+
+    staged(7) shouldBe 809
+    staged(-3) shouldBe -205
   }
 }
