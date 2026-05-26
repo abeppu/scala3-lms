@@ -10,6 +10,22 @@ trait StagingCompile extends QuotedGen with CodeMotion {
   val IR: this.type = this
 
   private var compileDefs: List[Stm] = Nil
+  private var currentRuntimeReturnTarget: Any = null
+
+  protected def withRuntimeReturnTarget[A](target: Any)(body: => A): A = {
+    val saved = currentRuntimeReturnTarget
+    currentRuntimeReturnTarget = target
+    try body
+    finally currentRuntimeReturnTarget = saved
+  }
+
+  protected def runtimeReturnTarget(using q: Quotes): q.reflect.Symbol =
+    currentRuntimeReturnTarget match {
+      case target if target != null =>
+        target.asInstanceOf[q.reflect.Symbol]
+      case _ =>
+        throw new Exception("staged return requires an active runtime return target")
+    }
 
   protected def findCompileDefinition(sym: Sym[?]): Option[Stm] =
     compileDefs.find(infix_lhs(_) contains sym)
@@ -86,7 +102,7 @@ trait StagingCompile extends QuotedGen with CodeMotion {
           this.context = savedContext
       compileDefs = defs
 
-      val schedule = buildExactScopeForResult(body, compileDefs)
+      val schedule = compileDefs
       // 3. Roll a lambda term
       // TODO: handle multiple parameters
       val methodType = MethodType(List("a"))(
@@ -102,10 +118,11 @@ trait StagingCompile extends QuotedGen with CodeMotion {
         }
 
         val envWithParam: Map[Sym[?], q.reflect.Symbol] = Map(inputSym -> paramSym)
-        interpretScheduleWithVars[B]((body, schedule))(using q, envWithParam).changeOwner(owner)
+        withRuntimeReturnTarget(owner) {
+          interpretScheduleWithVars[B]((body, schedule))(using q, envWithParam).changeOwner(owner)
+        }
         // You may need to update interpretSchedule to accept the environment
       })
-
       // 4. Convert the lambda term to an Expr[A => B]
       val stagedF: Expr[A => B] = lambdaTerm.asExprOf[A => B]
       stagedF

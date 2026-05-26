@@ -68,6 +68,35 @@ trait TryCatchSnippets extends Dsl {
       case _: RuntimeException => 60
       case _: Exception => 70
     }
+
+  def finallyOnNormalPath(x: Rep[Int]): Rep[Int] = {
+    var side = 0
+    try {
+      side = 3
+    } finally {
+      side = side + 10
+    }
+    readVar(side)
+  }
+
+  def finallyOnThrowPath(flag: Rep[Boolean]): Rep[Int] = {
+    var side = 0
+    try {
+      side = 10
+      if (flag) throw new Exception("boom")
+      side = 11
+    } catch {
+      case _: Exception => side = 20
+    } finally {
+      side = side + 100
+    }
+    readVar(side)
+  }
+
+  def stagedReturn(x: Rep[Int]): Rep[Int] = {
+    if (x < 0) return 7
+    x + 1
+  }
 }
 
 class TryCatchTest extends AnyFunSuite with Matchers {
@@ -129,5 +158,28 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 10
     staged(true) shouldBe 60
+  }
+
+  test("virtualized finally runs on the normal path") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.finallyOnNormalPath(_)
+    val staged = compiler.compile(f)
+
+    staged(3) shouldBe 13
+  }
+
+  test("virtualized finally runs after catches on the throw path") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.finallyOnThrowPath(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 111
+    staged(true) shouldBe 120
+  }
+
+  test("virtualized return supports staged early exits") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.stagedReturn(_)
+    val staged = compiler.compile(f)
+
+    staged(-1) shouldBe 7
+    staged(3) shouldBe 4
   }
 }

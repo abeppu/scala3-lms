@@ -105,6 +105,7 @@ trait DslCompile extends DslExp
     with EqualGen
     with OrderingOpsGen
     with StringOpsGen
+    with MiscOpsGen
     with VariablesGen
     with CastingOpsGen
     with WhileGen

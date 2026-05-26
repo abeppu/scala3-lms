@@ -94,6 +94,7 @@ class virt extends MacroAnnotation {
     val reboundPatternNames = collection.mutable.Map.empty[String, Symbol]
     val activeTypedPatternNames = collection.mutable.Set.empty[String]
     var forceThrowVirtualizationDepth = 0
+    var forceReturnVirtualizationDepth = 0
 
     // Mutable Scala locals become freshly rebound immutable vals of LMS type Var[T]. We additionally
     // track the element type of those Var symbols so reads and writes can be recognized quickly.
@@ -275,6 +276,14 @@ class virt extends MacroAnnotation {
         case _ =>
           report.errorAndAbort(s"expected Rep or liftable term, found ${value.show}")
       }
+    }
+
+    def repResultType(term: Term): TypeRepr =
+      repOrVar(term.tpe.widen).t
+
+    def selectRepResultType(terms: List[Term]): TypeRepr = {
+      val candidates = terms.map(repResultType)
+      candidates.find(_ != TypeRepr.of[Nothing]).getOrElse(TypeRepr.of[Nothing])
     }
 
     // Normalize while bodies to Rep[Unit] so they match __whileDo's contract.
@@ -519,6 +528,20 @@ class virt extends MacroAnnotation {
     def shouldForceThrowVirtualization: Boolean =
       forceThrowVirtualizationDepth > 0
 
+    def withForcedReturnVirtualization(body: => Term): Term = {
+      forceReturnVirtualizationDepth += 1
+      try body
+      finally forceReturnVirtualizationDepth -= 1
+    }
+
+    def shouldForceReturnVirtualization: Boolean =
+      forceReturnVirtualizationDepth > 0
+
+    def withForcedEscapeVirtualization(body: => Term): Term =
+      withForcedThrowVirtualization {
+        withForcedReturnVirtualization(body)
+      }
+
     // Main tree transformer. The strategy is:
     // 1. rewrite local mutable definitions into LMS Vars
     // 2. normalize terms so Vars become readable Reps when needed
@@ -759,13 +782,13 @@ class virt extends MacroAnnotation {
             val elsep = transformTerm(ifTerm.elsep)(ctx.owner)
             If.copy(ifTerm)(normalizedGuard, thenp, elsep)
           case _ =>
-            val thenp = withForcedThrowVirtualization {
+            val thenp = withForcedEscapeVirtualization {
               ensureTrailingRep(transformTerm(ifTerm.thenp)(ctx.owner), ctx)
             }
-            val elsep = withForcedThrowVirtualization {
+            val elsep = withForcedEscapeVirtualization {
               ensureTrailingRep(transformTerm(ifTerm.elsep)(ctx.owner), ctx)
             }
-            val valueType = repOrVar(thenp.tpe.widen).t
+            val valueType = selectRepResultType(List(thenp, elsep))
             val typW = findTypW(ctx.thist, valueType)
             Apply(
               Select.overloaded(ctx.thist, "__ifThenElse", List(valueType), List(normalizedGuard, thenp, elsep)),
@@ -806,6 +829,29 @@ class virt extends MacroAnnotation {
               report.errorAndAbort("virtualized throw currently supports Throwable subclasses with a single String constructor")
             else
               Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
+        }
+      }
+
+      private def rewriteReturn(ctx: MacroCtx, ret: Return): Term = {
+        val value = transformTerm(ret.expr)(ctx.owner)
+        val (normalized, kind) = normalizeRepTerm(value, ctx)
+        if shouldForceReturnVirtualization || !kind.isInstanceOf[Bare] then {
+          val elemType = kind match {
+            case RepW(t) => t
+            case Bare(t) => t
+            case VarW(_) => report.errorAndAbort("unexpected Var in normalized return expression")
+          }
+          val method = findMethods(ctx.owner, "returnL").find(sym => !sym.flags.is(Flags.Given))
+            .getOrElse(report.errorAndAbort("failed to virtualize: no returnL in scope"))
+          val typedMethod = Select(ctx.thist, method).appliedToTypes(List(elemType))
+          val arg = kind match {
+            case Bare(_) => wrapBareTerm(normalized, ctx)
+            case _ => normalized
+          }
+          val typW = findTypW(ctx.thist, elemType)
+          applyImplicitArgs(typedMethod.appliedToArgs(List(arg)), List(typW, ctx.srcGen))
+        } else {
+          Return.copy(ret)(normalized, ret.from)
         }
       }
 
@@ -894,7 +940,7 @@ class virt extends MacroAnnotation {
         val normalizedGuard = wrapBareBoolean(guard, ctx)
         val thenRep = ensureTrailingRep(thenp, ctx)
         val elseRep = ensureTrailingRep(elsep, ctx)
-        val valueType = repOrVar(thenRep.tpe.widen).t
+        val valueType = selectRepResultType(List(thenRep, elseRep))
         val typW = findTypW(ctx.thist, valueType)
         Apply(
           Select.overloaded(ctx.thist, "__ifThenElse", List(valueType), List(normalizedGuard, thenRep, elseRep)),
@@ -1104,7 +1150,7 @@ class virt extends MacroAnnotation {
                 val bindings = patternBindings(ctx, scrutinee, cdef.pattern)
                 val typedNames = patternTypedBindingNames(cdef.pattern)
                 val rhs = withPatternBindings(bindings, typedNames, ctx.owner) {
-                  withForcedThrowVirtualization {
+                  withForcedEscapeVirtualization {
                     transformTerm(cdef.rhs)(ctx.owner)
                   }
                 }
@@ -1184,11 +1230,11 @@ class virt extends MacroAnnotation {
             report.errorAndAbort("virtualized try/catch does not yet support using catch binder values inside guards or handlers")
           tryCatchCaseExceptionName(cdef.pattern).map { exceptionClassName =>
             val guard = cdef.guard.map { g =>
-              withForcedThrowVirtualization {
+              withForcedEscapeVirtualization {
                 ensureTrailingRep(transformTerm(g)(ctx.owner), ctx)
               }
             }
-            val handler = withForcedThrowVirtualization {
+            val handler = withForcedEscapeVirtualization {
               ensureTrailingRep(transformTerm(cdef.rhs)(ctx.owner), ctx)
             }
             (exceptionClassName, guard, handler)
@@ -1199,30 +1245,41 @@ class virt extends MacroAnnotation {
         val hasStagedBody = !classifyTerm(body).isInstanceOf[Bare]
         val hasStagedHandler = handlers.flatten.exists { case (_, _, rhs) => !classifyTerm(rhs).isInstanceOf[Bare] }
         val hasStagedGuard = handlers.flatten.exists { case (_, guard, _) => guard.exists(g => !classifyTerm(g).isInstanceOf[Bare]) }
-        val shouldVirtualize = hasStagedBody || hasStagedHandler || hasStagedGuard
+        val finalizerTerm = tryTerm.finalizer.map(transformTermRec(_, ctx.owner, expectVar = false))
+        val hasStagedFinalizer = finalizerTerm.exists(t => !classifyTerm(t).isInstanceOf[Bare])
+        val shouldVirtualize = hasStagedBody || hasStagedHandler || hasStagedGuard || hasStagedFinalizer
 
         if !shouldVirtualize then
-          Try.copy(tryTerm)(body, transformedCases, tryTerm.finalizer.map(transformTermRec(_, ctx.owner, expectVar = false)))
-        else if !isEmptyFinally(tryTerm.finalizer) then
-          report.errorAndAbort("virtualized try/catch does not support finally yet")
+          Try.copy(tryTerm)(body, transformedCases, finalizerTerm)
         else if handlers.contains(None) then
           report.errorAndAbort("virtualized try/catch currently supports only wildcard or Throwable-typed catch cases")
         else {
-          val bodyRep = withForcedThrowVirtualization {
+          val bodyRep = withForcedEscapeVirtualization {
             ensureTrailingRep(transformTerm(tryTerm.body)(ctx.owner), ctx)
           }
-          val valueType = repOrVar(bodyRep.tpe.widen).t
-          val catchTerms = handlers.flatten.map { case (exceptionClassName, guard, handler) =>
-              guard match {
-                case Some(cond) =>
-                  Select.overloaded(ctx.thist, "__guardedCatchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), cond, handler))
-                case None =>
-                  Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
-              }
+          val valueType = selectRepResultType(bodyRep :: handlers.flatten.map(_._3))
+          val materializedCatchTerms = handlers.flatten.map { case (exceptionClassName, guard, handler) =>
+            guard match {
+              case Some(cond) =>
+                Select.overloaded(ctx.thist, "__guardedCatchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), cond, handler))
+              case None =>
+                Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
             }
-          Apply(
-            Select.overloaded(ctx.thist, "__tryCatch", List(valueType), bodyRep :: catchTerms),
-            List(findTypW(ctx.thist, valueType), ctx.srcGen))
+          }
+          val finalizerRep = finalizerTerm.filterNot(t => isEmptyFinally(Some(t))).map { fin =>
+            withForcedEscapeVirtualization {
+              dropTrailingUnitInWhileBody(fin, ctx)
+            }
+          }
+          finalizerRep match {
+            case Some(fin) =>
+              val call = Select.overloaded(ctx.thist, "__tryCatchFinally", List(valueType), bodyRep :: fin :: materializedCatchTerms)
+              Apply(call, List(findTypW(ctx.thist, valueType), ctx.srcGen))
+            case None =>
+              Apply(
+                Select.overloaded(ctx.thist, "__tryCatch", List(valueType), bodyRep :: materializedCatchTerms),
+                List(findTypW(ctx.thist, valueType), ctx.srcGen))
+          }
         }
       }
 
@@ -1310,7 +1367,7 @@ class virt extends MacroAnnotation {
 
       // Replace while loops with __whileDo(cond, body).
       private def rewriteWhile(ctx: MacroCtx, guard: Term, body: Term): Term = {
-        val normalizedBody = withForcedThrowVirtualization {
+        val normalizedBody = withForcedEscapeVirtualization {
           dropTrailingUnitInWhileBody(body, ctx)
         }
         val method = findMethods(ctx.owner, "__whileDo") match {
@@ -1460,6 +1517,8 @@ class virt extends MacroAnnotation {
             }
           case ifTerm: If =>
             rewriteIf(ctx, ifTerm)
+          case ret: Return =>
+            rewriteReturn(ctx, ret)
           case throwApply @ Apply(Ident("throw"), List(throwExpr)) =>
             rewriteThrow(ctx, throwApply, throwExpr, owner)
           case tryTerm: Try =>

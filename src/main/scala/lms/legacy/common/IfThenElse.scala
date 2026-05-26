@@ -17,7 +17,9 @@ trait IfThenElse extends Base {
 
 trait IfThenElsePureExp extends IfThenElse with BaseExp {
 
-  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Exp[T], elsep: Exp[T]) extends Def[T]
+  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Exp[T], elsep: Exp[T]) extends Def[T] {
+    def m = (typ[T]: @unchecked)
+  }
 
   def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = IfThenElse(cond, thenp, elsep)
 }
@@ -31,7 +33,9 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
     val elsep: Block[T]
   }
   
-  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Block[T], elsep: Block[T]) extends AbstractIfThenElse[T]
+  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Block[T], elsep: Block[T]) extends AbstractIfThenElse[T] {
+    def m = (typ[T]: @unchecked)
+  }
 
   private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
     case Def(Reify(_, _, effects)) =>
@@ -153,9 +157,9 @@ trait IfThenElseGen extends Gen with IfThenElseExp {
   override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
 
-    def interpretIf[T](cond: Exp[Boolean], thenp: this.Block[T], elsep: this.Block[T]): Term = {
+    def interpretIf[T:Typ](cond: Exp[Boolean], thenp: this.Block[T], elsep: this.Block[T]): Term = {
       val condExpr = interpretExpWithEnv(cond).asExprOf[Boolean]
-      val branchType = thenp.res.tp.asTypeRepr
+      val branchType = typ[T].asTypeRepr
       branchType.asType match
         case '[t] =>
           val thenExpr = interpretBlockWithVars(thenp).asExprOf[t]
@@ -164,10 +168,10 @@ trait IfThenElseGen extends Gen with IfThenElseExp {
     }
 
     d match {
-      case Reflect(IfThenElse(cond, thenp, elsep), _, _) =>
-        interpretIf(cond, thenp, elsep)
-      case IfThenElse(cond, thenp, elsep) =>
-        interpretIf(cond, thenp, elsep)
+      case Reflect(node @ IfThenElse(cond, thenp, elsep), _, _) =>
+        interpretIf(cond, thenp, elsep)(using node.m)
+      case node @ IfThenElse(cond, thenp, elsep) =>
+        interpretIf(cond, thenp, elsep)(using node.m)
       case _ =>
         super.interpretDefWithEnv(d)
     }
