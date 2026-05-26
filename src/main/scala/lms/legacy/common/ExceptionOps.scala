@@ -9,10 +9,13 @@ import lms.legacy.compat.SourceContext
 import scala.quoted.*
 
 trait ExceptionOps extends Variables {
-  case class VirtualCatchCase[T](exceptionClassName: String, handler: () => Rep[T])
+  case class VirtualCatchCase[T](exceptionClassName: String, guard: Option[() => Rep[Boolean]], handler: () => Rep[T])
 
   def __catchCase[T](exceptionClassName: String, handler: => Rep[T]): VirtualCatchCase[T] =
-    VirtualCatchCase(exceptionClassName, () => handler)
+    VirtualCatchCase(exceptionClassName, None, () => handler)
+
+  def __guardedCatchCase[T](exceptionClassName: String, guard: => Rep[Boolean], handler: => Rep[T]): VirtualCatchCase[T] =
+    VirtualCatchCase(exceptionClassName, Some(() => guard), () => handler)
 
   def __tryCatch[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(using pos: SourceContext): Rep[T]
   
@@ -23,7 +26,7 @@ trait ExceptionOps extends Variables {
 }
 
 trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
-  case class TryCatch[T:Typ](body: Block[T], catches: List[(String, Block[T])]) extends Def[T]
+  case class TryCatch[T:Typ](body: Block[T], catches: List[(String, Option[Block[Boolean]], Block[T])]) extends Def[T]
   case class ThrowException(exceptionClassName: String, m: Rep[String]) extends Def[Unit]
   
   private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
@@ -42,9 +45,15 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
 
   def __tryCatch[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(using pos: SourceContext): Rep[T] = {
     val bodyBlock = reifyEffects(body)
-    val catchBlocks = catches.toList.map(c => c.exceptionClassName -> reifyEffects(c.handler()))
+    val catchBlocks = catches.toList.map { c =>
+      (c.exceptionClassName, c.guard.map(g => reifyEffects(g())), reifyEffects(c.handler()))
+    }
     val bodyEffects = summarizeEffects(bodyBlock)
-    val catchEffects = catchBlocks.map(_._2).map(summarizeEffects).foldLeft(Pure())(infix_orElse)
+    val catchEffects = catchBlocks.foldLeft(Pure()) { (acc, c) =>
+      val guardEffects = c._2.map(summarizeEffects).getOrElse(Pure())
+      val handlerEffects = summarizeEffects(c._3)
+      infix_orElse(acc, infix_andThen(guardEffects, handlerEffects))
+    }
     reflectEffectInternal(TryCatch(bodyBlock, catchBlocks), infix_andThen(bodyEffects, catchEffects))
   }
 
@@ -52,7 +61,7 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   
   override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = e match {
     case TryCatch(body, catches) =>
-      TryCatch[A](f(body), catches.map { case (exceptionClassName, handler) => exceptionClassName -> f(handler) })
+      TryCatch[A](f(body), catches.map { case (exceptionClassName, guard, handler) => (exceptionClassName, guard.map(f(_)), f(handler)) })
     case _ =>
       super.mirrorDef(e, f)
   }
@@ -61,12 +70,16 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
     case Reflect(TryCatch(body, catches), u, es) =>
       if (f.hasContext) {
         val mirroredCatches: List[VirtualCatchCase[A]] =
-          catches.map { case (exceptionClassName, handler) =>
-            VirtualCatchCase[A](exceptionClassName, () => f.reflectBlock(handler).asInstanceOf[Exp[A]])
+          catches.map { case (exceptionClassName, guard, handler) =>
+            VirtualCatchCase[A](
+              exceptionClassName,
+              guard.map(g => () => f.reflectBlock(g).asInstanceOf[Exp[Boolean]]),
+              () => f.reflectBlock(handler).asInstanceOf[Exp[A]]
+            )
           }
         __tryCatch[A](f.reflectBlock(body), mirroredCatches*)
       } else {
-        reflectMirrored(Reflect(TryCatch[A](f(body), catches.map { case (exceptionClassName, handler) => exceptionClassName -> f(handler) }), mapOver(f, u), f(es)))(using mtyp1[A], pos)
+        reflectMirrored(Reflect(TryCatch[A](f(body), catches.map { case (exceptionClassName, guard, handler) => (exceptionClassName, guard.map(f(_)), f(handler)) }), mapOver(f, u), f(es)))(using mtyp1[A], pos)
       }
     case Reflect(ThrowException(exceptionClassName, s), u, es) =>
       reflectMirrored(Reflect(ThrowException(exceptionClassName, f(s)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
@@ -74,7 +87,7 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   }).asInstanceOf[Exp[A]]  
 
   override def aliasSyms(e: Any): List[Sym[Any]] = e match {
-    case TryCatch(body, catches) => syms(body) ::: catches.flatMap { case (_, handler) => syms(handler) }
+    case TryCatch(body, catches) => syms(body) ::: catches.flatMap { case (_, guard, handler) => guard.toList.flatMap(syms) ::: syms(handler) }
     case _ => super.aliasSyms(e)
   }
 
@@ -95,14 +108,14 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
 
   override def symsFreq(e: Any): List[(Sym[Any], Double)] = e match {
     case TryCatch(body, catches) =>
-      freqHot(body) ++ catches.flatMap { case (_, handler) => freqCold(handler) }
+      freqHot(body) ++ catches.flatMap { case (_, guard, handler) => guard.toList.flatMap(freqCold) ++ freqCold(handler) }
     case _ =>
       super.symsFreq(e)
   }
 
   override def boundSyms(e: Any): List[Sym[Any]] = e match {
     case TryCatch(body, catches) =>
-      blockEffectSyms(body) ::: catches.flatMap { case (_, handler) => blockEffectSyms(handler) }
+      blockEffectSyms(body) ::: catches.flatMap { case (_, guard, handler) => guard.toList.flatMap(blockEffectSyms) ::: blockEffectSyms(handler) }
     case _ =>
       super.boundSyms(e)
   }
@@ -119,9 +132,15 @@ trait ScalaGenExceptionOps extends ScalaGenBase {
       emitBlock(bodyAny)
       stream.println(quote(getBlockResult(bodyAny)))
       stream.println("} catch {")
-      catches.foreach { case (exceptionClassName, handler) =>
+      catches.foreach { case (exceptionClassName, guard, handler) =>
         val handlerAny = handler.asInstanceOf[Block[Any]]
-        stream.println(s"case _: $exceptionClassName =>")
+        stream.println(s"case _: $exceptionClassName" + guard.map(_ => " if {").getOrElse(" =>"))
+        guard.foreach { guardBlock =>
+          val guardAny = guardBlock.asInstanceOf[Block[Any]]
+          emitBlock(guardAny)
+          stream.println(quote(getBlockResult(guardAny)) + " } =>")
+        }
+        if guard.isEmpty then stream.println()
         emitBlock(handlerAny)
         stream.println(quote(getBlockResult(handlerAny)))
       }
@@ -138,16 +157,17 @@ trait ExceptionOpsGen extends Gen with ExceptionOpsExp {
   override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
 
-    def interpretTryCatch[T](body: this.Block[T], catches: List[(String, this.Block[T])]): Term = {
+    def interpretTryCatch[T](body: this.Block[T], catches: List[(String, Option[this.Block[Boolean]], this.Block[T])]): Term = {
       val bodyTerm = interpretBlockWithVars(body)(using q, env)
       val valueType = body.res.tp.asTypeRepr
       valueType.asType match {
         case '[t] =>
-          def buildCases(rest: List[(String, this.Block[T])]): List[CaseDef] =
-            rest.map { case (exceptionClassName, handler) =>
+          def buildCases(rest: List[(String, Option[this.Block[Boolean]], this.Block[T])]): List[CaseDef] =
+            rest.map { case (exceptionClassName, guard, handler) =>
               val exceptionType = Symbol.requiredClass(exceptionClassName).typeRef
+              val guardTerm = guard.map(g => interpretBlockWithVars(g)(using q, env))
               val handlerTerm = interpretBlockWithVars(handler)(using q, env).asExprOf[t]
-              CaseDef(Typed(Wildcard(), TypeTree.of(using exceptionType.asType)), None, handlerTerm.asTerm)
+              CaseDef(Typed(Wildcard(), TypeTree.of(using exceptionType.asType)), guardTerm, handlerTerm.asTerm)
             }
           Try(bodyTerm, buildCases(catches), None)
       }

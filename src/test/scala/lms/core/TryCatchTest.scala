@@ -50,6 +50,15 @@ trait TryCatchSnippets extends Dsl {
       case _: IllegalArgumentException => 30
       case _: Exception => 40
     }
+
+  def guardedCatch(x: Rep[Int]): Rep[Int] =
+    try {
+      if (x < 0) throw new Exception("boom")
+      10
+    } catch {
+      case err: Exception if x == -1 => 20
+      case _: Exception => 30
+    }
 }
 
 class TryCatchTest extends AnyFunSuite with Matchers {
@@ -94,5 +103,14 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 10
     staged(true) shouldBe 30
+  }
+
+  test("virtualized try/catch supports staged catch guards and unused binders") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.guardedCatch(_)
+    val staged = compiler.compile(f)
+
+    staged(3) shouldBe 10
+    staged(-1) shouldBe 20
+    staged(-2) shouldBe 30
   }
 }

@@ -1148,6 +1148,34 @@ class virt extends MacroAnnotation {
         loop(pattern)
       }
 
+      private def tryCatchPatternBinders(pattern: Tree): List[Symbol] = {
+        def loop(tree: Tree): List[Symbol] = stripPattern(tree) match {
+          case Bind(name, inner) if name != "_" =>
+            tree.symbol :: loop(inner)
+          case Typed(Bind(name, inner), _) if name != "_" =>
+            tree.symbol :: loop(inner)
+          case _ =>
+            Nil
+        }
+        loop(pattern)
+      }
+
+      private def mentionsSymbols(term: Tree, targets: Set[Symbol]): Boolean = {
+        var found = false
+        val traverser = new TreeTraverser {
+          override def traverseTree(tree: Tree)(owner: Symbol): Unit =
+            if !found then
+              tree match {
+                case ident: Ident if targets.contains(ident.symbol) =>
+                  found = true
+                case _ =>
+                  super.traverseTree(tree)(owner)
+              }
+        }
+        traverser.traverseTree(term)(Symbol.spliceOwner)
+        found
+      }
+
       private def transformCaseDefHost(cdef: CaseDef, owner: Symbol): CaseDef =
         CaseDef.copy(cdef)(cdef.pattern, cdef.guard.map(transformTermRec(_, owner, expectVar = false)), transformTermRec(cdef.rhs, owner, expectVar = false))
 
@@ -1155,36 +1183,48 @@ class virt extends MacroAnnotation {
         val body = transformTerm(tryTerm.body)(ctx.owner)
         val transformedCases = tryTerm.cases.map(transformCaseDefHost(_, ctx.owner))
 
-        def caseHandler(cdef: CaseDef): Option[(String, Term)] =
-          if cdef.guard.nonEmpty then None
-          else tryCatchCaseExceptionName(cdef.pattern).map { exceptionClassName =>
-            exceptionClassName -> ensureTrailingRep(transformTerm(cdef.rhs)(ctx.owner), ctx)
+        def caseHandler(cdef: CaseDef): Option[(String, Option[Term], Term)] = {
+          val binders = tryCatchPatternBinders(cdef.pattern).toSet
+          if binders.nonEmpty && (cdef.guard.exists(mentionsSymbols(_, binders)) || mentionsSymbols(cdef.rhs, binders)) then
+            report.errorAndAbort("virtualized try/catch does not yet support using catch binder values inside guards or handlers")
+          tryCatchCaseExceptionName(cdef.pattern).map { exceptionClassName =>
+            val guard = cdef.guard.map { g =>
+              withForcedThrowVirtualization {
+                ensureTrailingRep(transformTerm(g)(ctx.owner), ctx)
+              }
+            }
+            val handler = withForcedThrowVirtualization {
+              ensureTrailingRep(transformTerm(cdef.rhs)(ctx.owner), ctx)
+            }
+            (exceptionClassName, guard, handler)
           }
+        }
 
         val handlers = tryTerm.cases.map(caseHandler)
         val hasStagedBody = !classifyTerm(body).isInstanceOf[Bare]
-        val hasStagedHandler = handlers.flatten.exists { case (_, rhs) => !classifyTerm(rhs).isInstanceOf[Bare] }
-        val shouldVirtualize = hasStagedBody || hasStagedHandler
+        val hasStagedHandler = handlers.flatten.exists { case (_, _, rhs) => !classifyTerm(rhs).isInstanceOf[Bare] }
+        val hasStagedGuard = handlers.flatten.exists { case (_, guard, _) => guard.exists(g => !classifyTerm(g).isInstanceOf[Bare]) }
+        val shouldVirtualize = hasStagedBody || hasStagedHandler || hasStagedGuard
 
         if !shouldVirtualize then
           Try.copy(tryTerm)(body, transformedCases, tryTerm.finalizer.map(transformTermRec(_, ctx.owner, expectVar = false)))
         else if !isEmptyFinally(tryTerm.finalizer) then
           report.errorAndAbort("virtualized try/catch does not support finally yet")
         else if handlers.contains(None) then
-          report.errorAndAbort("virtualized try/catch currently supports only unguarded wildcard or Throwable-typed catch cases")
+          report.errorAndAbort("virtualized try/catch currently supports only wildcard or Throwable-typed catch cases")
         else {
           val bodyRep = withForcedThrowVirtualization {
             ensureTrailingRep(transformTerm(tryTerm.body)(ctx.owner), ctx)
           }
           val valueType = repOrVar(bodyRep.tpe.widen).t
-          val catchTerms = tryTerm.cases.flatMap { cdef =>
-            caseHandler(cdef).map { case (exceptionClassName, _) =>
-              val handler = withForcedThrowVirtualization {
-                ensureTrailingRep(transformTerm(cdef.rhs)(ctx.owner), ctx)
+          val catchTerms = handlers.flatten.map { case (exceptionClassName, guard, handler) =>
+              guard match {
+                case Some(cond) =>
+                  Select.overloaded(ctx.thist, "__guardedCatchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), cond, handler))
+                case None =>
+                  Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
               }
-              Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
             }
-          }
           Apply(
             Select.overloaded(ctx.thist, "__tryCatch", List(valueType), bodyRep :: catchTerms),
             List(findTypW(ctx.thist, valueType), ctx.srcGen))
