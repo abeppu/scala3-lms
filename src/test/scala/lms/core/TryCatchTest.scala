@@ -33,6 +33,23 @@ trait TryCatchSnippets extends Dsl {
       case _: IllegalArgumentException => 40
       case _: Exception => 50
     }
+
+  def throwSyntaxException(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new Exception("boom")
+      10
+    } catch {
+      case _: Exception => 20
+    }
+
+  def throwSyntaxIllegalArgument(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new IllegalArgumentException("bad")
+      10
+    } catch {
+      case _: IllegalArgumentException => 30
+      case _: Exception => 40
+    }
 }
 
 class TryCatchTest extends AnyFunSuite with Matchers {
@@ -61,5 +78,21 @@ class TryCatchTest extends AnyFunSuite with Matchers {
     staged(0) shouldBe 50
     staged(-1) shouldBe 50
     staged(3) shouldBe 50
+  }
+
+  test("virtualized throw syntax supports new Exception(msg)") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.throwSyntaxException(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 10
+    staged(true) shouldBe 20
+  }
+
+  test("virtualized throw syntax preserves thrown subclass types") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.throwSyntaxIllegalArgument(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 10
+    staged(true) shouldBe 30
   }
 }

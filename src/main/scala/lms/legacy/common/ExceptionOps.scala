@@ -18,12 +18,13 @@ trait ExceptionOps extends Variables {
   
   def fatal(m: Rep[String]) = throw_exception(m)
   
-  def throw_exception(m: Rep[String]): Rep[Unit]  
+  def throw_exception(m: Rep[String]): Rep[Unit] = throw_exception_class("java.lang.Exception", m)
+  def throw_exception_class(exceptionClassName: String, m: Rep[String]): Rep[Unit]
 }
 
 trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   case class TryCatch[T:Typ](body: Block[T], catches: List[(String, Block[T])]) extends Def[T]
-  case class ThrowException(m: Rep[String]) extends Def[Unit]
+  case class ThrowException(exceptionClassName: String, m: Rep[String]) extends Def[Unit]
   
   private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
     case Def(Reify(_, _, effects)) =>
@@ -47,7 +48,7 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
     reflectEffectInternal(TryCatch(bodyBlock, catchBlocks), infix_andThen(bodyEffects, catchEffects))
   }
 
-  def throw_exception(m: Exp[String]) = reflectEffect(ThrowException(m), Global())    
+  def throw_exception_class(exceptionClassName: String, m: Exp[String]) = reflectEffect(ThrowException(exceptionClassName, m), Global())    
   
   override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = e match {
     case TryCatch(body, catches) =>
@@ -67,7 +68,8 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
       } else {
         reflectMirrored(Reflect(TryCatch[A](f(body), catches.map { case (exceptionClassName, handler) => exceptionClassName -> f(handler) }), mapOver(f, u), f(es)))(using mtyp1[A], pos)
       }
-    case Reflect(ThrowException(s), u, es) => reflectMirrored(Reflect(ThrowException(f(s)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
+    case Reflect(ThrowException(exceptionClassName, s), u, es) =>
+      reflectMirrored(Reflect(ThrowException(exceptionClassName, f(s)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]  
 
@@ -124,7 +126,8 @@ trait ScalaGenExceptionOps extends ScalaGenBase {
         stream.println(quote(getBlockResult(handlerAny)))
       }
       stream.println("}")
-    case ThrowException(m) => emitValDef(sym, src"throw new Exception($m)")
+    case ThrowException(exceptionClassName, m) =>
+      emitValDef(sym, s"throw new $exceptionClassName(${quote(m)})")
     case _ => super.emitNode(sym, rhs)
   }
 }
@@ -155,12 +158,12 @@ trait ExceptionOpsGen extends Gen with ExceptionOpsExp {
         interpretTryCatch(body, catches)
       case TryCatch(body, catches) =>
         interpretTryCatch(body, catches)
-      case Reflect(ThrowException(m), _, _) =>
+      case Reflect(ThrowException(exceptionClassName, m), _, _) =>
         val message = interpretExpWithEnv(m).asExprOf[String]
-        '{ throw new Exception($message) }.asTerm
-      case ThrowException(m) =>
+        '{ throw java.lang.Class.forName(${Expr(exceptionClassName)}).getConstructor(classOf[String]).newInstance($message).asInstanceOf[Throwable] }.asTerm
+      case ThrowException(exceptionClassName, m) =>
         val message = interpretExpWithEnv(m).asExprOf[String]
-        '{ throw new Exception($message) }.asTerm
+        '{ throw java.lang.Class.forName(${Expr(exceptionClassName)}).getConstructor(classOf[String]).newInstance($message).asInstanceOf[Throwable] }.asTerm
       case _ =>
         super.interpretDefWithEnv(d)
     }
@@ -172,7 +175,7 @@ trait CLikeGenExceptionOps extends CLikeGenBase {
   import IR._
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
-    case ThrowException(m) => 
+    case ThrowException(_, m) => 
       stream.println("printf(" + quote(m) + ".c_str());")
       stream.println("assert(false);")
     case _ => super.emitNode(sym, rhs)
@@ -185,7 +188,7 @@ trait CudaGenExceptionOps extends CudaGenBase with CLikeGenExceptionOps {
   import IR._
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
-    case ThrowException(m) =>
+    case ThrowException(_, m) =>
       stream.println("printf(" + quote(m) + ");")
       stream.println("assert(false);")
     case _ => super.emitNode(sym, rhs)

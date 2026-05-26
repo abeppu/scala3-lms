@@ -93,6 +93,7 @@ class virt extends MacroAnnotation {
     val reboundAliases = collection.mutable.Map.empty[Symbol, Symbol]
     val reboundPatternNames = collection.mutable.Map.empty[String, Symbol]
     val activeTypedPatternNames = collection.mutable.Set.empty[String]
+    var forceThrowVirtualizationDepth = 0
 
     // Mutable Scala locals become freshly rebound immutable vals of LMS type Var[T]. We additionally
     // track the element type of those Var symbols so reads and writes can be recognized quickly.
@@ -508,6 +509,16 @@ class virt extends MacroAnnotation {
       try Select.unique(ctx.thist, name)
       catch
         case _: Throwable => report.errorAndAbort(error)
+
+    def withForcedThrowVirtualization(body: => Term): Term = {
+      forceThrowVirtualizationDepth += 1
+      try body
+      finally forceThrowVirtualizationDepth -= 1
+    }
+
+    def shouldForceThrowVirtualization: Boolean =
+      forceThrowVirtualizationDepth > 0
+
     // Main tree transformer. The strategy is:
     // 1. rewrite local mutable definitions into LMS Vars
     // 2. normalize terms so Vars become readable Reps when needed
@@ -748,13 +759,58 @@ class virt extends MacroAnnotation {
             val elsep = transformTerm(ifTerm.elsep)(ctx.owner)
             If.copy(ifTerm)(normalizedGuard, thenp, elsep)
           case _ =>
-            val thenp = ensureTrailingRep(transformTerm(ifTerm.thenp)(ctx.owner), ctx)
-            val elsep = ensureTrailingRep(transformTerm(ifTerm.elsep)(ctx.owner), ctx)
+            val thenp = withForcedThrowVirtualization {
+              ensureTrailingRep(transformTerm(ifTerm.thenp)(ctx.owner), ctx)
+            }
+            val elsep = withForcedThrowVirtualization {
+              ensureTrailingRep(transformTerm(ifTerm.elsep)(ctx.owner), ctx)
+            }
             val valueType = repOrVar(thenp.tpe.widen).t
             val typW = findTypW(ctx.thist, valueType)
             Apply(
               Select.overloaded(ctx.thist, "__ifThenElse", List(valueType), List(normalizedGuard, thenp, elsep)),
               List(typW, ctx.srcGen))
+        }
+      }
+
+      private def supportedThrownException(term: Term): Option[(String, Term)] = {
+        def normalize(tree: Term): Term = tree match {
+          case Inlined(_, _, inner) => normalize(inner)
+          case Typed(expr, _) => normalize(expr)
+          case Block(Nil, expr) => normalize(expr)
+          case other => other
+        }
+
+        normalize(term) match {
+          case Apply(Select(New(tpt), ctor), List(msg)) if ctor == "<init>" =>
+            val normalized = tpt.tpe.dealias.widenTermRefByName.widen
+            val className = normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
+            className match {
+              case "java.lang.Exception" | "java.lang.IllegalArgumentException" =>
+                Some(className -> msg)
+              case _ =>
+                None
+            }
+          case _ =>
+            None
+        }
+      }
+
+      private def rewriteThrow(ctx: MacroCtx, throwApply: Apply, throwExpr: Term, owner: Symbol): Term = {
+        supportedThrownException(throwExpr) match {
+          case Some((exceptionClassName, msgTree)) =>
+            val msg = transformTerm(msgTree)(owner)
+            val msgKind = classifyTerm(msg)
+            if shouldForceThrowVirtualization || !msgKind.isInstanceOf[Bare] then
+              invokeOverloadedWithSearch(ctx, "throw_exception_class", List(Literal(StringConstant(exceptionClassName)), wrapBareTerm(msg, ctx)))
+                .getOrElse(report.errorAndAbort("failed to virtualize throw_exception_class"))
+            else
+              Apply.copy(throwApply)(throwApply.fun, List(msg))
+          case None =>
+            if shouldForceThrowVirtualization then
+              report.errorAndAbort("virtualized throw currently supports only new Exception(msg) and new IllegalArgumentException(msg)")
+            else
+              Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
         }
       }
 
@@ -1053,7 +1109,9 @@ class virt extends MacroAnnotation {
                 val bindings = patternBindings(ctx, scrutinee, cdef.pattern)
                 val typedNames = patternTypedBindingNames(cdef.pattern)
                 val rhs = withPatternBindings(bindings, typedNames, ctx.owner) {
-                  transformTerm(cdef.rhs)(ctx.owner)
+                  withForcedThrowVirtualization {
+                    transformTerm(cdef.rhs)(ctx.owner)
+                  }
                 }
                 caseCondition(ctx, scrutinee, cdef) match {
                   case None => rhs
@@ -1115,10 +1173,17 @@ class virt extends MacroAnnotation {
         else if handlers.contains(None) then
           report.errorAndAbort("virtualized try/catch currently supports only unguarded wildcard or Throwable-typed catch cases")
         else {
-          val bodyRep = ensureTrailingRep(body, ctx)
+          val bodyRep = withForcedThrowVirtualization {
+            ensureTrailingRep(transformTerm(tryTerm.body)(ctx.owner), ctx)
+          }
           val valueType = repOrVar(bodyRep.tpe.widen).t
-          val catchTerms = handlers.flatten.map { case (exceptionClassName, handler) =>
-            Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
+          val catchTerms = tryTerm.cases.flatMap { cdef =>
+            caseHandler(cdef).map { case (exceptionClassName, _) =>
+              val handler = withForcedThrowVirtualization {
+                ensureTrailingRep(transformTerm(cdef.rhs)(ctx.owner), ctx)
+              }
+              Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
+            }
           }
           Apply(
             Select.overloaded(ctx.thist, "__tryCatch", List(valueType), bodyRep :: catchTerms),
@@ -1210,7 +1275,9 @@ class virt extends MacroAnnotation {
 
       // Replace while loops with __whileDo(cond, body).
       private def rewriteWhile(ctx: MacroCtx, guard: Term, body: Term): Term = {
-        val normalizedBody = dropTrailingUnitInWhileBody(body, ctx)
+        val normalizedBody = withForcedThrowVirtualization {
+          dropTrailingUnitInWhileBody(body, ctx)
+        }
         val method = findMethods(ctx.owner, "__whileDo") match {
           case _ :: symb :: _ => symb
           case symb :: Nil => symb
@@ -1358,6 +1425,8 @@ class virt extends MacroAnnotation {
             }
           case ifTerm: If =>
             rewriteIf(ctx, ifTerm)
+          case throwApply @ Apply(Ident("throw"), List(throwExpr)) =>
+            rewriteThrow(ctx, throwApply, throwExpr, owner)
           case tryTerm: Try =>
             rewriteTryCatch(ctx, tryTerm)
           case matchTerm: Match =>

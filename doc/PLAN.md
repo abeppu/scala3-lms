@@ -1,11 +1,12 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 78 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 80 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
-  - [ ] Fix effectful staged `if` values flowing into later generic numeric/operator call sites
+  - [x] Fix effectful staged `if` values flowing into later generic numeric/operator call sites
+    - [ ] Remaining cleanup: simplify the macro-side IR shape so runtime compile does not need to normalize symbolic constants in that path
   - [ ] Add support for `match` / pattern matching on staged values
     - [x] First pass: staged scrutinee with literal/stable-id/alternative cases, wildcard fallback, guards, and simple binders/aliases
     - [x] Initial typed-pattern support for staged wildcard type tests over `Rep[Any]`
@@ -13,7 +14,8 @@
     - [ ] Remaining gaps: extractor patterns and full host-match preservation for richer pattern trees
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
-    - [ ] Remaining gaps: `finally`, `throw` syntax virtualization, `return`, guarded catch cases, and catch binders whose values are referenced in the handler
+    - [x] Lower `throw new Exception(msg)` and `throw new IllegalArgumentException(msg)` into staged exception IR
+    - [ ] Remaining gaps: `finally`, broader `throw` syntax virtualization, `return`, guarded catch cases, and catch binders whose values are referenced in the handler
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
   - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks
