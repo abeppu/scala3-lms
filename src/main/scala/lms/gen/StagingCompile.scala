@@ -38,6 +38,41 @@ trait StagingCompile extends QuotedGen with CodeMotion {
     getExactScope(deepScope)(List(result.asInstanceOf[Exp[Any]]))
   }
 
+  protected def blockReify(block: Block[?]): Option[Reify[?]] = block.res match {
+    case Def(reify: Reify[?]) =>
+      Some(reify)
+    case sym: Sym[?] =>
+      findCompileDefinition(sym.asInstanceOf[Sym[Any]]) match {
+        case Some(TP(_, reify: Reify[?])) => Some(reify)
+        case Some(TP(_, Reflect(reify: Reify[?], _, _))) => Some(reify)
+        case _ => None
+      }
+    case _ =>
+      None
+  }
+
+  protected def statementForEffect(exp: Exp[Any], scope: List[Stm]): List[Stm] = exp match {
+    case sym: Sym[?] =>
+      scope.collectFirst { case stm @ TP(lhs, _) if lhs == sym => stm }.toList
+    case other =>
+      buildExactScopeForResult(other, scope)
+  }
+
+  protected def scheduleForBlock(block: Block[?], scope: List[Stm]): List[Stm] =
+    blockReify(block) match {
+      case Some(reify) =>
+        val effectTargets = reify.effects.asInstanceOf[List[Exp[Any]]].distinct
+        val effectScope = effectTargets.flatMap(statementForEffect(_, scope))
+        val resultExp = reify.x.asInstanceOf[Exp[Any]]
+        val resultScope =
+          if effectTargets.contains(resultExp) then Nil
+          else buildExactScopeForResult(resultExp, scope)
+        val wanted = (effectScope ++ resultScope).toSet
+        scope.filter(wanted)
+      case None =>
+        buildExactScopeForResult(block.res, scope)
+    }
+
   override def interpretExpWithEnv[A](e: Exp[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
 
@@ -130,17 +165,26 @@ trait StagingCompile extends QuotedGen with CodeMotion {
   }
 
   protected def interpretBlockWithVars[A](block: Block[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
-    def blockReify(block: Block[?]): Option[Reify[?]] = block.res match {
-      case Def(reify: Reify[?]) =>
-        Some(reify)
-      case sym: Sym[?] =>
-        findCompileDefinition(sym.asInstanceOf[Sym[Any]]) match {
-          case Some(TP(_, reify: Reify[?])) => Some(reify)
-          case Some(TP(_, Reflect(reify: Reify[?], _, _))) => Some(reify)
-          case _ => None
-        }
-      case _ =>
-        None
+    interpretBlockWithVarsImpl(block, includeAllStatements = false)
+  }
+
+  protected def interpretBlockWithEffectOrder[A](block: Block[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    interpretBlockWithVarsImpl(block, includeAllStatements = true)
+  }
+
+  private def interpretBlockWithVarsImpl[A](block: Block[A], includeAllStatements: Boolean)(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    def reusesOuterSymbol(sym: Sym[?]): Boolean =
+      findCompileDefinition(sym).exists {
+        case TP(_, rhs) =>
+          rhs match {
+            case Reflect(inner, _, _) => reusesOuterDef(inner)
+            case inner => reusesOuterDef(inner)
+          }
+      }
+
+    def reusesOuterDef(defn: Def[?]): Boolean = defn match {
+      case _: VariablesExp#NewVar[?] => true
+      case _ => false
     }
 
     val schedule =
@@ -154,11 +198,11 @@ trait StagingCompile extends QuotedGen with CodeMotion {
         case None =>
           buildExactScopeForResult(block.res, compileDefs)
       }
-    val filtered = schedule.filterNot(stm => infix_lhs(stm).exists(env.contains))
-    interpretScheduleWithVars((block.res, filtered))
+    val filtered = schedule.filterNot(stm => infix_lhs(stm).exists(sym => env.contains(sym) && reusesOuterSymbol(sym)))
+    interpretScheduleWithVars((block.res, filtered), includeAllStatements)
   }
 
-  protected def interpretScheduleWithVars[A](graph: (Exp[A], List[Stm]))(using q: Quotes, env0: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+  protected def interpretScheduleWithVars[A](graph: (Exp[A], List[Stm]), includeAllStatements: Boolean = false)(using q: Quotes, env0: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
     import q.reflect.*
     var env = env0
     var varSyms = Set.empty[Sym[?]]
@@ -208,7 +252,7 @@ trait StagingCompile extends QuotedGen with CodeMotion {
         throw new Exception(s"unsupported block result $exp")
     }
 
-    val nestedBlockSymbols =
+    val nestedBlockSymbols: Set[Sym[Any]] =
       graph._2
         .flatMap { case TP(_, rhs) =>
           blocks(rhs).flatMap { block =>
@@ -217,6 +261,7 @@ trait StagingCompile extends QuotedGen with CodeMotion {
                 case TP(_, blockRhs) => varInit(blockRhs).isEmpty
               }
               .flatMap(infix_lhs)
+              .map(_.asInstanceOf[Sym[Any]])
           }
         }
         .toSet
@@ -252,7 +297,9 @@ trait StagingCompile extends QuotedGen with CodeMotion {
         (directDependencySymbols(sym.asInstanceOf[Sym[Any]]) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]]))
     }
 
-    val statements = candidateStatements
+    val statements =
+      if includeAllStatements then graph._2
+      else candidateStatements
 
     def materializePureValue(exp: Exp[?]): List[ValDef] = exp match {
       case s @ Sym(_) if !env.contains(s) =>

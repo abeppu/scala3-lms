@@ -18,7 +18,7 @@ trait ExceptionOps extends Variables {
     VirtualCatchCase(exceptionClassName, Some(() => guard), () => handler)
 
   def __tryCatch[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(using pos: SourceContext): Rep[T]
-  def __tryCatchFinally[T:Typ](body: => Rep[T], finalizer: => Rep[Unit], catches: VirtualCatchCase[T]*)(using pos: SourceContext): Rep[T]
+  def __tryCatchFinally[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(finalizer: => Rep[Unit])(using pos: SourceContext): Rep[T]
   
   def fatal(m: Rep[String]) = throw_exception(m)
   
@@ -45,10 +45,10 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   }
 
   def __tryCatch[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(using pos: SourceContext): Rep[T] = {
-    __tryCatchFinally(body, Const(()), catches*)
+    __tryCatchFinally(body, catches*)(Const(()))
   }
 
-  def __tryCatchFinally[T:Typ](body: => Rep[T], finalizer: => Rep[Unit], catches: VirtualCatchCase[T]*)(using pos: SourceContext): Rep[T] = {
+  def __tryCatchFinally[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(finalizer: => Rep[Unit])(using pos: SourceContext): Rep[T] = {
     val bodyBlock = reifyEffects(body)
     val catchBlocks = catches.toList.map { c =>
       (c.exceptionClassName, c.guard.map(g => reifyEffects(g())), reifyEffects(c.handler()))
@@ -89,7 +89,7 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
           }
         finalizer match {
           case Some(fin) =>
-            __tryCatchFinally[A](f.reflectBlock(body), f.reflectBlock(fin), mirroredCatches*)
+            __tryCatchFinally[A](f.reflectBlock(body), mirroredCatches*)(f.reflectBlock(fin))
           case None =>
             __tryCatch[A](f.reflectBlock(body), mirroredCatches*)
         }
@@ -179,18 +179,18 @@ trait ExceptionOpsGen extends Gen with ExceptionOpsExp {
     import q.reflect.*
 
     def interpretTryCatch[T](body: this.Block[T], catches: List[(String, Option[this.Block[Boolean]], this.Block[T])], finalizer: Option[this.Block[Unit]]): Term = {
-      val bodyTerm = interpretBlockWithVars(body)(using q, env)
+      val bodyTerm = interpretBlockWithEffectOrder(body)(using q, env)
       val valueType = body.res.tp.asTypeRepr
       valueType.asType match {
         case '[t] =>
           def buildCases(rest: List[(String, Option[this.Block[Boolean]], this.Block[T])]): List[CaseDef] =
             rest.map { case (exceptionClassName, guard, handler) =>
               val exceptionType = Symbol.requiredClass(exceptionClassName).typeRef
-              val guardTerm = guard.map(g => interpretBlockWithVars(g)(using q, env))
-              val handlerTerm = interpretBlockWithVars(handler)(using q, env).asExprOf[t]
+              val guardTerm = guard.map(g => interpretBlockWithEffectOrder(g)(using q, env))
+              val handlerTerm = interpretBlockWithEffectOrder(handler)(using q, env).asExprOf[t]
               CaseDef(Typed(Wildcard(), TypeTree.of(using exceptionType.asType)), guardTerm, handlerTerm.asTerm)
             }
-          val finalizerTerm = finalizer.map(fin => interpretBlockWithVars(fin)(using q, env))
+          val finalizerTerm = finalizer.map(fin => interpretBlockWithEffectOrder(fin)(using q, env))
           Try(bodyTerm, buildCases(catches), finalizerTerm)
       }
     }

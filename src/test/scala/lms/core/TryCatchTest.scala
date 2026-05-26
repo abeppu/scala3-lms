@@ -97,6 +97,56 @@ trait TryCatchSnippets extends Dsl {
     if (x < 0) return 7
     x + 1
   }
+
+  def finallyValueFeedsArithmetic(x: Rep[Int]): Rep[Int] = {
+    var side = 0
+    (try {
+      side = 1
+      x + 1
+    } finally {
+      side = side + 10
+    }) * 100 + readVar(side)
+  }
+
+  def finallyValueViaLocal(x: Rep[Int]): Rep[Int] = {
+    var side = 0
+    val result =
+      try {
+        side = 1
+        x + 1
+      } finally {
+        side = side + 10
+      }
+    result * 100 + readVar(side)
+  }
+
+  def tryCatchFinallyValueFeedsArithmetic(flag: Rep[Boolean]): Rep[Int] = {
+    var side = 0
+    (try {
+      side = 1
+      if (flag) throw new Exception("boom")
+      10
+    } catch {
+      case _: Exception => 20
+    } finally {
+      side = side + 10
+    }) * 100 + readVar(side)
+  }
+
+  def tryCatchFinallyValueViaLocal(flag: Rep[Boolean]): Rep[Int] = {
+    var side = 0
+    val result =
+      try {
+        side = 1
+        if (flag) throw new Exception("boom")
+        10
+      } catch {
+        case _: Exception => 20
+      } finally {
+        side = side + 10
+      }
+    result * 100 + readVar(side)
+  }
 }
 
 class TryCatchTest extends AnyFunSuite with Matchers {
@@ -181,5 +231,35 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(-1) shouldBe 7
     staged(3) shouldBe 4
+  }
+
+  test("virtualized finally values compose directly in later arithmetic") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.finallyValueFeedsArithmetic(_)
+    val staged = compiler.compile(f)
+
+    staged(3) shouldBe 411
+  }
+
+  test("virtualized finally values survive a local val before later arithmetic") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.finallyValueViaLocal(_)
+    val staged = compiler.compile(f)
+
+    staged(3) shouldBe 411
+  }
+
+  test("virtualized try/catch/finally values compose directly in later arithmetic") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.tryCatchFinallyValueFeedsArithmetic(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 1011
+    staged(true) shouldBe 2011
+  }
+
+  test("virtualized try/catch/finally values survive a local val before later arithmetic") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.tryCatchFinallyValueViaLocal(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 1011
+    staged(true) shouldBe 2011
   }
 }

@@ -638,6 +638,27 @@ class virt extends MacroAnnotation {
         found
       }
 
+      private def rewriteResidualArithmetic(ctx: MacroCtx, term: Term): Term = term match {
+        case inlined @ Inlined(call, bindings, body) =>
+          Inlined.copy(inlined)(call, bindings, rewriteResidualArithmetic(ctx, body))
+        case typed @ Typed(expr, tpt) =>
+          Typed.copy(typed)(rewriteResidualArithmetic(ctx, expr), tpt)
+        case block @ Block(stats, expr) =>
+          Block.copy(block)(stats, rewriteResidualArithmetic(ctx, expr))
+        case applyTerm @ Apply(inner @ Apply(sel @ Select(lhsOuter, op @ ("+" | "-" | "*" | "/")), List(rhs)), implicitArgs)
+            if implicitArgs.nonEmpty =>
+          rewriteArithmeticBinaryWithImplicit(ctx, applyTerm, inner, sel, lhsOuter, rhs, op, implicitArgs)
+        case applyTerm @ Apply(inner @ Apply(TypeApply(sel @ Select(lhsOuter, op @ ("+" | "-" | "*" | "/")), _), List(rhs)), implicitArgs)
+            if implicitArgs.nonEmpty =>
+          rewriteArithmeticBinaryWithImplicit(ctx, applyTerm, inner, sel, lhsOuter, rhs, op, implicitArgs)
+        case applyTerm @ Apply(tapply @ TypeApply(sel @ Select(lhs, op @ ("+" | "-" | "*" | "/")), _), List(rhs)) =>
+          rewriteArithmeticBinaryTypeApply(ctx, applyTerm, tapply, sel, lhs, rhs, op)
+        case applyTerm @ Apply(sel @ Select(lhs, op @ ("+" | "-" | "*" | "/")), List(rhs)) =>
+          rewriteArithmeticBinary(ctx, applyTerm, sel, lhs, rhs, op)
+        case other =>
+          other
+      }
+
       private def rewriteArithmeticBinary(ctx: MacroCtx, applyTerm: Apply, sel: Select, lhsTree: Term, rhsTree: Term, op: String): Term = {
         val lhs = transformTerm(lhsTree)(ctx.owner)
         val rhs = transformTerm(rhsTree)(ctx.owner)
@@ -659,7 +680,10 @@ class virt extends MacroAnnotation {
             (mentionsTypedPattern(lhsTree, ctx.owner) || mentionsTypedPattern(rhsTree, ctx.owner)) &&
             isIntKind(lhsKind) && isIntKind(rhsKind) &&
             !(lhsKind.isInstanceOf[Bare] && rhsKind.isInstanceOf[Bare])
-        if intVarInvolved || typedPatternArithmetic then
+        val stagedIntArithmetic =
+          isIntKind(lhsKind) && isIntKind(rhsKind) &&
+            !(lhsKind.isInstanceOf[Bare] && rhsKind.isInstanceOf[Bare])
+        if stagedIntArithmetic || intVarInvolved || typedPatternArithmetic then
           val method = op match {
             case "+" => "int_plus"
             case "-" => "int_minus"
@@ -675,8 +699,8 @@ class virt extends MacroAnnotation {
       private def rewriteArithmeticBinaryWithImplicit(ctx: MacroCtx, outer: Apply, inner: Apply, sel: Select, lhsTree: Term, rhsTree: Term, op: String, implicitArgs: List[Term]): Term = {
         val lhs = transformTerm(lhsTree)(ctx.owner)
         val rhs = transformTerm(rhsTree)(ctx.owner)
-        val lhsDirect = transformTerm(stripNumericOpsReceiver(lhsTree))(ctx.owner)
-        val rhsDirect = transformTerm(stripNumericOpsReceiver(rhsTree))(ctx.owner)
+        val lhsDirect = rewriteResidualArithmetic(ctx, transformTerm(stripNumericOpsReceiver(lhsTree))(ctx.owner))
+        val rhsDirect = rewriteResidualArithmetic(ctx, transformTerm(stripNumericOpsReceiver(rhsTree))(ctx.owner))
         val (lhsNorm, lhsKind) = normalizeRepTerm(lhsDirect, ctx)
         val (rhsNorm, rhsKind) = normalizeRepTerm(rhsDirect, ctx)
         val stagedIntArithmetic =
@@ -698,8 +722,8 @@ class virt extends MacroAnnotation {
       }
 
       private def rewriteArithmeticBinaryTypeApply(ctx: MacroCtx, applyTerm: Apply, tapply: TypeApply, sel: Select, lhsTree: Term, rhsTree: Term, op: String): Term = {
-        val lhs = transformTerm(stripNumericOpsReceiver(lhsTree))(ctx.owner)
-        val rhs = transformTerm(stripNumericOpsReceiver(rhsTree))(ctx.owner)
+        val lhs = rewriteResidualArithmetic(ctx, transformTerm(stripNumericOpsReceiver(lhsTree))(ctx.owner))
+        val rhs = rewriteResidualArithmetic(ctx, transformTerm(stripNumericOpsReceiver(rhsTree))(ctx.owner))
         val (lhsNorm, lhsKind) = normalizeRepTerm(lhs, ctx)
         val (rhsNorm, rhsKind) = normalizeRepTerm(rhs, ctx)
         val stagedIntArithmetic =
@@ -1273,8 +1297,12 @@ class virt extends MacroAnnotation {
           }
           finalizerRep match {
             case Some(fin) =>
-              val call = Select.overloaded(ctx.thist, "__tryCatchFinally", List(valueType), bodyRep :: fin :: materializedCatchTerms)
-              Apply(call, List(findTypW(ctx.thist, valueType), ctx.srcGen))
+              val call = applyImplicitArgs(
+                Apply(
+                  Select.overloaded(ctx.thist, "__tryCatchFinally", List(valueType), bodyRep :: materializedCatchTerms),
+                  List(fin)),
+                List(findTypW(ctx.thist, valueType), ctx.srcGen))
+              call
             case None =>
               Apply(
                 Select.overloaded(ctx.thist, "__tryCatch", List(valueType), bodyRep :: materializedCatchTerms),
@@ -1425,7 +1453,7 @@ class virt extends MacroAnnotation {
       // Var-valued expression as a Var instead of eagerly rewriting it to `readVar(...)`.
       private def transformTermRec(term: Term, owner: Symbol, expectVar: Boolean): Term = {
         val ctx = makeCtx(owner)
-        term match {
+        val rewritten = term match {
           case inlined @ Inlined(call, bindings, body) =>
             val newBindings = bindings.map(b => transformLocalDefinition(b, owner))
             Inlined.copy(inlined)(call, newBindings, transformTermRec(body, owner, expectVar))
@@ -1609,6 +1637,7 @@ class virt extends MacroAnnotation {
             Apply.copy(applyTerm)(newFun, adaptApplyArgs(ctx, newFun, newArgs))
           case _ => super.transformTerm(term)(owner)
         }
+        rewriteResidualArithmetic(ctx, rewritten)
       }
 
       override def transformStatement(statement: Statement)(owner: Symbol): Statement = statement match {

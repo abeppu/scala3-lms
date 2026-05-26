@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 85 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 89 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -18,7 +18,7 @@
     - [x] Support staged catch guards and typed/bound catch patterns when the binder itself is unused
     - [x] Support staged `finally` blocks in the Scala backend/runtime-compile path
     - [x] Support staged `return` for early exits in the Scala backend/runtime-compile path
-    - [ ] Remaining gaps: broader `throw` syntax beyond single-String Throwable constructors, catch binders whose values are referenced in guards or handlers, and richer `try` / `finally` value composition through later generic operator/local-binding rewrites
+    - [ ] Remaining gaps: broader `throw` syntax beyond single-String Throwable constructors and catch binders whose values are referenced in guards or handlers
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
   - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks
