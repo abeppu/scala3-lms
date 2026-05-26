@@ -14,9 +14,9 @@
     - [ ] Remaining gaps: extractor patterns and full host-match preservation for richer pattern trees
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
-    - [x] Lower `throw new Exception(msg)` and `throw new IllegalArgumentException(msg)` into staged exception IR
+    - [x] Lower `throw new ThrowableSubclass(msg)` into staged exception IR for Throwable subclasses with single-String constructors
     - [x] Support staged catch guards and typed/bound catch patterns when the binder itself is unused
-    - [ ] Remaining gaps: `finally`, broader `throw` syntax virtualization, `return`, and catch binders whose values are referenced in guards or handlers
+    - [ ] Remaining gaps: `finally`, broader `throw` syntax beyond single-String Throwable constructors, `return`, and catch binders whose values are referenced in guards or handlers
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
   - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks

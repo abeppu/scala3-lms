@@ -782,15 +782,10 @@ class virt extends MacroAnnotation {
         }
 
         normalize(term) match {
-          case Apply(Select(New(tpt), ctor), List(msg)) if ctor == "<init>" =>
+          case Apply(Select(New(tpt), ctor), List(msg)) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
             val normalized = tpt.tpe.dealias.widenTermRefByName.widen
             val className = normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
-            className match {
-              case "java.lang.Exception" | "java.lang.IllegalArgumentException" =>
-                Some(className -> msg)
-              case _ =>
-                None
-            }
+            Some(className -> msg)
           case _ =>
             None
         }
@@ -808,7 +803,7 @@ class virt extends MacroAnnotation {
               Apply.copy(throwApply)(throwApply.fun, List(msg))
           case None =>
             if shouldForceThrowVirtualization then
-              report.errorAndAbort("virtualized throw currently supports only new Exception(msg) and new IllegalArgumentException(msg)")
+              report.errorAndAbort("virtualized throw currently supports Throwable subclasses with a single String constructor")
             else
               Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
         }

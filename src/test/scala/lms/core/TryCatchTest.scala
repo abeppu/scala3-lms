@@ -59,6 +59,15 @@ trait TryCatchSnippets extends Dsl {
       case err: Exception if x == -1 => 20
       case _: Exception => 30
     }
+
+  def throwSyntaxRuntimeException(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new RuntimeException("bad")
+      10
+    } catch {
+      case _: RuntimeException => 60
+      case _: Exception => 70
+    }
 }
 
 class TryCatchTest extends AnyFunSuite with Matchers {
@@ -112,5 +121,13 @@ class TryCatchTest extends AnyFunSuite with Matchers {
     staged(3) shouldBe 10
     staged(-1) shouldBe 20
     staged(-2) shouldBe 30
+  }
+
+  test("virtualized throw syntax supports arbitrary Throwable subclasses with String constructors") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.throwSyntaxRuntimeException(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 10
+    staged(true) shouldBe 60
   }
 }
