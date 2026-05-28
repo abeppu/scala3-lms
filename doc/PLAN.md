@@ -51,7 +51,7 @@
 - [ ] `dslapi.scala` -> add Scala 3 equivalent after remaining macro/operator gaps are closed
 - [ ] `fft.scala` -> add Scala 3 equivalent once backend/runtime constraints are confirmed for this example
 - [ ] `eval.scala` -> blocked on Scala 3 in-process eval design decision (`CompileScala`-style replacement)
-- [ ] `index.scala` -> add Scala 3 equivalent once chapter aggregation/runner structure is decided
+- [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
 - [ ] `linq.scalax` -> deferred until query/linq staging story is back in scope
 - [ ] `query.scala` -> deferred until query staging + non-Scala backend path is back in scope
 - [ ] `query_unstaged.scala` -> deferred with query chapter
