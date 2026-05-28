@@ -48,7 +48,7 @@
 - [x] `regex.scala` -> Scala 3 equivalent in tree
 - [x] `01_overview.scala` -> Scala 3 equivalent in tree
 - [x] `02_basics.scala` -> Scala 3 equivalent in tree
-- [ ] `dslapi.scala` -> add Scala 3 equivalent after remaining macro/operator gaps are closed
+- [x] `dslapi.scala` -> Scala 3 custom-DSL extension equivalent in tree (Scala backend path)
 - [x] `fft.scala` -> Scala 3 equivalent in tree (Scala backend/runtime-compile path)
 - [ ] `eval.scala` -> blocked on Scala 3 in-process eval design decision (`CompileScala`-style replacement)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
