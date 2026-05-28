@@ -63,16 +63,86 @@ trait FFT extends PrimitiveOpsExp with LiftNumeric with TrigExp with ArraysExp w
 }
 
 class FFTSpec extends AnyFlatSpec with Matchers {
-  
-  "basic compile and application" should "run" in {
-    val fftCompiler = new FFT with StagingCompile with BaseExp with PrimitiveOpsExpOpt with LiftPrimitives with VariablesExpOpt with PrimitiveOpsGen with TrigExpOpt with TrigGen with ArraysExp with ArraysGen {
+  private def mkCompiler = new FFT
+    with StagingCompile
+    with BaseExp
+    with PrimitiveOpsExpOpt
+    with LiftPrimitives
+    with VariablesExpOpt
+    with PrimitiveOpsGen
+    with TrigExpOpt
+    with TrigGen
+    with ArraysExp
+    with ArraysGen {
       override type API = this.type
     }
 
-    val f: fftCompiler.Exp[Array[Double]] => fftCompiler.Exp[Array[Double]] = fftCompiler.fftFromDoubleArray(_, 4)
+  private def dftReference(input: Array[Double]): Array[Double] = {
+    val n = input.length / 2
+    val out = Array.fill(2 * n)(0.0)
+    var k = 0
+    while (k < n) {
+      var sumRe = 0.0
+      var sumIm = 0.0
+      var t = 0
+      while (t < n) {
+        val re = input(2 * t)
+        val im = input(2 * t + 1)
+        val angle = -2.0 * math.Pi * k * t / n
+        val wr = math.cos(angle)
+        val wi = math.sin(angle)
+        sumRe += re * wr - im * wi
+        sumIm += re * wi + im * wr
+        t += 1
+      }
+      out(2 * k) = sumRe
+      out(2 * k + 1) = sumIm
+      k += 1
+    }
+    out
+  }
 
-    val fft8 = fftCompiler.compile(f)
-    val input = Array(1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0) //, 1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0)
-    fft8(input).mkString("Array(", ", ", ")") should be ("Array(6.0, 6.0, 0.0, 0.0, -2.0, 2.0, 0.0, 0.0)")
+  private def assertApproxEq(actual: Array[Double], expected: Array[Double], eps: Double = 1e-9): Unit = {
+    actual.length shouldBe expected.length
+    actual.zip(expected).foreach { case (a, e) =>
+      a shouldBe (e +- eps)
+    }
+  }
+
+  "fft tutorial example" should "compile a fixed-size 4-point transform and match the known result" in {
+    val fftCompiler = mkCompiler
+    val f: fftCompiler.Exp[Array[Double]] => fftCompiler.Exp[Array[Double]] =
+      fftCompiler.fftFromDoubleArray(_, 4)
+    val fft4 = fftCompiler.compile(f)
+
+    val input = Array(1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0)
+    fft4(input).mkString("Array(", ", ", ")") shouldBe "Array(6.0, 6.0, 0.0, 0.0, -2.0, 2.0, 0.0, 0.0)"
+  }
+
+  it should "match a host DFT reference for multiple 4-point inputs" in {
+    val fftCompiler = mkCompiler
+    val f: fftCompiler.Exp[Array[Double]] => fftCompiler.Exp[Array[Double]] =
+      fftCompiler.fftFromDoubleArray(_, 4)
+    val fft4 = fftCompiler.compile(f)
+
+    val inputs = List(
+      Array(1.0, 0.0, 1.0, 0.0, 2.0, 0.0, 2.0, 0.0),
+      Array(0.0, 1.0, 0.0, -1.0, 1.5, 0.5, -2.0, 1.0),
+      Array(-1.0, 2.0, 3.0, -4.0, -2.0, 0.5, 4.0, 1.0)
+    )
+
+    inputs.foreach { in =>
+      assertApproxEq(fft4(in.clone), dftReference(in))
+    }
+  }
+
+  it should "also support a fixed-size 2-point transform" in {
+    val fftCompiler = mkCompiler
+    val f: fftCompiler.Exp[Array[Double]] => fftCompiler.Exp[Array[Double]] =
+      fftCompiler.fftFromDoubleArray(_, 2)
+    val fft2 = fftCompiler.compile(f)
+
+    val input = Array(3.0, 1.0, 2.0, -2.0)
+    assertApproxEq(fft2(input.clone), dftReference(input))
   }
 }

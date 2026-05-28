@@ -49,7 +49,7 @@
 - [x] `01_overview.scala` -> Scala 3 equivalent in tree
 - [x] `02_basics.scala` -> Scala 3 equivalent in tree
 - [ ] `dslapi.scala` -> add Scala 3 equivalent after remaining macro/operator gaps are closed
-- [ ] `fft.scala` -> add Scala 3 equivalent once backend/runtime constraints are confirmed for this example
+- [x] `fft.scala` -> Scala 3 equivalent in tree (Scala backend/runtime-compile path)
 - [ ] `eval.scala` -> blocked on Scala 3 in-process eval design decision (`CompileScala`-style replacement)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
 - [ ] `linq.scalax` -> deferred until query/linq staging story is back in scope
