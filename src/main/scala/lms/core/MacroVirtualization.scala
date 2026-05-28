@@ -820,7 +820,11 @@ class virt extends MacroAnnotation {
         }
       }
 
-      private def supportedThrownException(term: Term): Option[(String, Option[Term])] = {
+      private sealed trait SupportedThrownException
+      private case class ThrownMessageOnly(exceptionClassName: String, message: Option[Term]) extends SupportedThrownException
+      private case class ThrownWithCause(exceptionClassName: String, message: Option[Term], causeClassName: String, causeMessage: Option[Term]) extends SupportedThrownException
+
+      private def supportedThrownException(term: Term): Option[SupportedThrownException] = {
         def normalize(tree: Term): Term = tree match {
           case Inlined(_, _, inner) => normalize(inner)
           case Typed(expr, _) => normalize(expr)
@@ -828,15 +832,28 @@ class virt extends MacroAnnotation {
           case other => other
         }
 
+        def throwableClassName(tpt: TypeTree): String = {
+          val normalized = tpt.tpe.dealias.widenTermRefByName.widen
+          normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
+        }
+
         normalize(term) match {
           case Apply(Select(New(tpt), ctor), List(msg)) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
-            val normalized = tpt.tpe.dealias.widenTermRefByName.widen
-            val className = normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
-            Some(className -> Some(msg))
+            Some(ThrownMessageOnly(throwableClassName(tpt), Some(msg)))
+          case Apply(Select(New(tpt), ctor), List(msg, causeCtor @ Apply(Select(New(causeTpt), causeCtorName), causeArgs)))
+              if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] &&
+                 causeCtorName == "<init>" && causeTpt.tpe <:< TypeRepr.of[Throwable] =>
+            val causeClassName = throwableClassName(causeTpt)
+            causeArgs match {
+              case List(causeMsg) =>
+                Some(ThrownWithCause(throwableClassName(tpt), Some(msg), causeClassName, Some(causeMsg)))
+              case Nil =>
+                Some(ThrownWithCause(throwableClassName(tpt), Some(msg), causeClassName, None))
+              case _ =>
+                None
+            }
           case Apply(Select(New(tpt), ctor), Nil) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
-            val normalized = tpt.tpe.dealias.widenTermRefByName.widen
-            val className = normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
-            Some(className -> None)
+            Some(ThrownMessageOnly(throwableClassName(tpt), None))
           case _ =>
             None
         }
@@ -844,7 +861,7 @@ class virt extends MacroAnnotation {
 
       private def rewriteThrow(ctx: MacroCtx, throwApply: Apply, throwExpr: Term, owner: Symbol): Term = {
         supportedThrownException(throwExpr) match {
-          case Some((exceptionClassName, msgTree)) =>
+          case Some(ThrownMessageOnly(exceptionClassName, msgTree)) =>
             val msg = msgTree.map(transformTerm(_)(owner)).getOrElse(Literal(StringConstant("")))
             val msgKind = classifyTerm(msg)
             if shouldForceThrowVirtualization || !msgKind.isInstanceOf[Bare] then
@@ -852,9 +869,26 @@ class virt extends MacroAnnotation {
                 .getOrElse(report.errorAndAbort("failed to virtualize throw_exception_class"))
             else
               Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
+          case Some(ThrownWithCause(exceptionClassName, msgTree, causeClassName, causeMsgTree)) =>
+            val msg = msgTree.map(transformTerm(_)(owner)).getOrElse(Literal(StringConstant("")))
+            val causeMsg = causeMsgTree.map(transformTerm(_)(owner)).getOrElse(Literal(StringConstant("")))
+            val shouldVirtualizeThisThrow =
+              shouldForceThrowVirtualization || !classifyTerm(msg).isInstanceOf[Bare] || !classifyTerm(causeMsg).isInstanceOf[Bare]
+            if shouldVirtualizeThisThrow then
+              invokeOverloadedWithSearch(
+                ctx,
+                "throw_exception_class_with_cause",
+                List(
+                  Literal(StringConstant(exceptionClassName)),
+                  wrapBareTerm(msg, ctx),
+                  Literal(StringConstant(causeClassName)),
+                  wrapBareTerm(causeMsg, ctx)
+                )).getOrElse(report.errorAndAbort("failed to virtualize throw_exception_class_with_cause"))
+            else
+              Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
           case None =>
             if shouldForceThrowVirtualization then
-              report.errorAndAbort("virtualized throw currently supports Throwable subclasses with zero arguments or a single String constructor")
+              report.errorAndAbort("virtualized throw currently supports Throwable subclasses with zero args, single-String constructors, and (String, Throwable) where the cause is a constructor-form Throwable")
             else
               Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
         }

@@ -20,7 +20,8 @@
     - [x] Support staged catch guards and typed/bound catch patterns when the binder itself is unused
     - [x] Support staged `finally` blocks in the Scala backend/runtime-compile path
     - [x] Support staged `return` for early exits in the Scala backend/runtime-compile path
-    - [ ] Remaining gaps: richer `throw` constructor shapes beyond zero-arg/single-String Throwable constructors and catch binders whose values are referenced in guards or handlers
+    - [x] Support `throw new ThrowableSubclass(msg, cause)` where `cause` is a constructor-form Throwable (message or no-arg constructor)
+    - [ ] Remaining gaps: richer `throw` constructor shapes beyond zero-arg/single-String/(String, Throwable-constructor) and catch binders whose values are referenced in guards or handlers
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`

@@ -24,11 +24,13 @@ trait ExceptionOps extends Variables {
   
   def throw_exception(m: Rep[String]): Rep[Unit] = throw_exception_class("java.lang.Exception", m)
   def throw_exception_class(exceptionClassName: String, m: Rep[String]): Rep[Unit]
+  def throw_exception_class_with_cause(exceptionClassName: String, m: Rep[String], causeClassName: String, causeMessage: Rep[String]): Rep[Unit]
 }
 
 trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   case class TryCatch[T:Typ](body: Block[T], catches: List[(String, Option[Block[Boolean]], Block[T])], finalizer: Option[Block[Unit]]) extends Def[T]
   case class ThrowException(exceptionClassName: String, m: Rep[String]) extends Def[Unit]
+  case class ThrowExceptionWithCause(exceptionClassName: String, m: Rep[String], causeClassName: String, causeMessage: Rep[String]) extends Def[Unit]
   
   private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
     case Def(Reify(_, _, effects)) =>
@@ -68,10 +70,14 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   }
 
   def throw_exception_class(exceptionClassName: String, m: Exp[String]) = reflectEffect(ThrowException(exceptionClassName, m), Global())    
+  def throw_exception_class_with_cause(exceptionClassName: String, m: Exp[String], causeClassName: String, causeMessage: Exp[String]) =
+    reflectEffect(ThrowExceptionWithCause(exceptionClassName, m, causeClassName, causeMessage), Global())
   
   override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = e match {
     case TryCatch(body, catches, finalizer) =>
       TryCatch[A](f(body), catches.map { case (exceptionClassName, guard, handler) => (exceptionClassName, guard.map(f(_)), f(handler)) }, finalizer.map(f(_)))
+    case ThrowExceptionWithCause(exceptionClassName, m, causeClassName, causeMessage) =>
+      ThrowExceptionWithCause(exceptionClassName, f(m), causeClassName, f(causeMessage))
     case _ =>
       super.mirrorDef(e, f)
   }
@@ -98,6 +104,8 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
       }
     case Reflect(ThrowException(exceptionClassName, s), u, es) =>
       reflectMirrored(Reflect(ThrowException(exceptionClassName, f(s)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
+    case Reflect(ThrowExceptionWithCause(exceptionClassName, s, causeClassName, causeMessage), u, es) =>
+      reflectMirrored(Reflect(ThrowExceptionWithCause(exceptionClassName, f(s), causeClassName, f(causeMessage)), mapOver(f, u), f(es)))(using mtyp1[A], pos)
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]  
 
@@ -168,6 +176,8 @@ trait ScalaGenExceptionOps extends ScalaGenBase {
       stream.println("}")
     case ThrowException(exceptionClassName, m) =>
       emitValDef(sym, s"throw new $exceptionClassName(${quote(m)})")
+    case ThrowExceptionWithCause(exceptionClassName, m, causeClassName, causeMessage) =>
+      emitValDef(sym, s"throw new $exceptionClassName(${quote(m)}, new $causeClassName(${quote(causeMessage)}))")
     case _ => super.emitNode(sym, rhs)
   }
 }
@@ -206,6 +216,20 @@ trait ExceptionOpsGen extends Gen with ExceptionOpsExp {
       case ThrowException(exceptionClassName, m) =>
         val message = interpretExpWithEnv(m).asExprOf[String]
         '{ throw java.lang.Class.forName(${Expr(exceptionClassName)}).getConstructor(classOf[String]).newInstance($message).asInstanceOf[Throwable] }.asTerm
+      case Reflect(ThrowExceptionWithCause(exceptionClassName, m, causeClassName, causeMessage), _, _) =>
+        val message = interpretExpWithEnv(m).asExprOf[String]
+        val cause = interpretExpWithEnv(causeMessage).asExprOf[String]
+        '{
+          val causeThrowable = java.lang.Class.forName(${Expr(causeClassName)}).getConstructor(classOf[String]).newInstance($cause).asInstanceOf[Throwable]
+          throw java.lang.Class.forName(${Expr(exceptionClassName)}).getConstructor(classOf[String], classOf[Throwable]).newInstance($message, causeThrowable).asInstanceOf[Throwable]
+        }.asTerm
+      case ThrowExceptionWithCause(exceptionClassName, m, causeClassName, causeMessage) =>
+        val message = interpretExpWithEnv(m).asExprOf[String]
+        val cause = interpretExpWithEnv(causeMessage).asExprOf[String]
+        '{
+          val causeThrowable = java.lang.Class.forName(${Expr(causeClassName)}).getConstructor(classOf[String]).newInstance($cause).asInstanceOf[Throwable]
+          throw java.lang.Class.forName(${Expr(exceptionClassName)}).getConstructor(classOf[String], classOf[Throwable]).newInstance($message, causeThrowable).asInstanceOf[Throwable]
+        }.asTerm
       case _ =>
         super.interpretDefWithEnv(d)
     }
@@ -220,6 +244,10 @@ trait CLikeGenExceptionOps extends CLikeGenBase {
     case ThrowException(_, m) => 
       stream.println("printf(" + quote(m) + ".c_str());")
       stream.println("assert(false);")
+    case ThrowExceptionWithCause(_, m, _, causeMessage) =>
+      stream.println("printf(" + quote(m) + ".c_str());")
+      stream.println("printf(" + quote(causeMessage) + ".c_str());")
+      stream.println("assert(false);")
     case _ => super.emitNode(sym, rhs)
   }
 }
@@ -232,6 +260,10 @@ trait CudaGenExceptionOps extends CudaGenBase with CLikeGenExceptionOps {
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
     case ThrowException(_, m) =>
       stream.println("printf(" + quote(m) + ");")
+      stream.println("assert(false);")
+    case ThrowExceptionWithCause(_, m, _, causeMessage) =>
+      stream.println("printf(" + quote(m) + ");")
+      stream.println("printf(" + quote(causeMessage) + ");")
       stream.println("assert(false);")
     case _ => super.emitNode(sym, rhs)
   }
