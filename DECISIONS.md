@@ -11,3 +11,4 @@
 - [Decision] LSP tooling (Metals) is treated as a helper only when available in the active IDE process; CLI discovery outside the workspace is not required for this task flow.
 - [Decision] Avoid explicit homedir scanning for tooling discovery; rely on the current IDE-integrated language-server session or explicit user-provided binaries.
 - [Decision] Path-dependent LMS variable types are reified directly: `VariableTyp(inner).asTypeRepr` now emits `Expressions#Variable[inner]`, and `arrayTyp` preserves `Array[Variable[T]]` shape for Scala 3 quoted runtime compilation.
+- [Decision] Legacy `eval.scala` is carried forward as a Scala 3 `DslCompile`-based evaluator-specialization tutorial, rather than reintroducing a separate `CompileScala`-style driver layer.

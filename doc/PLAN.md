@@ -34,7 +34,7 @@
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
 - [ ] Port and validate original Scala 2 LMS examples under @virt
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
-  - [ ] Decide whether to reintroduce a `CompileScala`-style path or otherwise redesign `eval.scala` for Scala 3
+  - [x] Redesign `eval.scala` for Scala 3 around the current `DslCompile` runtime-compile path (no `CompileScala` reintroduction)
   - [ ] Defer the query/compiler/backend-heavy tutorial chapters (`query*`, `linq`, `03_compiler`, `04_atwork`, scanner C lowering) until the non-Scala backend/runtime story is back in scope
 
 ### Legacy tutorial parity tracker (`/legacy-lms-tutorials/src/test/scala/lms/tutorial`)
@@ -51,7 +51,7 @@
 - [x] `02_basics.scala` -> Scala 3 equivalent in tree
 - [x] `dslapi.scala` -> Scala 3 custom-DSL extension equivalent in tree (Scala backend path)
 - [x] `fft.scala` -> Scala 3 equivalent in tree (Scala backend/runtime-compile path)
-- [ ] `eval.scala` -> blocked on Scala 3 in-process eval design decision (`CompileScala`-style replacement)
+- [x] `eval.scala` -> Scala 3 evaluator-specialization equivalent in tree (`DslCompile` runtime path)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
 - [ ] `linq.scalax` -> deferred until query/linq staging story is back in scope
 - [ ] `query.scala` -> deferred until query staging + non-Scala backend path is back in scope
