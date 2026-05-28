@@ -27,6 +27,7 @@
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`
     - [x] Fill primitive `Long` arithmetic surface/runtime/codegen gaps for staged `+`, `-`, `*`, `/`
+    - [x] Fill primitive `Long` bitwise/shift surface/runtime/codegen gaps for staged `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`
   - [x] Keep destructuring / pattern-bound local definitions host-side when the scrutinee is a host container, while preserving staged elements bound by the pattern
 - [ ] Improve type reification (nested type params, generic code staging)
   - [x] Preserve manifest-backed applied type arguments in `Typ.asTypeRepr`, including nested generics and array element types
@@ -92,5 +93,5 @@ that and generate the code much more directly.
 
 ## Manual fixes
 
-- [ ] Unwind tree-smashed `using` insertions (-rewrite suggested but broken)
+- [x] Unwind tree-smashed `using` insertions (-rewrite suggested but broken)
 - [x] Replace the manual `x.toDouble` workaround with a cleaner solution

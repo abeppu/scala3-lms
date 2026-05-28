@@ -49,6 +49,17 @@ trait SlidingExp extends DslExp with Sliding {
   type Reified = (Rep[Unit], List[Stm])
   type Shifted = (Rep[Unit], List[Stm], Subst)
 
+  private def symPos(sym: Sym[Any]): SourceContext = sym.pos.head
+
+  private def newSymVar(sym: Sym[Any], init: Exp[Any]): Var[Any] =
+    var_new(init)(using sym.tp.asInstanceOf[Typ[Any]], symPos(sym))
+
+  private def readSymVar(sym: Sym[Any], cell: Var[Any]): Exp[Any] =
+    readVar(cell)(using sym.tp.asInstanceOf[Typ[Any]], symPos(sym))
+
+  private def assignSymVar(sym: Sym[Any], cell: Var[Any], value: Exp[Any]): Exp[Unit] =
+    var_assign(cell, value)(using sym.tp.asInstanceOf[Typ[Any]], symPos(sym))
+
   override def int_plus(lhs: Exp[Int], rhs: Exp[Int])(using pos: SourceContext): Exp[Int] =
     ((lhs, rhs) match {
       case (Def(IntPlus(x: Exp[Int], Const(y: Int))), Const(z: Int)) => int_plus(x, unit(y + z))
@@ -109,11 +120,11 @@ trait SlidingExp extends DslExp with Sliding {
           trans(r0)
           trans.subst
         }
-        val vars = overlap0.map { x => var_new(substX(x))(using x.tp, x.pos.head) }
+        val vars = overlap0.map { sym => newSymVar(sym, substX(sym)) }
         for (j <- (start + 1).until(end)) {
           generate_comment("variable reads")
           val reads = (overlap0 zip vars).map { case (sym, cell) =>
-            (sym, readVar(cell)(using sym.tp, sym.pos.head))
+            (sym, readSymVar(sym, cell))
           }
           generate_comment("computation")
           val (_, shifted: Subst) = trans.withSubstScope((reads :+ (i -> (j - 1)))* ) {
@@ -121,8 +132,8 @@ trait SlidingExp extends DslExp with Sliding {
             (trans(r1), trans.subst)
           }
           generate_comment("variable writes")
-          overlap1.zip(vars).foreach { case (sym, cell) =>
-            var_assign(cell, shifted(sym))(using sym.tp, sym.pos.head)
+          overlap0.zip(overlap1).zip(vars).foreach { case ((sym0, sym1), cell) =>
+            assignSymVar(sym0, cell, shifted(sym1))
           }
         }
       },

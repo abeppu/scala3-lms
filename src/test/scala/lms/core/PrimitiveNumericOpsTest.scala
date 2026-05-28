@@ -20,6 +20,12 @@ trait PrimitiveNumericSnippets extends Dsl {
     (shifted - x) / 2L
   }
 
+  def longBitwisePipeline(x: Rep[Long]): Rep[Long] = {
+    val y = 0x55L
+    val mixed = (x & y) ^ (x | y)
+    (mixed << 1) >> 1
+  }
+
   def floatToDoublePipeline(x: Rep[Float]): Rep[Double] = {
     val widened: Rep[Double] = x.toDouble
     widened + 1.25
@@ -53,6 +59,16 @@ class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
 
     List(-3L, 0L, 25L).foreach { x =>
       staged(x).shouldBe(((x + 3L) * 2L - x) / 2L)
+    }
+  }
+
+  test("virtualized staged long bitwise and shift operators preserve host behavior") {
+    val f: compiler.Exp[Long] => compiler.Exp[Long] = compiler.longBitwisePipeline(_)
+    val staged = compiler.compile(f)
+
+    val inputs = List(0x0FL, 0x1234L, -7L)
+    inputs.foreach { x =>
+      staged(x).shouldBe((((x & 0x55L) ^ (x | 0x55L)) << 1 >> 1))
     }
   }
 
