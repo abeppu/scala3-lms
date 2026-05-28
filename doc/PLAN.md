@@ -47,7 +47,7 @@
 - [x] `scanner.scala` -> Scala 3 equivalent in tree
 - [x] `regex.scala` -> Scala 3 equivalent in tree
 - [x] `01_overview.scala` -> Scala 3 equivalent in tree
-- [ ] `02_basics.scala` -> add Scala 3 equivalent once tutorial framing is settled
+- [x] `02_basics.scala` -> Scala 3 equivalent in tree
 - [ ] `dslapi.scala` -> add Scala 3 equivalent after remaining macro/operator gaps are closed
 - [ ] `fft.scala` -> add Scala 3 equivalent once backend/runtime constraints are confirmed for this example
 - [ ] `eval.scala` -> blocked on Scala 3 in-process eval design decision (`CompileScala`-style replacement)
