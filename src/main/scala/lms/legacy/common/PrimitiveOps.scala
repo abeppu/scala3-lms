@@ -313,6 +313,19 @@ trait PrimitiveOps extends Variables with OverloadHack {
     def parseLong(s: Rep[String])(using pos: SourceContext) = obj_long_parse_long(s)
   }
 
+  given longToLongOps: Conversion[Long, LongOpsCls] = (n: Long) => new LongOpsCls(unit(n))
+  given repLongToLongOps: Conversion[Rep[Long], LongOpsCls] = (n: Rep[Long]) => new LongOpsCls(n)
+  implicit def varLongToLongOps(n: Var[Long]): LongOpsCls = new LongOpsCls(readVar(n))
+
+  class LongOpsCls(lhs: Rep[Long]) {
+    def toInt(using pos: SourceContext): Rep[Int] = long_toint(lhs)
+
+    def +(rhs: Rep[Long])(using o1: Overloaded1): Rep[Long] = long_plus(lhs, rhs)
+    def -(rhs: Rep[Long])(using o1: Overloaded1): Rep[Long] = long_minus(lhs, rhs)
+    def *(rhs: Rep[Long])(using o1: Overloaded1): Rep[Long] = long_times(lhs, rhs)
+    def /(rhs: Rep[Long])(using o1: Overloaded1): Rep[Long] = long_divide(lhs, rhs)
+  }
+
   def infix_toInt(lhs: Rep[Long])(using o: Overloaded2, pos: SourceContext): Rep[Int] = long_toint(lhs)
 
   def infix_%   (lhs: Rep[Long], rhs: Rep[Long])(using o: Overloaded2, pos: SourceContext): Rep[Long] = long_mod(lhs, rhs)
@@ -324,6 +337,10 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def obj_long_parse_long(s: Rep[String])(using pos: SourceContext): Rep[Long]
   def long_toint         (lhs: Rep[Long])(using pos: SourceContext): Rep[Int]
 
+  def long_plus               (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
+  def long_minus              (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
+  def long_times              (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
+  def long_divide             (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_mod                (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_binaryand          (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_binaryor           (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
@@ -452,6 +469,10 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
    * Long
    */
   case class ObjLongParseLong(s: Exp[String]) extends Def[Long]
+  case class LongPlus(lhs: Exp[Long], rhs: Exp[Long]) extends ArithOp[Long]
+  case class LongMinus(lhs: Exp[Long], rhs: Exp[Long]) extends ArithOp[Long]
+  case class LongTimes(lhs: Exp[Long], rhs: Exp[Long]) extends ArithOp[Long]
+  case class LongDivide(lhs: Exp[Long], rhs: Exp[Long]) extends ArithOp[Long]
   case class LongBinaryOr(lhs: Exp[Long], rhs: Exp[Long]) extends Def[Long]
   case class LongBinaryAnd(lhs: Exp[Long], rhs: Exp[Long]) extends Def[Long]
   case class LongShiftLeft(lhs: Exp[Long], rhs: Exp[Int]) extends Def[Long]
@@ -460,6 +481,10 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   case class LongMod(lhs: Exp[Long], rhs: Exp[Long]) extends Def[Long]
 
   def obj_long_parse_long(s: Exp[String])(using pos: SourceContext) = ObjLongParseLong(s)
+  def long_plus(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongPlus(lhs,rhs)
+  def long_minus(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongMinus(lhs,rhs)
+  def long_times(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongTimes(lhs,rhs)
+  def long_divide(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongDivide(lhs,rhs)
   def long_binaryor(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongBinaryOr(lhs,rhs)
   def long_binaryand(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongBinaryAnd(lhs,rhs)
   def long_shiftleft(lhs: Exp[Long], rhs: Exp[Int])(using pos: SourceContext) = LongShiftLeft(lhs,rhs)
@@ -510,6 +535,10 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
       case IntShiftRightLogical(x,y)    => int_rightshiftlogical(f(x),f(y))
       case IntShiftRightArith(x,y)      => int_rightshiftarith(f(x),f(y))
       case ObjLongParseLong(x)          => obj_long_parse_long(f(x))
+      case LongPlus(x,y)                => long_plus(f(x),f(y))
+      case LongMinus(x,y)               => long_minus(f(x),f(y))
+      case LongTimes(x,y)               => long_times(f(x),f(y))
+      case LongDivide(x,y)              => long_divide(f(x),f(y))
       case LongMod(x,y)                 => long_mod(f(x),f(y))
       case LongShiftLeft(x,y)           => long_shiftleft(f(x),f(y))
       case LongBinaryOr(x,y)            => long_binaryor(f(x),f(y))
@@ -555,6 +584,10 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
       case Reflect(IntShiftLeft(x,y)          , u, es) => reflectMirrored(Reflect(IntShiftLeft(f(x),f(y))           , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(IntShiftRightLogical(x,y)  , u, es) => reflectMirrored(Reflect(IntShiftRightLogical(f(x),f(y))   , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(IntShiftRightArith(x,y)    , u, es) => reflectMirrored(Reflect(IntShiftRightArith(f(x),f(y))     , mapOver(f,u), f(es)))(using mtyp1[A], pos)
+      case Reflect(LongPlus(x,y)              , u, es) => reflectMirrored(Reflect(LongPlus(f(x),f(y))               , mapOver(f,u), f(es)))(using mtyp1[A], pos)
+      case Reflect(LongMinus(x,y)             , u, es) => reflectMirrored(Reflect(LongMinus(f(x),f(y))              , mapOver(f,u), f(es)))(using mtyp1[A], pos)
+      case Reflect(LongTimes(x,y)             , u, es) => reflectMirrored(Reflect(LongTimes(f(x),f(y))              , mapOver(f,u), f(es)))(using mtyp1[A], pos)
+      case Reflect(LongDivide(x,y)            , u, es) => reflectMirrored(Reflect(LongDivide(f(x),f(y))             , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongMod(x,y)               , u, es) => reflectMirrored(Reflect(LongMod(f(x),f(y))                , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongShiftLeft(x,y)         , u, es) => reflectMirrored(Reflect(LongShiftLeft(f(x),f(y))          , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongShiftRightUnsigned(x,y), u, es) => reflectMirrored(Reflect(LongShiftRightUnsigned(f(x),f(y)) , mapOver(f,u), f(es)))(using mtyp1[A], pos)
@@ -743,6 +776,7 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
     c match {
       case Const(x: Double) => Literal(DoubleConstant(x))
       case Const(x: Float) => Literal(FloatConstant(x))
+      case Const(x: Long) => Literal(LongConstant(x))
       case Const(x: Int) => Literal(IntConstant(x))
       case Const(()) => Literal(UnitConstant())
       // TODO others
@@ -813,13 +847,13 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
         interpretIntUnary(arg, "~")
       case op: ArithOp[?] =>
         val methodName =
-          if (d.isInstanceOf[DoublePlus] || d.isInstanceOf[FloatPlus]) {
+          if (d.isInstanceOf[DoublePlus] || d.isInstanceOf[FloatPlus] || d.isInstanceOf[LongPlus]) {
             "+"
-          } else if (d.isInstanceOf[DoubleMinus] || d.isInstanceOf[FloatMinus]) {
+          } else if (d.isInstanceOf[DoubleMinus] || d.isInstanceOf[FloatMinus] || d.isInstanceOf[LongMinus]) {
             "-"
-          } else if (d.isInstanceOf[DoubleTimes] || d.isInstanceOf[FloatTimes]) {
+          } else if (d.isInstanceOf[DoubleTimes] || d.isInstanceOf[FloatTimes] || d.isInstanceOf[LongTimes]) {
             "*"
-          } else if (d.isInstanceOf[DoubleDivide] || d.isInstanceOf[FloatDivide]) {
+          } else if (d.isInstanceOf[DoubleDivide] || d.isInstanceOf[FloatDivide] || d.isInstanceOf[LongDivide]) {
             "/"
           } else {
             throw new Exception(s"Unsupported Def type: ${d.getClass}")
@@ -877,6 +911,10 @@ trait ScalaGenPrimitiveOps extends ScalaGenBase {
     case IntToFloat(lhs) => emitValDef(sym, quote(lhs) + ".toFloat")
     case IntToDouble(lhs) => emitValDef(sym, quote(lhs) + ".toDouble")
     case ObjLongParseLong(s) => emitValDef(sym, "java.lang.Long.parseLong(" + quote(s) + ")")
+    case LongPlus(lhs,rhs) => emitValDef(sym, quote(lhs) + " + " + quote(rhs))
+    case LongMinus(lhs,rhs) => emitValDef(sym, quote(lhs) + " - " + quote(rhs))
+    case LongTimes(lhs,rhs) => emitValDef(sym, quote(lhs) + " * " + quote(rhs))
+    case LongDivide(lhs,rhs) => emitValDef(sym, quote(lhs) + " / " + quote(rhs))
     case LongMod(lhs,rhs) => emitValDef(sym, quote(lhs) + " % " + quote(rhs))
     case LongBinaryOr(lhs,rhs) => emitValDef(sym, quote(lhs) + " | " + quote(rhs))
     case LongBinaryAnd(lhs,rhs) => emitValDef(sym, quote(lhs) + " & " + quote(rhs))    
@@ -932,6 +970,10 @@ trait CLikeGenPrimitiveOps extends CLikeGenBase {
       case IntToFloat(lhs) => emitValDef(sym, "(float)"+quote(lhs))
       case IntToDouble(lhs) => emitValDef(sym, "(double)"+quote(lhs))
       case ObjLongParseLong(s) => emitValDef(sym, "strtod(" + quote(s) + ".c_str(),NULL)")
+      case LongPlus(lhs,rhs) => emitValDef(sym, quote(lhs) + " + " + quote(rhs))
+      case LongMinus(lhs,rhs) => emitValDef(sym, quote(lhs) + " - " + quote(rhs))
+      case LongTimes(lhs,rhs) => emitValDef(sym, quote(lhs) + " * " + quote(rhs))
+      case LongDivide(lhs,rhs) => emitValDef(sym, quote(lhs) + " / " + quote(rhs))
       case LongMod(lhs,rhs) => emitValDef(sym, quote(lhs) + " % " + quote(rhs))
       case LongBinaryOr(lhs,rhs) => emitValDef(sym, quote(lhs) + " | " + quote(rhs))
       case LongBinaryAnd(lhs,rhs) => emitValDef(sym, quote(lhs) + " & " + quote(rhs))    

@@ -14,6 +14,11 @@ trait PrimitiveNumericSnippets extends Dsl {
     val shifted = (x + 1.5f) * 2.0f
     (shifted - x) / 2.0f
   }
+
+  def longPipeline(x: Rep[Long]): Rep[Long] = {
+    val shifted = (x + 3L) * 2L
+    (shifted - x) / 2L
+  }
 }
 
 class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
@@ -34,6 +39,15 @@ class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
 
     List(-3.0f, 0.0f, 2.5f).foreach { x =>
       staged(x).shouldBe(((x + 1.5f) * 2.0f - x) / 2.0f)
+    }
+  }
+
+  test("virtualized staged long arithmetic preserves host behavior") {
+    val f: compiler.Exp[Long] => compiler.Exp[Long] = compiler.longPipeline(_)
+    val staged = compiler.compile(f)
+
+    List(-3L, 0L, 25L).foreach { x =>
+      staged(x).shouldBe(((x + 3L) * 2L - x) / 2L)
     }
   }
 }
