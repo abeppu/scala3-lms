@@ -35,6 +35,36 @@
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [ ] Decide whether to reintroduce a `CompileScala`-style path or otherwise redesign `eval.scala` for Scala 3
   - [ ] Defer the query/compiler/backend-heavy tutorial chapters (`query*`, `linq`, `03_compiler`, `04_atwork`, scanner C lowering) until the non-Scala backend/runtime story is back in scope
+
+### Legacy tutorial parity tracker (`/legacy-lms-tutorials/src/test/scala/lms/tutorial`)
+
+- [x] `start.scala` -> Scala 3 equivalent in tree
+- [x] `ack.scala` -> Scala 3 equivalent in tree
+- [x] `dynvar.scala` -> Scala 3 equivalent in tree
+- [x] `shonan.scala` -> Scala 3 equivalent in tree
+- [x] `automata.scala` -> Scala 3 equivalent in tree
+- [x] `stencil.scala` -> Scala 3 equivalent in tree
+- [x] `scanner.scala` -> Scala 3 equivalent in tree
+- [x] `regex.scala` -> Scala 3 equivalent in tree
+- [ ] `01_overview.scala` -> add Scala 3 equivalent once tutorial framing is settled
+- [ ] `02_basics.scala` -> add Scala 3 equivalent once tutorial framing is settled
+- [ ] `dslapi.scala` -> add Scala 3 equivalent after remaining macro/operator gaps are closed
+- [ ] `fft.scala` -> add Scala 3 equivalent once backend/runtime constraints are confirmed for this example
+- [ ] `eval.scala` -> blocked on Scala 3 in-process eval design decision (`CompileScala`-style replacement)
+- [ ] `index.scala` -> add Scala 3 equivalent once chapter aggregation/runner structure is decided
+- [ ] `linq.scalax` -> deferred until query/linq staging story is back in scope
+- [ ] `query.scala` -> deferred until query staging + non-Scala backend path is back in scope
+- [ ] `query_unstaged.scala` -> deferred with query chapter
+- [ ] `query_staged0.scala` -> deferred with query chapter
+- [ ] `query_staged.scala` -> deferred with query chapter
+- [ ] `query_live.scala` -> deferred with query chapter
+- [ ] `query_live_steps.scala` -> deferred with query chapter
+- [ ] `query_optc.scala` -> deferred until non-Scala backend/runtime story is back in scope
+- [ ] `shonan_live.scala` -> add Scala 3 equivalent once live tutorial workflow is defined
+- [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
+- [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
+- [ ] `scannerlib.scala` -> add Scala 3 equivalent when scanner internals chapter is explicitly in scope
+- [ ] `utils.scala` -> port only helper pieces needed by the chosen Scala 3 tutorial set
 - [x] Document new design decisions in `DECISIONS.md` as they land
 
 ## Hacks
