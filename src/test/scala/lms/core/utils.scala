@@ -10,6 +10,10 @@ import scala.reflect.ClassTag
 
 // CR cam: should we try to use Packages.scala here?
 
+trait LibSuite { this: AnyFunSuite =>
+  def dataFilePath(csv: String): String = "src/data/" + csv
+}
+
 trait Dsl extends PrimitiveOps with NumericOps with BooleanOps with LiftString with LiftPrimitives with LiftNumeric with LiftBoolean with IfThenElse with Equal with RangeOps with OrderingOps with MiscOps with ArrayOps with StringOps with SeqOps with Functions with While with StaticData with Variables with LiftVariables with ObjectOps with CastingOps with ExceptionOps {
   given anyTyp: Typ[Any]
   def generate_comment(l: String): Rep[Unit]
@@ -139,7 +143,7 @@ abstract class DslDriver2[A:ClassTag,B:ClassTag, C:ClassTag] extends DslSnippet2
   }
 }
 
-trait TutorialFunSuite extends AnyFunSuite {
+trait TutorialFunSuite extends AnyFunSuite with LibSuite {
   val prefix = "src/out/"
   val overwriteCheckFiles = false
   val under: String
@@ -223,5 +227,25 @@ trait TutorialFunSuite extends AnyFunSuite {
     if (!overwriteCheckFiles) {
       assert(expected == code, name)
     }
+  }
+
+  def checkOut(label: String, suffix: String, thunk: => Unit): Unit = {
+    val output = new ByteArrayOutputStream()
+    val ps = new PrintStream(output)
+    try {
+      scala.Console.withOut(ps) {
+        thunk
+      }
+    } finally {
+      ps.flush()
+      ps.close()
+    }
+    check(label, output.toString, suffix = suffix)
+  }
+
+  def exec(label: String, code: String, suffix: String = "scala"): Unit = {
+    val fileprefix = prefix + under + label
+    val aname = fileprefix + ".actual." + suffix
+    writeFileIndented(aname, code)
   }
 }

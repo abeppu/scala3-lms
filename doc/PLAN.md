@@ -65,7 +65,7 @@
 - [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [x] `scannerlib.scala` -> Scala 3 scanner internals equivalent in tree
-- [ ] `utils.scala` -> port only helper pieces needed by the chosen Scala 3 tutorial set
+- [x] `utils.scala` -> ported helper pieces used by current Scala 3 tutorial/test workflow (`dataFilePath`, `checkOut`, `exec`)
 - [x] Document new design decisions in `DECISIONS.md` as they land
 
 ## Hacks
