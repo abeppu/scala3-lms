@@ -839,7 +839,20 @@ class virt extends MacroAnnotation {
 
         normalize(term) match {
           case Apply(Select(New(tpt), ctor), List(msg)) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
-            Some(ThrownMessageOnly(throwableClassName(tpt), Some(msg)))
+            normalize(msg) match {
+              case Apply(Select(New(causeTpt), causeCtorName), causeArgs)
+                  if causeCtorName == "<init>" && causeTpt.tpe <:< TypeRepr.of[Throwable] =>
+                causeArgs match {
+                  case List(causeMsg) =>
+                    Some(ThrownWithCause(throwableClassName(tpt), None, throwableClassName(causeTpt), Some(causeMsg)))
+                  case Nil =>
+                    Some(ThrownWithCause(throwableClassName(tpt), None, throwableClassName(causeTpt), None))
+                  case _ =>
+                    None
+                }
+              case _ =>
+                Some(ThrownMessageOnly(throwableClassName(tpt), Some(msg)))
+            }
           case Apply(Select(New(tpt), ctor), List(msg, causeCtor @ Apply(Select(New(causeTpt), causeCtorName), causeArgs)))
               if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] &&
                  causeCtorName == "<init>" && causeTpt.tpe <:< TypeRepr.of[Throwable] =>
