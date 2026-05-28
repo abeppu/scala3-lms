@@ -94,9 +94,6 @@ trait StagingCompile extends QuotedGen with CodeMotion {
         }
 
     e match {
-      case Const(sym: Sym[?]) =>
-        resolveSym(sym)
-          .getOrElse(constantTerm(e.asInstanceOf[Const[A]]))
       case c @ Const(_) =>
         constantTerm(c)
       case sym @ Sym(_) =>

@@ -6,7 +6,7 @@
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
   - [x] Fix effectful staged `if` values flowing into later generic numeric/operator call sites
-    - [ ] Remaining cleanup: simplify the macro-side IR shape so runtime compile does not need to normalize symbolic constants in that path
+    - [x] Remove the runtime-compile `Const(Sym)` recovery path; current macro/IR construction now keeps staged-if results as real staged symbols
   - [ ] Add support for `match` / pattern matching on staged values
     - [x] First pass: staged scrutinee with literal/stable-id/alternative cases, wildcard fallback, guards, and simple binders/aliases
     - [x] Initial typed-pattern support for staged wildcard type tests over `Rep[Any]`
