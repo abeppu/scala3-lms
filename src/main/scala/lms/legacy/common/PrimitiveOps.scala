@@ -189,6 +189,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
     def +(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_+(lhs, rhs)
     def -(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_-(lhs, rhs)
     def *(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_*(lhs, rhs)
+    def /(rhs: Rep[Double])(using o1: Overloaded1): Rep[Double] = infix_/(lhs, rhs)
   }
 
   def obj_double_parse_double(s: Rep[String])(using pos: SourceContext): Rep[Double]
@@ -210,6 +211,20 @@ trait PrimitiveOps extends Variables with OverloadHack {
    */
   object Float {
     def parseFloat(s: Rep[String])(using pos: SourceContext): Rep[Float] = obj_float_parse_float(s)
+  }
+
+  given floatToFloatOps: Conversion[Float, FloatOpsCls] = (n: Float) => new FloatOpsCls(unit(n))
+  given repFloatToFloatOps: Conversion[Rep[Float], FloatOpsCls] = (n: Rep[Float]) => new FloatOpsCls(n)
+  implicit def varFloatToFloatOps(n: Var[Float]): FloatOpsCls = new FloatOpsCls(readVar(n))
+
+  class FloatOpsCls(lhs: Rep[Float]) {
+    def toInt(using pos: SourceContext): Rep[Int] = float_to_int(lhs)
+    def toDouble(using pos: SourceContext): Rep[Double] = float_to_double(lhs)
+
+    def +(rhs: Rep[Float])(using o1: Overloaded1): Rep[Float] = infix_+(lhs, rhs)
+    def -(rhs: Rep[Float])(using o1: Overloaded1): Rep[Float] = infix_-(lhs, rhs)
+    def *(rhs: Rep[Float])(using o1: Overloaded1): Rep[Float] = infix_*(lhs, rhs)
+    def /(rhs: Rep[Float])(using o1: Overloaded1): Rep[Float] = infix_/(lhs, rhs)
   }
 
   def infix_toInt(lhs: Rep[Float])(using o: Overloaded1, pos: SourceContext): Rep[Int] = float_to_int(lhs)
@@ -370,10 +385,10 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   case class FloatToInt        (lhs: Exp[Float] ) extends Def[Int]
   case class FloatToDouble     (lhs: Exp[Float] ) extends Def[Double]
 
-  case class FloatPlus  (lhs: Exp[Float], rhs: Exp[Float]) extends Def[Float]
-  case class FloatMinus (lhs: Exp[Float], rhs: Exp[Float]) extends Def[Float]
-  case class FloatTimes (lhs: Exp[Float], rhs: Exp[Float]) extends Def[Float]
-  case class FloatDivide(lhs: Exp[Float], rhs: Exp[Float]) extends Def[Float]  
+  case class FloatPlus  (lhs: Exp[Float], rhs: Exp[Float]) extends ArithOp[Float]
+  case class FloatMinus (lhs: Exp[Float], rhs: Exp[Float]) extends ArithOp[Float]
+  case class FloatTimes (lhs: Exp[Float], rhs: Exp[Float]) extends ArithOp[Float]
+  case class FloatDivide(lhs: Exp[Float], rhs: Exp[Float]) extends ArithOp[Float]
   
   def obj_float_parse_float(s: Exp[String])(using pos: SourceContext): Exp[Float]  = ObjFloatParseFloat(s)
   def float_to_int        (lhs: Exp[Float])(using pos: SourceContext): Exp[Int]    = FloatToInt(lhs)
@@ -727,6 +742,7 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
     import q.reflect.*
     c match {
       case Const(x: Double) => Literal(DoubleConstant(x))
+      case Const(x: Float) => Literal(FloatConstant(x))
       case Const(x: Int) => Literal(IntConstant(x))
       case Const(()) => Literal(UnitConstant())
       // TODO others
