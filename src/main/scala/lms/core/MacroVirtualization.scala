@@ -1187,7 +1187,13 @@ class virt extends MacroAnnotation {
       // fallback, simple binders/aliases, and typed patterns.
       private def rewriteMatch(ctx: MacroCtx, matchTerm: Match): Term = {
         val scrutineeRaw = transformTerm(matchTerm.scrutinee)(ctx.owner)
-        val (scrutinee, scrutineeKind) = normalizeRepTerm(scrutineeRaw, ctx)
+        val (scrutinee, scrutineeKind) = directClassifyTerm(scrutineeRaw) match {
+          case VarW(elemType) =>
+            val read = readVarValue(ctx, scrutineeRaw, elemType)
+            (read, RepW(elemType))
+          case other =>
+            (scrutineeRaw, other)
+        }
         scrutineeKind match {
           case Bare(_) =>
             super.transformTerm(matchTerm)(ctx.owner)
