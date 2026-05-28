@@ -47,8 +47,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
    */
   implicit def repIntToRepDouble   (x: Rep[Int])  : Rep[Double] = x.toDouble
   implicit def repIntToRepFloat    (x: Rep[Int])  : Rep[Float]  = x.toFloat
-  // CR cam: figure out why `x.toDouble` doesn't work
-  implicit def repFloatToRepDouble (x: Rep[Float]): Rep[Double] = float_to_double(x)
+  implicit def repFloatToRepDouble (x: Rep[Float]): Rep[Double] = x.toDouble
 
   /**
    * Enumerate all combinations of primitive math.
@@ -845,6 +844,18 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
         interpretIntBinary(lhs, rhs, ">>>")
       case IntBitwiseNot(arg) =>
         interpretIntUnary(arg, "~")
+      case FloatToDouble(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Float]
+        '{ $value.toDouble }.asTerm
+      case FloatToInt(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Float]
+        '{ $value.toInt }.asTerm
+      case IntToDouble(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Int]
+        '{ $value.toDouble }.asTerm
+      case IntToFloat(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Int]
+        '{ $value.toFloat }.asTerm
       case op: ArithOp[?] =>
         val methodName =
           if (d.isInstanceOf[DoublePlus] || d.isInstanceOf[FloatPlus] || d.isInstanceOf[LongPlus]) {

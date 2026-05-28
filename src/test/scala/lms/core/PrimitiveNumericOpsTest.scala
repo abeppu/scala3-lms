@@ -19,6 +19,11 @@ trait PrimitiveNumericSnippets extends Dsl {
     val shifted = (x + 3L) * 2L
     (shifted - x) / 2L
   }
+
+  def floatToDoublePipeline(x: Rep[Float]): Rep[Double] = {
+    val widened: Rep[Double] = x.toDouble
+    widened + 1.25
+  }
 }
 
 class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
@@ -48,6 +53,15 @@ class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
 
     List(-3L, 0L, 25L).foreach { x =>
       staged(x).shouldBe(((x + 3L) * 2L - x) / 2L)
+    }
+  }
+
+  test("virtualized staged float to double promotion uses toDouble path") {
+    val f: compiler.Exp[Float] => compiler.Exp[Double] = compiler.floatToDoublePipeline(_)
+    val staged = compiler.compile[Float, Double](f)
+
+    List(-3.0f, 0.0f, 2.5f).foreach { x =>
+      staged(x).shouldBe(x.toDouble + 1.25)
     }
   }
 }

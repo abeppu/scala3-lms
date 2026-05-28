@@ -61,4 +61,4 @@ that and generate the code much more directly.
 ## Manual fixes
 
 - [ ] Unwind tree-smashed `using` insertions (-rewrite suggested but broken)
-- [ ] Replace the manual `x.toDouble` workaround with a cleaner solution
+- [x] Replace the manual `x.toDouble` workaround with a cleaner solution
