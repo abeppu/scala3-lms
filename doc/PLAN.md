@@ -60,7 +60,7 @@
 - [ ] `query_live.scala` -> deferred with query chapter
 - [ ] `query_live_steps.scala` -> deferred with query chapter
 - [ ] `query_optc.scala` -> deferred until non-Scala backend/runtime story is back in scope
-- [ ] `shonan_live.scala` -> add Scala 3 equivalent once live tutorial workflow is defined
+- [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
 - [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [ ] `scannerlib.scala` -> add Scala 3 equivalent when scanner internals chapter is explicitly in scope
