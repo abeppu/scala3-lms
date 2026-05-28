@@ -46,7 +46,7 @@
 - [x] `stencil.scala` -> Scala 3 equivalent in tree
 - [x] `scanner.scala` -> Scala 3 equivalent in tree
 - [x] `regex.scala` -> Scala 3 equivalent in tree
-- [ ] `01_overview.scala` -> add Scala 3 equivalent once tutorial framing is settled
+- [x] `01_overview.scala` -> Scala 3 equivalent in tree
 - [ ] `02_basics.scala` -> add Scala 3 equivalent once tutorial framing is settled
 - [ ] `dslapi.scala` -> add Scala 3 equivalent after remaining macro/operator gaps are closed
 - [ ] `fft.scala` -> add Scala 3 equivalent once backend/runtime constraints are confirmed for this example
