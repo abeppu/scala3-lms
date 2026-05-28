@@ -63,7 +63,7 @@
 - [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
 - [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
-- [ ] `scannerlib.scala` -> add Scala 3 equivalent when scanner internals chapter is explicitly in scope
+- [x] `scannerlib.scala` -> Scala 3 scanner internals equivalent in tree
 - [ ] `utils.scala` -> port only helper pieces needed by the chosen Scala 3 tutorial set
 - [x] Document new design decisions in `DECISIONS.md` as they land
 
