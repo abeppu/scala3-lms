@@ -5,6 +5,10 @@ import org.scalatest.matchers.should.Matchers
 
 @virt
 trait MatchSnippets extends Dsl {
+  object HostEven {
+    def unapply(x: Int): Boolean = x % 2 == 0
+  }
+
   def literalMatch(x: Rep[Int]): Rep[Int] =
     x match {
       case 0 => 10
@@ -80,10 +84,24 @@ trait MatchSnippets extends Dsl {
       case _ => 300
     }
 
+  def hostExtractorMatch(x: Int): Int =
+    x match {
+      case HostEven() => x + 100
+      case _ => x + 1
+    }
+
+  def hostOptionExtractorMatch(x: Option[Int]): Int =
+    x match {
+      case Some(n) if n > 0 => n + 10
+      case Some(n) => n - 10
+      case None => 0
+    }
+
 }
 
 class MatchTest extends AnyFunSuite with Matchers {
   private val compiler = new MatchSnippets with DslCompile
+  private val hostSnippets = new MatchSnippets with DslCompile
 
   test("virtualized literal match on staged scrutinee") {
     val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.literalMatch(_)
@@ -170,6 +188,17 @@ class MatchTest extends AnyFunSuite with Matchers {
     staged(-7) shouldBe 7
     staged(5) shouldBe 15
     staged("zzz") shouldBe 300
+  }
+
+  test("host extractor matches are preserved inside @virt code when the scrutinee is bare") {
+    hostSnippets.hostExtractorMatch(4) shouldBe 104
+    hostSnippets.hostExtractorMatch(5) shouldBe 6
+  }
+
+  test("host option extractor matches are preserved inside @virt code when the scrutinee is bare") {
+    hostSnippets.hostOptionExtractorMatch(Some(7)) shouldBe 17
+    hostSnippets.hostOptionExtractorMatch(Some(-3)) shouldBe -13
+    hostSnippets.hostOptionExtractorMatch(None) shouldBe 0
   }
 
 }

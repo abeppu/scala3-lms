@@ -1031,6 +1031,17 @@ class virt extends MacroAnnotation {
         def loop(tree: Tree): Option[Term] = stripPattern(tree) match {
           case pattern if isWildcardPattern(pattern) =>
             None
+          case TypedOrTest(inner, _: Inferred) =>
+            loop(inner)
+          case TypedOrTest(inner, tpt) =>
+            val typedCond = typeTest(tpt.tpe)
+            val innerCond = loop(inner)
+            (typedCond, innerCond) match {
+              case (None, None) => None
+              case (Some(cond), None) => Some(cond)
+              case (None, Some(cond)) => Some(cond)
+              case (Some(lhs), Some(rhs)) => Some(emitBooleanBinary(ctx, lhs, rhs, "boolean_and"))
+            }
           case Typed(inner, tpt) =>
             val typedCond = typeTest(tpt.tpe)
             val innerCond = loop(inner)
@@ -1070,6 +1081,10 @@ class virt extends MacroAnnotation {
         def boundValue(tree: Tree): Term = stripPattern(tree) match {
           case Bind(_, inner) =>
             boundValue(inner)
+          case TypedOrTest(_, _: Inferred) =>
+            scrutinee
+          case TypedOrTest(_, tpt) =>
+            castedScrutinee(tpt.tpe)
           case Typed(_, tpt) =>
             castedScrutinee(tpt.tpe)
           case _ =>
@@ -1079,6 +1094,12 @@ class virt extends MacroAnnotation {
         def loop(tree: Tree): List[(Symbol, Term)] = stripPattern(tree) match {
           case Bind(name, inner) if name != "_" =>
             (tree.symbol, boundValue(tree)) :: loop(inner)
+          case TypedOrTest(inner, _: Inferred) =>
+            loop(inner)
+          case TypedOrTest(id: Ident, tpt) if id.name != "_" =>
+            (id.symbol, castedScrutinee(tpt.tpe)) :: Nil
+          case TypedOrTest(bind @ Bind(name, inner), tpt) if name != "_" =>
+            (bind.symbol, castedScrutinee(tpt.tpe)) :: loop(inner)
           case Typed(id: Ident, tpt) if id.name != "_" =>
             (id.symbol, castedScrutinee(tpt.tpe)) :: Nil
           case Typed(bind @ Bind(name, inner), tpt) if name != "_" =>
@@ -1093,6 +1114,10 @@ class virt extends MacroAnnotation {
 
       private def patternTypedBindingNames(pattern: Tree): Set[String] = {
         def loop(tree: Tree): Set[String] = stripPattern(tree) match {
+          case TypedOrTest(id: Ident, _) if id.name != "_" =>
+            Set(id.name)
+          case TypedOrTest(Bind(name, inner), _) if name != "_" =>
+            Set(name) ++ loop(inner)
           case Typed(id: Ident, _) if id.name != "_" =>
             Set(id.name)
           case Typed(Bind(name, inner), _) if name != "_" =>

@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 89 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 91 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -11,7 +11,8 @@
     - [x] First pass: staged scrutinee with literal/stable-id/alternative cases, wildcard fallback, guards, and simple binders/aliases
     - [x] Initial typed-pattern support for staged wildcard type tests over `Rep[Any]`
     - [x] Add typed binders and typed aliases over staged `Rep[Any]` scrutinees
-    - [ ] Remaining gaps: extractor patterns and full host-match preservation for richer pattern trees
+    - [x] Preserve richer host-only extractor matches when `@virt` code stays on bare Scala scrutinees
+    - [ ] Remaining staged gaps: extractor patterns on staged scrutinees
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
     - [x] Lower `throw new ThrowableSubclass(msg)` into staged exception IR for Throwable subclasses with single-String constructors
