@@ -24,6 +24,8 @@
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
   - [ ] Decide how to handle destructuring / pattern-bound local definitions inside `@virt` blocks
 - [ ] Improve type reification (nested type params, generic code staging)
+  - [x] Preserve manifest-backed applied type arguments in `Typ.asTypeRepr`, including nested generics and array element types
+  - [ ] Decide whether path-dependent LMS types such as `Variable[T]` need direct `TypeRepr` reification, or should remain represented through their element/result operations
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
 - [ ] Port and validate original Scala 2 LMS examples under @virt

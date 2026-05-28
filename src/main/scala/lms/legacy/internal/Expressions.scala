@@ -26,8 +26,13 @@ trait Expressions extends Utils {
 
     def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
       import q.reflect.*
-      val typeArgsRepr = typeArguments.map(_.asTypeRepr)
-      TypeRepr.typeConstructorOf(runtimeClass)
+      val typeArgs = typeArguments.map(_.asTypeRepr)
+      if runtimeClass.isArray && typeArgs.size == 1 then
+        typeArgs.head.asType match
+          case '[elem] => TypeRepr.of[Array[elem]]
+      else
+        val base = TypeRepr.typeConstructorOf(runtimeClass)
+        if typeArgs.isEmpty then base else base.appliedTo(typeArgs)
     }
   }
 
