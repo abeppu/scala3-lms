@@ -28,7 +28,7 @@
   - [x] Keep destructuring / pattern-bound local definitions host-side when the scrutinee is a host container, while preserving staged elements bound by the pattern
 - [ ] Improve type reification (nested type params, generic code staging)
   - [x] Preserve manifest-backed applied type arguments in `Typ.asTypeRepr`, including nested generics and array element types
-  - [ ] Decide whether path-dependent LMS types such as `Variable[T]` need direct `TypeRepr` reification, or should remain represented through their element/result operations
+  - [x] Reify path-dependent LMS `Variable[T]` directly in `Typ.asTypeRepr`, including `Array[Variable[T]]` wrappers
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
 - [ ] Port and validate original Scala 2 LMS examples under @virt

@@ -96,11 +96,32 @@ trait Expressions extends Utils {
       case _ => false
     }
 
-    def arrayTyp = throw new RuntimeException("TODO: manifest for Array[Var[T]]")
+    def arrayTyp: Typ[Array[Variable[T]]] = new Typ[Array[Variable[T]]] {
+      def typeArguments: List[Typ[?]] = List(VariableTyp.this)
+      def arrayTyp: Typ[Array[Array[Variable[T]]]] = throw new RuntimeException("TODO: nested arrays for VariableTyp")
+      def runtimeClass: Class[?] = classOf[Array[?]]
+      override def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
+        import q.reflect.*
+        TypeRepr.of[Array].appliedTo(List(VariableTyp.this.asTypeRepr))
+      }
+      def <:<(that: Typ[?]): Boolean = that match {
+        case ClassTyp(c, args) if c.isArray && args.nonEmpty =>
+          typeArguments.head.<:<(args.head)
+        case ArrayTyp(elem) =>
+          typeArguments.head.<:<(elem)
+        case _ =>
+          false
+      }
+    }
 
-    def runtimeClass: Class[?] = throw new RuntimeException("TODO: VariableTyp.runtimeClass")
+    def runtimeClass: Class[?] = classOf[Variable[?]]
 
     def typeArguments = List(inner)
+
+    override def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
+      import q.reflect.*
+      TypeRepr.typeConstructorOf(runtimeClass).appliedTo(List(inner.asTypeRepr))
+    }
   }
 
   var nVars = 0
