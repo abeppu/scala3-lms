@@ -35,7 +35,7 @@
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [ ] Decide whether to reintroduce a `CompileScala`-style path or otherwise redesign `eval.scala` for Scala 3
   - [ ] Defer the query/compiler/backend-heavy tutorial chapters (`query*`, `linq`, `03_compiler`, `04_atwork`, scanner C lowering) until the non-Scala backend/runtime story is back in scope
-- [ ] Document new design decisions in `DECISIONS.md` as they land
+- [x] Document new design decisions in `DECISIONS.md` as they land
 
 ## Hacks
 
