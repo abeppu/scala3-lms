@@ -1063,6 +1063,40 @@ class virt extends MacroAnnotation {
             Some(emitEquality(ctx, scrutinee, transformTerm(ref)(ctx.owner)))
           case Bind(_, inner) =>
             loop(inner)
+          case Unapply(fun, _, patterns) =>
+            // Scala 3 encodes extractor patterns as `Unapply(fun, ..., patterns)`.
+            // We currently support the boolean nullary form `case Extractor()`,
+            // represented by an empty nested-pattern list.
+            if patterns.nonEmpty then
+              report.errorAndAbort(s"unsupported virtualized extractor pattern shape: ${tree.show}")
+            val unapplyFun = transformTerm(fun)(ctx.owner)
+            val cond = Apply(unapplyFun, List(scrutinee))
+            classifyTerm(cond) match {
+              case RepW(_) =>
+                Some(cond)
+              case VarW(elemType) =>
+                Some(readVarValue(ctx, cond, elemType))
+              case Bare(_) =>
+                Some(wrapBareBoolean(cond, ctx))
+            }
+          case Apply(extractor, args) =>
+            // Support boolean extractor patterns such as `case Even() => ...` on staged
+            // scrutinees by lowering to `Even.unapply(scrutinee)`.
+            // For now we only handle nullary extractor patterns, which correspond to
+            // `unapply: T => Boolean` matches.
+            if args.nonEmpty then
+              report.errorAndAbort(s"unsupported virtualized extractor arity in pattern: ${tree.show}")
+            val extractorTerm = transformTerm(extractor)(ctx.owner)
+            val unapplyCall = Select.overloaded(extractorTerm, "unapply", Nil, List(scrutinee))
+            val cond = Apply(unapplyCall, Nil)
+            classifyTerm(cond) match {
+              case RepW(_) =>
+                Some(cond)
+              case VarW(elemType) =>
+                Some(readVarValue(ctx, cond, elemType))
+              case Bare(_) =>
+                Some(wrapBareBoolean(cond, ctx))
+            }
           case _ =>
             report.errorAndAbort(s"unsupported virtualized match pattern: ${tree.show}")
         }
