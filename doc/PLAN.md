@@ -16,10 +16,11 @@
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
     - [x] Lower `throw new ThrowableSubclass(msg)` into staged exception IR for Throwable subclasses with single-String constructors
+    - [x] Support `throw new ThrowableSubclass()` no-argument constructor syntax by lowering it with an empty staged message
     - [x] Support staged catch guards and typed/bound catch patterns when the binder itself is unused
     - [x] Support staged `finally` blocks in the Scala backend/runtime-compile path
     - [x] Support staged `return` for early exits in the Scala backend/runtime-compile path
-    - [ ] Remaining gaps: broader `throw` syntax beyond single-String Throwable constructors and catch binders whose values are referenced in guards or handlers
+    - [ ] Remaining gaps: richer `throw` constructor shapes beyond zero-arg/single-String Throwable constructors and catch binders whose values are referenced in guards or handlers
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
   - [x] Keep destructuring / pattern-bound local definitions host-side when the scrutinee is a host container, while preserving staged elements bound by the pattern

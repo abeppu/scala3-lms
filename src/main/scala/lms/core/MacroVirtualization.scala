@@ -820,7 +820,7 @@ class virt extends MacroAnnotation {
         }
       }
 
-      private def supportedThrownException(term: Term): Option[(String, Term)] = {
+      private def supportedThrownException(term: Term): Option[(String, Option[Term])] = {
         def normalize(tree: Term): Term = tree match {
           case Inlined(_, _, inner) => normalize(inner)
           case Typed(expr, _) => normalize(expr)
@@ -832,7 +832,11 @@ class virt extends MacroAnnotation {
           case Apply(Select(New(tpt), ctor), List(msg)) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
             val normalized = tpt.tpe.dealias.widenTermRefByName.widen
             val className = normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
-            Some(className -> msg)
+            Some(className -> Some(msg))
+          case Apply(Select(New(tpt), ctor), Nil) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
+            val normalized = tpt.tpe.dealias.widenTermRefByName.widen
+            val className = normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
+            Some(className -> None)
           case _ =>
             None
         }
@@ -841,16 +845,16 @@ class virt extends MacroAnnotation {
       private def rewriteThrow(ctx: MacroCtx, throwApply: Apply, throwExpr: Term, owner: Symbol): Term = {
         supportedThrownException(throwExpr) match {
           case Some((exceptionClassName, msgTree)) =>
-            val msg = transformTerm(msgTree)(owner)
+            val msg = msgTree.map(transformTerm(_)(owner)).getOrElse(Literal(StringConstant("")))
             val msgKind = classifyTerm(msg)
             if shouldForceThrowVirtualization || !msgKind.isInstanceOf[Bare] then
               invokeOverloadedWithSearch(ctx, "throw_exception_class", List(Literal(StringConstant(exceptionClassName)), wrapBareTerm(msg, ctx)))
                 .getOrElse(report.errorAndAbort("failed to virtualize throw_exception_class"))
             else
-              Apply.copy(throwApply)(throwApply.fun, List(msg))
+              Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
           case None =>
             if shouldForceThrowVirtualization then
-              report.errorAndAbort("virtualized throw currently supports Throwable subclasses with a single String constructor")
+              report.errorAndAbort("virtualized throw currently supports Throwable subclasses with zero arguments or a single String constructor")
             else
               Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
         }

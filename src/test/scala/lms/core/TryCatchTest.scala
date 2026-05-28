@@ -69,6 +69,23 @@ trait TryCatchSnippets extends Dsl {
       case _: Exception => 70
     }
 
+  def throwNoArgException(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new Exception()
+      10
+    } catch {
+      case _: Exception => 80
+    }
+
+  def throwNoArgRuntimeException(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new RuntimeException()
+      10
+    } catch {
+      case _: RuntimeException => 90
+      case _: Exception => 100
+    }
+
   def finallyOnNormalPath(x: Rep[Int]): Rep[Int] = {
     var side = 0
     try {
@@ -208,6 +225,22 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 10
     staged(true) shouldBe 60
+  }
+
+  test("virtualized throw syntax supports no-argument Exception constructors") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.throwNoArgException(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 10
+    staged(true) shouldBe 80
+  }
+
+  test("virtualized throw syntax preserves no-argument thrown subclass types") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.throwNoArgRuntimeException(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 10
+    staged(true) shouldBe 90
   }
 
   test("virtualized finally runs on the normal path") {
