@@ -14,6 +14,8 @@
     - [x] Preserve richer host-only extractor matches when `@virt` code stays on bare Scala scrutinees
     - [ ] Blocked: extractor patterns on staged scrutinees that require pre-typer extractor typing the current `Rep` surface cannot satisfy
     - [x] Harden staged extractor lowering internals for Scala 3 `Unapply` tree shapes (`unapply(scrutinee)` call construction and nested-condition plumbing)
+    - [ ] Document the Scala-typer boundary for extractor syntax over staged scrutinees and the supported staged-match subset
+    - [ ] Add a staged match-combinator API for cases that Scala pattern syntax cannot typecheck before macro expansion
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
     - [x] Lower `throw new ThrowableSubclass(msg)` into staged exception IR for Throwable subclasses with single-String constructors
@@ -25,7 +27,10 @@
     - [x] Support `throw new ThrowableSubclass(cause)` where `cause` is a constructor-form Throwable (message or no-arg constructor)
     - [x] Support constructor-form Throwable causes stored in local vals for `(String, Throwable)` and `Throwable`-only constructors
     - [x] Preserve host-only catch-binder guard/handler usage inside `@virt` methods when no staged `try/catch` virtualization is needed
-    - [ ] Remaining gap: catch binders whose values are referenced in staged guards or handlers require exception-object representation in staged catch IR
+    - [ ] Add staged catch-binder representation for supported exception members, starting with `e.getMessage`
+    - [ ] Lower catch-binder `getMessage` references in staged guards and handlers through the new catch IR
+    - [ ] Add regression coverage for staged guards/handlers that depend on catch-binder messages
+    - [ ] Decide whether full staged exception objects are needed after message-only support lands
   - [x] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`
