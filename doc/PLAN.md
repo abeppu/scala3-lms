@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 139 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 141 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -27,9 +27,9 @@
     - [x] Support `throw new ThrowableSubclass(cause)` where `cause` is a constructor-form Throwable (message or no-arg constructor)
     - [x] Support constructor-form Throwable causes stored in local vals for `(String, Throwable)` and `Throwable`-only constructors
     - [x] Preserve host-only catch-binder guard/handler usage inside `@virt` methods when no staged `try/catch` virtualization is needed
-    - [ ] Add staged catch-binder representation for supported exception members, starting with `e.getMessage`
-    - [ ] Lower catch-binder `getMessage` references in staged guards and handlers through the new catch IR
-    - [ ] Add regression coverage for staged guards/handlers that depend on catch-binder messages
+    - [x] Add staged catch-binder representation for supported exception members, starting with `e.getMessage`
+    - [x] Lower catch-binder `getMessage` references in staged guards and handlers through the new catch IR
+    - [x] Add regression coverage for staged guards/handlers that depend on catch-binder messages
     - [ ] Decide whether full staged exception objects are needed after message-only support lands
   - [x] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`

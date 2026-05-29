@@ -221,6 +221,24 @@ trait TryCatchSnippets extends Dsl {
     result * 100 + readVar(side)
   }
 
+  def stagedCatchMessageHandler(x: Rep[Int]): Rep[Int] =
+    try {
+      if (x < 0) throw new IllegalArgumentException("negative")
+      1
+    } catch {
+      case e: IllegalArgumentException => e.getMessage.length
+    }
+
+  def stagedCatchMessageGuard(x: Rep[Int]): Rep[Int] =
+    try {
+      if (x < 0) throw new IllegalArgumentException("negative")
+      if (x == 0) throw new IllegalArgumentException("zero")
+      1
+    } catch {
+      case e: IllegalArgumentException if e.getMessage == "negative" => 2
+      case e: IllegalArgumentException => e.getMessage.length
+    }
+
   def hostTryCatchBinderUsage(x: Int): Int =
     try {
       if (x < 0) throw new IllegalArgumentException("neg")
@@ -407,6 +425,23 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 1011
     staged(true) shouldBe 2011
+  }
+
+  test("virtualized try/catch supports catch binder getMessage in handlers") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.stagedCatchMessageHandler(_)
+    val staged = compiler.compile(f)
+
+    staged(1) shouldBe 1
+    staged(-1) shouldBe 8
+  }
+
+  test("virtualized try/catch supports catch binder getMessage in guards") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.stagedCatchMessageGuard(_)
+    val staged = compiler.compile(f)
+
+    staged(1) shouldBe 1
+    staged(-1) shouldBe 2
+    staged(0) shouldBe 4
   }
 
   test("host try/catch binder usage is preserved inside @virt code when no staged values are involved") {

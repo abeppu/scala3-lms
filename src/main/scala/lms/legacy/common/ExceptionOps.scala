@@ -28,6 +28,8 @@ trait ExceptionOps extends Variables {
   def __guardedCatchCaseWithMessage[T](exceptionClassName: String, message: Rep[String], guard: => Rep[Boolean], handler: => Rep[T]): VirtualCatchCase[T] =
     VirtualCatchCase(exceptionClassName, Some(message), Some(() => guard), () => handler)
 
+  def __catchMessage: Rep[String]
+
   def __tryCatch[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(using pos: SourceContext): Rep[T]
   def __tryCatchFinally[T:Typ](body: => Rep[T], catches: VirtualCatchCase[T]*)(finalizer: => Rep[Unit])(using pos: SourceContext): Rep[T]
   
@@ -43,6 +45,9 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   case class TryCatch[T:Typ](body: Block[T], catches: List[ReifiedCatch[T]], finalizer: Option[Block[Unit]]) extends Def[T]
   case class ThrowException(exceptionClassName: String, m: Rep[String]) extends Def[Unit]
   case class ThrowExceptionWithCause(exceptionClassName: String, m: Rep[String], causeClassName: String, causeMessage: Rep[String]) extends Def[Unit]
+
+  def __catchMessage: Rep[String] =
+    fresh[String]
   
   private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
     case Def(Reify(_, _, effects)) =>
@@ -123,7 +128,7 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   }).asInstanceOf[Exp[A]]  
 
   override def aliasSyms(e: Any): List[Sym[Any]] = e match {
-    case TryCatch(body, catches, finalizer) => syms(body) ::: catches.flatMap(c => c.guard.toList.flatMap(syms) ::: syms(c.handler)) ::: finalizer.toList.flatMap(syms)
+    case TryCatch(body, _, finalizer) => syms(body) ::: finalizer.toList.flatMap(syms)
     case _ => super.aliasSyms(e)
   }
 
@@ -143,8 +148,8 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   }
 
   override def symsFreq(e: Any): List[(Sym[Any], Double)] = e match {
-    case TryCatch(body, catches, finalizer) =>
-      freqHot(body) ++ catches.flatMap(c => c.guard.toList.flatMap(freqCold) ++ freqCold(c.handler)) ++ finalizer.toList.flatMap(freqCold)
+    case TryCatch(body, _, finalizer) =>
+      freqHot(body) ++ finalizer.toList.flatMap(freqCold)
     case _ =>
       super.symsFreq(e)
   }
@@ -154,6 +159,8 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
       blockEffectSyms(body) :::
         catches.flatMap(c =>
           c.message.collect { case s: Sym[?] => s.asInstanceOf[Sym[Any]] }.toList :::
+            c.guard.toList.flatMap(syms) :::
+            syms(c.handler) :::
             c.guard.toList.flatMap(blockEffectSyms) :::
             blockEffectSyms(c.handler)
         ) :::
