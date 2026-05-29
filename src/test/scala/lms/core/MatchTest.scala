@@ -84,6 +84,18 @@ trait MatchSnippets extends Dsl {
       case _ => 300
     }
 
+  def combinatorValueMatch(x: Rep[Int]): Rep[Int] =
+    stagedMatch[Int, Int](x)(
+      stagedValueCase[Int, Int](unit(0))(_ => 100),
+      stagedCase[Int, Int](n => n < 0)(n => 0 - n)
+    )(n => n + 10)
+
+  def combinatorTypeMatch(x: Rep[Any]): Rep[Int] =
+    stagedMatch[Any, Int](x)(
+      stagedTypeCase[Any, Int, Int](n => n + 1),
+      stagedTypeCase[Any, String, Int](s => s.length)
+    )(_ => 300)
+
   def hostExtractorMatch(x: Int): Int =
     x match {
       case HostEven() => x + 100
@@ -188,6 +200,24 @@ class MatchTest extends AnyFunSuite with Matchers {
     staged(-7) shouldBe 7
     staged(5) shouldBe 15
     staged("zzz") shouldBe 300
+  }
+
+  test("staged match combinator supports value and predicate cases") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.combinatorValueMatch(_)
+    val staged = compiler.compile(f)
+
+    staged(0) shouldBe 100
+    staged(-7) shouldBe 7
+    staged(5) shouldBe 15
+  }
+
+  test("staged match combinator supports typed cases without pattern syntax") {
+    val f: compiler.Exp[Any] => compiler.Exp[Int] = compiler.combinatorTypeMatch(_)
+    val staged = compiler.compile[Any, Int](f)
+
+    staged(7) shouldBe 8
+    staged("abcd") shouldBe 4
+    staged(true) shouldBe 300
   }
 
   test("host extractor matches are preserved inside @virt code when the scrutinee is bare") {

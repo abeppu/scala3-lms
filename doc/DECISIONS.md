@@ -44,7 +44,10 @@ will fail before the virtualization macro can rewrite it.
 For that reason, extractor-pattern parity should not be pursued only by adding
 more macro cases. The staged path needs either a source shape that typechecks
 against `Rep` before rewriting or an explicit staged match/combinator API whose
-case tests and projections are already expressed as LMS terms.
+case tests and projections are already expressed as LMS terms. The initial
+`stagedMatch` helper takes explicit staged tests, value cases, and type cases;
+it composes existing `__ifThenElse`, equality, and cast/type-test operations
+rather than introducing separate match IR.
 
 ## Exceptions
 
