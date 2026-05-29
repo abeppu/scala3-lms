@@ -12,7 +12,7 @@
     - [x] Initial typed-pattern support for staged wildcard type tests over `Rep[Any]`
     - [x] Add typed binders and typed aliases over staged `Rep[Any]` scrutinees
     - [x] Preserve richer host-only extractor matches when `@virt` code stays on bare Scala scrutinees
-    - [ ] Remaining staged gaps: extractor patterns on staged scrutinees that require pre-typer extractor typing the current `Rep` surface cannot satisfy
+    - [ ] Blocked: extractor patterns on staged scrutinees that require pre-typer extractor typing the current `Rep` surface cannot satisfy
     - [x] Harden staged extractor lowering internals for Scala 3 `Unapply` tree shapes (`unapply(scrutinee)` call construction and nested-condition plumbing)
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
@@ -25,7 +25,7 @@
     - [x] Support `throw new ThrowableSubclass(cause)` where `cause` is a constructor-form Throwable (message or no-arg constructor)
     - [x] Support constructor-form Throwable causes stored in local vals for `(String, Throwable)` and `Throwable`-only constructors
     - [x] Preserve host-only catch-binder guard/handler usage inside `@virt` methods when no staged `try/catch` virtualization is needed
-    - [ ] Remaining gaps: richer `throw` constructor shapes beyond zero-arg/single-String/local constructor-form Throwable-cause variants, and catch binders whose values are referenced in staged guards or handlers
+    - [ ] Remaining gap: catch binders whose values are referenced in staged guards or handlers require exception-object representation in staged catch IR
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`
@@ -35,16 +35,17 @@
     - [x] Add primitive `Long` numeric conversions for staged `toFloat` and `toDouble`
     - [x] Add runtime-compile support for primitive parse nodes, primitive constants, and double conversion nodes already covered by Scala codegen
   - [x] Keep destructuring / pattern-bound local definitions host-side when the scrutinee is a host container, while preserving staged elements bound by the pattern
-- [ ] Improve type reification (nested type params, generic code staging)
+- [x] Improve type reification (nested type params, generic code staging)
   - [x] Preserve manifest-backed applied type arguments in `Typ.asTypeRepr`, including nested generics and array element types
   - [x] Reify path-dependent LMS `Variable[T]` directly in `Typ.asTypeRepr`, including `Array[Variable[T]]` wrappers
   - [x] Support nested `Array[Variable[T]]` type reification without runtime TODOs
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
+  - [ ] Deferred: non-Scala backends (C/CUDA/OpenCL) until the docker image/toolchain is explicitly in scope
 - [ ] Port and validate original Scala 2 LMS examples under @virt
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [x] Redesign `eval.scala` for Scala 3 around the current `DslCompile` runtime-compile path (no `CompileScala` reintroduction)
-  - [ ] Defer the query/compiler/backend-heavy tutorial chapters (`query*`, `linq`, `03_compiler`, `04_atwork`, scanner C lowering) until the non-Scala backend/runtime story is back in scope
+  - [ ] Deferred: query/compiler/backend-heavy tutorial chapters (`query*`, `linq`, `03_compiler`, `04_atwork`, scanner C lowering) until the non-Scala backend/runtime story is back in scope
 
 ### Legacy tutorial parity tracker (`/legacy-lms-tutorials/src/test/scala/lms/tutorial`)
 
