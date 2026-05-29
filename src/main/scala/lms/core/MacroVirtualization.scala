@@ -1067,6 +1067,26 @@ class virt extends MacroAnnotation {
       }
 
       private def patternCondition(ctx: MacroCtx, scrutinee: Term, pattern: Tree): Option[Term] = {
+        def normalizeBoolLike(cond: Term): Term =
+          classifyTerm(cond) match {
+            case RepW(_) =>
+              cond
+            case VarW(elemType) =>
+              readVarValue(ctx, cond, elemType)
+            case Bare(_) =>
+              wrapBareBoolean(cond, ctx)
+          }
+
+        def extractorCondAndValue(fun: Term): (Term, Term) = {
+          val unapplyResult = Apply(fun, List(scrutinee))
+          val cond = normalizeBoolLike(Select.unique(unapplyResult, "isDefined"))
+          val value = Select.unique(unapplyResult, "get")
+          (cond, value)
+        }
+
+        def tupleProjection(tupleTerm: Term, idx: Int): Term =
+          Select.unique(tupleTerm, s"_$idx")
+
         def typeTest(targetType: TypeRepr): Option[Term] =
           classifyTerm(scrutinee) match {
             case RepW(scrutineeType) =>
@@ -1112,20 +1132,24 @@ class virt extends MacroAnnotation {
             loop(inner)
           case Unapply(fun, _, patterns) =>
             // Scala 3 encodes extractor patterns as `Unapply(fun, ..., patterns)`.
-            // We currently support the boolean nullary form `case Extractor()`,
-            // represented by an empty nested-pattern list.
-            if patterns.nonEmpty then
-              report.errorAndAbort(s"unsupported virtualized extractor pattern shape: ${tree.show}")
+            // Supported forms:
+            // - boolean nullary extractor: `case Extractor()`
+            // - value extractors: `case Extractor(x)` and fixed-arity tuples from `unapply(...).get`
             val unapplyFun = transformTerm(fun)(ctx.owner)
-            val cond = Apply(unapplyFun, List(scrutinee))
-            classifyTerm(cond) match {
-              case RepW(_) =>
-                Some(cond)
-              case VarW(elemType) =>
-                Some(readVarValue(ctx, cond, elemType))
-              case Bare(_) =>
-                Some(wrapBareBoolean(cond, ctx))
-            }
+            if patterns.isEmpty then
+              val cond = Apply(unapplyFun, List(scrutinee))
+              Some(normalizeBoolLike(cond))
+            else
+              val (definedCond, extracted) = extractorCondAndValue(unapplyFun)
+              val nestedConds = patterns.zipWithIndex.flatMap { case (p, idx) =>
+                val target =
+                  if patterns.length == 1 then extracted
+                  else tupleProjection(extracted, idx + 1)
+                patternCondition(ctx, target, p)
+              }
+              nestedConds.foldLeft(Option(definedCond)) { (acc, next) =>
+                acc.map(lhs => emitBooleanBinary(ctx, lhs, next, "boolean_and"))
+              }
           case Apply(extractor, args) =>
             // Support boolean extractor patterns such as `case Even() => ...` on staged
             // scrutinees by lowering to `Even.unapply(scrutinee)`.
@@ -1151,6 +1175,9 @@ class virt extends MacroAnnotation {
       }
 
       private def patternBindings(ctx: MacroCtx, scrutinee: Term, pattern: Tree): List[(Symbol, Term)] = {
+        def tupleProjection(tupleTerm: Term, idx: Int): Term =
+          Select.unique(tupleTerm, s"_$idx")
+
         def castedScrutinee(targetType: TypeRepr): Term =
           classifyTerm(scrutinee) match {
             case RepW(scrutineeType) =>
@@ -1191,6 +1218,15 @@ class virt extends MacroAnnotation {
             (bind.symbol, castedScrutinee(tpt.tpe)) :: loop(inner)
           case Typed(inner, _) =>
             loop(inner)
+          case Unapply(fun, _, patterns) if patterns.nonEmpty =>
+            val unapplyFun = transformTerm(fun)(ctx.owner)
+            val extracted = Select.unique(Apply(unapplyFun, List(scrutinee)), "get")
+            patterns.zipWithIndex.flatMap { case (pat, idx) =>
+              val target =
+                if patterns.length == 1 then extracted
+                else tupleProjection(extracted, idx + 1)
+              patternBindings(ctx, target, pat)
+            }
           case _ =>
             Nil
         }
