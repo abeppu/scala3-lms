@@ -31,6 +31,13 @@
     - [x] Lower catch-binder `getMessage` references in staged guards and handlers through the new catch IR
     - [x] Add regression coverage for staged guards/handlers that depend on catch-binder messages
     - [ ] Decide whether full staged exception objects are needed after message-only support lands
+      - [ ] Define a real staged exception-object representation, likely `Rep[Throwable]`-like catch binder symbols that are scoped to each `ReifiedCatch`
+      - [ ] Add IR nodes for selected exception members beyond `getMessage`, starting with `getCause`, `getClass`/type tests, and possibly `toString`
+      - [ ] Teach Scala codegen and runtime compile to bind the caught exception object itself, not only a derived message string
+      - [ ] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
+      - [ ] Extend macro lowering to support passing the catch binder to staged helper methods when their parameter type can be represented
+      - [ ] Keep arbitrary host-side exception mutation, stack trace inspection, suppressed exceptions, and backend-specific exception semantics out of scope unless a concrete tutorial/test requires them
+      - [ ] Add focused regressions for binder use in guards, handlers, helper calls, nested catches, and fallback behavior for unsupported exception operations
   - [x] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`
