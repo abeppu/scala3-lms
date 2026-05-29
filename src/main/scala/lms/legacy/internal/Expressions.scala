@@ -96,23 +96,26 @@ trait Expressions extends Utils {
       case _ => false
     }
 
-    def arrayTyp: Typ[Array[Variable[T]]] = new Typ[Array[Variable[T]]] {
-      def typeArguments: List[Typ[?]] = List(VariableTyp.this)
-      def arrayTyp: Typ[Array[Array[Variable[T]]]] = throw new RuntimeException("TODO: nested arrays for VariableTyp")
+    private def makeArrayTyp(elem: Typ[?]): Typ[?] = new Typ[Any] {
+      def typeArguments: List[Typ[?]] = List(elem)
+      def arrayTyp: Typ[Array[Any]] = makeArrayTyp(this).asInstanceOf[Typ[Array[Any]]]
       def runtimeClass: Class[?] = classOf[Array[?]]
       override def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
         import q.reflect.*
-        TypeRepr.of[Array].appliedTo(List(VariableTyp.this.asTypeRepr))
+        TypeRepr.of[Array].appliedTo(List(elem.asTypeRepr))
       }
       def <:<(that: Typ[?]): Boolean = that match {
         case ClassTyp(c, args) if c.isArray && args.nonEmpty =>
-          typeArguments.head.<:<(args.head)
-        case ArrayTyp(elem) =>
-          typeArguments.head.<:<(elem)
+          elem.<:<(args.head)
+        case ArrayTyp(otherElem) =>
+          elem.<:<(otherElem)
         case _ =>
           false
       }
     }
+
+    def arrayTyp: Typ[Array[Variable[T]]] =
+      makeArrayTyp(VariableTyp.this).asInstanceOf[Typ[Array[Variable[T]]]]
 
     def runtimeClass: Class[?] = classOf[Variable[?]]
 

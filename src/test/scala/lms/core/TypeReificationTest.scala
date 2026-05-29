@@ -62,4 +62,11 @@ class TypeReificationTest extends AnyFunSuite with Matchers {
 
     typeReprShow(typ).shouldBe("scala.Array[lms.legacy.internal.Expressions#Variable[scala.Int]]")
   }
+
+  test("nested variable array type reification preserves inner element type") {
+    val typ = probe.VariableTyp(probe.ManifestTyp(Manifest.of[Int])).arrayTyp.arrayTyp
+
+    typeReprShow(typ).shouldBe("scala.Array[scala.Array[lms.legacy.internal.Expressions#Variable[scala.Int]]]")
+  }
+
 }

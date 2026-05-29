@@ -32,6 +32,7 @@
 - [ ] Improve type reification (nested type params, generic code staging)
   - [x] Preserve manifest-backed applied type arguments in `Typ.asTypeRepr`, including nested generics and array element types
   - [x] Reify path-dependent LMS `Variable[T]` directly in `Typ.asTypeRepr`, including `Array[Variable[T]]` wrappers
+  - [x] Support nested `Array[Variable[T]]` type reification without runtime TODOs
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
 - [ ] Port and validate original Scala 2 LMS examples under @virt
