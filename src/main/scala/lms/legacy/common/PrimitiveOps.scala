@@ -318,6 +318,8 @@ trait PrimitiveOps extends Variables with OverloadHack {
 
   class LongOpsCls(lhs: Rep[Long]) {
     def toInt(using pos: SourceContext): Rep[Int] = long_toint(lhs)
+    def toFloat(using pos: SourceContext): Rep[Float] = long_tofloat(lhs)
+    def toDouble(using pos: SourceContext): Rep[Double] = long_todouble(lhs)
     def unary_~(using pos: SourceContext): Rep[Long] = long_bitwise_not(lhs)
 
     def +(rhs: Rep[Long])(using o1: Overloaded1): Rep[Long] = long_plus(lhs, rhs)
@@ -334,6 +336,8 @@ trait PrimitiveOps extends Variables with OverloadHack {
   }
 
   def infix_toInt(lhs: Rep[Long])(using o: Overloaded2, pos: SourceContext): Rep[Int] = long_toint(lhs)
+  def infix_toFloat(lhs: Rep[Long])(using o: Overloaded2, pos: SourceContext): Rep[Float] = long_tofloat(lhs)
+  def infix_toDouble(lhs: Rep[Long])(using o: Overloaded2, pos: SourceContext): Rep[Double] = long_todouble(lhs)
 
   def infix_%   (lhs: Rep[Long], rhs: Rep[Long])(using o: Overloaded2, pos: SourceContext): Rep[Long] = long_mod(lhs, rhs)
   def infix_&   (lhs: Rep[Long], rhs: Rep[Long])(using o: Overloaded2, pos: SourceContext): Rep[Long] = long_binaryand(lhs, rhs)
@@ -345,6 +349,8 @@ trait PrimitiveOps extends Variables with OverloadHack {
 
   def obj_long_parse_long(s: Rep[String])(using pos: SourceContext): Rep[Long]
   def long_toint         (lhs: Rep[Long])(using pos: SourceContext): Rep[Int]
+  def long_tofloat       (lhs: Rep[Long])(using pos: SourceContext): Rep[Float]
+  def long_todouble      (lhs: Rep[Long])(using pos: SourceContext): Rep[Double]
 
   def long_plus               (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_minus              (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
@@ -493,6 +499,8 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   case class LongShiftRightArith(lhs: Exp[Long], rhs: Exp[Int]) extends Def[Long]
   case class LongShiftRightUnsigned(lhs: Exp[Long], rhs: Exp[Int]) extends Def[Long]
   case class LongToInt(lhs: Exp[Long]) extends Def[Int]
+  case class LongToFloat(lhs: Exp[Long]) extends Def[Float]
+  case class LongToDouble(lhs: Exp[Long]) extends Def[Double]
   case class LongMod(lhs: Exp[Long], rhs: Exp[Long]) extends Def[Long]
 
   def obj_long_parse_long(s: Exp[String])(using pos: SourceContext) = ObjLongParseLong(s)
@@ -508,6 +516,8 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   def long_shiftright_arith(lhs: Exp[Long], rhs: Exp[Int])(using pos: SourceContext) = LongShiftRightArith(lhs,rhs)
   def long_shiftright_unsigned(lhs: Exp[Long], rhs: Exp[Int])(using pos: SourceContext) = LongShiftRightUnsigned(lhs,rhs)
   def long_toint(lhs: Exp[Long])(using pos: SourceContext) = LongToInt(lhs)
+  def long_tofloat(lhs: Exp[Long])(using pos: SourceContext) = LongToFloat(lhs)
+  def long_todouble(lhs: Exp[Long])(using pos: SourceContext) = LongToDouble(lhs)
   def long_mod    (lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongMod(lhs, rhs)
     
   override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = {
@@ -565,6 +575,8 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
       case LongBinaryXor(x,y)           => long_binaryxor(f(x),f(y))
       case LongBitwiseNot(x)            => long_bitwise_not(f(x))
       case LongToInt(x)                 => long_toint(f(x))
+      case LongToFloat(x)               => long_tofloat(f(x))
+      case LongToDouble(x)              => long_todouble(f(x))
       case LongShiftRightUnsigned(x,y)  => long_shiftright_unsigned(f(x),f(y))
 
       case Reflect(ObjDoubleParseDouble(x)    , u, es) => reflectMirrored(Reflect(ObjDoubleParseDouble(f(x))        , mapOver(f,u), f(es)))(using mtyp1[A], pos)
@@ -618,6 +630,8 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
       case Reflect(LongBinaryXor(x,y)         , u, es) => reflectMirrored(Reflect(LongBinaryXor(f(x),f(y))          , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongBitwiseNot(x)          , u, es) => reflectMirrored(Reflect(LongBitwiseNot(f(x))              , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongToInt(x)               , u, es) => reflectMirrored(Reflect(LongToInt(f(x))                   , mapOver(f,u), f(es)))(using mtyp1[A], pos)
+      case Reflect(LongToFloat(x)             , u, es) => reflectMirrored(Reflect(LongToFloat(f(x))                 , mapOver(f,u), f(es)))(using mtyp1[A], pos)
+      case Reflect(LongToDouble(x)            , u, es) => reflectMirrored(Reflect(LongToDouble(f(x))                , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case _ => super.mirror(e,f)
     }
     mirror.asInstanceOf[Exp[A]]
@@ -916,6 +930,12 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
       case LongToInt(lhs) =>
         val value = interpretExpWithEnv(lhs).asExprOf[Long]
         '{ $value.toInt }.asTerm
+      case LongToFloat(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Long]
+        '{ $value.toFloat }.asTerm
+      case LongToDouble(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Long]
+        '{ $value.toDouble }.asTerm
       case FloatToDouble(lhs) =>
         val value = interpretExpWithEnv(lhs).asExprOf[Float]
         '{ $value.toDouble }.asTerm
@@ -1007,6 +1027,8 @@ trait ScalaGenPrimitiveOps extends ScalaGenBase {
     case LongShiftRightArith(lhs,rhs) => emitValDef(sym, quote(lhs) + " >> " + quote(rhs))
     case LongShiftRightUnsigned(lhs,rhs) => emitValDef(sym, quote(lhs) + " >>> " + quote(rhs))
     case LongToInt(lhs) => emitValDef(sym, quote(lhs) + ".toInt")
+    case LongToFloat(lhs) => emitValDef(sym, quote(lhs) + ".toFloat")
+    case LongToDouble(lhs) => emitValDef(sym, quote(lhs) + ".toDouble")
     case _ => super.emitNode(sym, rhs)
   }
 }
@@ -1069,6 +1091,8 @@ trait CLikeGenPrimitiveOps extends CLikeGenBase {
       case LongShiftRightArith(lhs,rhs) => emitValDef(sym, quote(lhs) + " >> " + quote(rhs))
       case LongShiftRightUnsigned(lhs,rhs) => emitValDef(sym, "(uint64_t)" + quote(lhs) + " >> " + quote(rhs))
       case LongToInt(lhs) => emitValDef(sym, "(int32_t)"+quote(lhs))
+      case LongToFloat(lhs) => emitValDef(sym, "(float)" + quote(lhs))
+      case LongToDouble(lhs) => emitValDef(sym, "(double)" + quote(lhs))
       case _ => super.emitNode(sym, rhs)
     }
   }

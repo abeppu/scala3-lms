@@ -30,6 +30,16 @@ trait PrimitiveNumericSnippets extends Dsl {
     val widened: Rep[Double] = x.toDouble
     widened + 1.25
   }
+
+  def longToFloatPipeline(x: Rep[Long]): Rep[Float] = {
+    val widened: Rep[Float] = x.toFloat
+    widened + 1.5f
+  }
+
+  def longToDoublePipeline(x: Rep[Long]): Rep[Double] = {
+    val widened: Rep[Double] = x.toDouble
+    widened + 1.25
+  }
 }
 
 class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
@@ -77,6 +87,24 @@ class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
     val staged = compiler.compile[Float, Double](f)
 
     List(-3.0f, 0.0f, 2.5f).foreach { x =>
+      staged(x).shouldBe(x.toDouble + 1.25)
+    }
+  }
+
+  test("virtualized staged long to float promotion uses toFloat path") {
+    val f: compiler.Exp[Long] => compiler.Exp[Float] = compiler.longToFloatPipeline(_)
+    val staged = compiler.compile[Long, Float](f)
+
+    List(-3L, 0L, 25L).foreach { x =>
+      staged(x).shouldBe(x.toFloat + 1.5f)
+    }
+  }
+
+  test("virtualized staged long to double promotion uses toDouble path") {
+    val f: compiler.Exp[Long] => compiler.Exp[Double] = compiler.longToDoublePipeline(_)
+    val staged = compiler.compile[Long, Double](f)
+
+    List(-3L, 0L, 25L).foreach { x =>
       staged(x).shouldBe(x.toDouble + 1.25)
     }
   }
