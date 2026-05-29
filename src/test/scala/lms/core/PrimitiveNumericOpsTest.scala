@@ -23,7 +23,7 @@ trait PrimitiveNumericSnippets extends Dsl {
   def longBitwisePipeline(x: Rep[Long]): Rep[Long] = {
     val y = 0x55L
     val mixed = (x & y) ^ (x | y)
-    (mixed << 1) >> 1
+    (~(mixed << 1)) >> 1
   }
 
   def floatToDoublePipeline(x: Rep[Float]): Rep[Double] = {
@@ -68,7 +68,7 @@ class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
 
     val inputs = List(0x0FL, 0x1234L, -7L)
     inputs.foreach { x =>
-      staged(x).shouldBe((((x & 0x55L) ^ (x | 0x55L)) << 1 >> 1))
+      staged(x).shouldBe((~(((x & 0x55L) ^ (x | 0x55L)) << 1)) >> 1)
     }
   }
 

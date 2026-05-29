@@ -318,6 +318,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
 
   class LongOpsCls(lhs: Rep[Long]) {
     def toInt(using pos: SourceContext): Rep[Int] = long_toint(lhs)
+    def unary_~(using pos: SourceContext): Rep[Long] = long_bitwise_not(lhs)
 
     def +(rhs: Rep[Long])(using o1: Overloaded1): Rep[Long] = long_plus(lhs, rhs)
     def -(rhs: Rep[Long])(using o1: Overloaded1): Rep[Long] = long_minus(lhs, rhs)
@@ -350,6 +351,7 @@ trait PrimitiveOps extends Variables with OverloadHack {
   def long_times              (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_divide             (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_mod                (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
+  def long_bitwise_not        (lhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_binaryand          (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_binaryor           (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
   def long_binaryxor          (lhs: Rep[Long], rhs: Rep[Long])(using pos: SourceContext): Rep[Long]
@@ -486,6 +488,7 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   case class LongBinaryOr(lhs: Exp[Long], rhs: Exp[Long]) extends Def[Long]
   case class LongBinaryAnd(lhs: Exp[Long], rhs: Exp[Long]) extends Def[Long]
   case class LongBinaryXor(lhs: Exp[Long], rhs: Exp[Long]) extends Def[Long]
+  case class LongBitwiseNot(lhs: Exp[Long]) extends Def[Long]
   case class LongShiftLeft(lhs: Exp[Long], rhs: Exp[Int]) extends Def[Long]
   case class LongShiftRightArith(lhs: Exp[Long], rhs: Exp[Int]) extends Def[Long]
   case class LongShiftRightUnsigned(lhs: Exp[Long], rhs: Exp[Int]) extends Def[Long]
@@ -500,6 +503,7 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
   def long_binaryor(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongBinaryOr(lhs,rhs)
   def long_binaryand(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongBinaryAnd(lhs,rhs)
   def long_binaryxor(lhs: Exp[Long], rhs: Exp[Long])(using pos: SourceContext) = LongBinaryXor(lhs,rhs)
+  def long_bitwise_not(lhs: Exp[Long])(using pos: SourceContext) = LongBitwiseNot(lhs)
   def long_shiftleft(lhs: Exp[Long], rhs: Exp[Int])(using pos: SourceContext) = LongShiftLeft(lhs,rhs)
   def long_shiftright_arith(lhs: Exp[Long], rhs: Exp[Int])(using pos: SourceContext) = LongShiftRightArith(lhs,rhs)
   def long_shiftright_unsigned(lhs: Exp[Long], rhs: Exp[Int])(using pos: SourceContext) = LongShiftRightUnsigned(lhs,rhs)
@@ -559,6 +563,7 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
       case LongBinaryOr(x,y)            => long_binaryor(f(x),f(y))
       case LongBinaryAnd(x,y)           => long_binaryand(f(x),f(y))
       case LongBinaryXor(x,y)           => long_binaryxor(f(x),f(y))
+      case LongBitwiseNot(x)            => long_bitwise_not(f(x))
       case LongToInt(x)                 => long_toint(f(x))
       case LongShiftRightUnsigned(x,y)  => long_shiftright_unsigned(f(x),f(y))
 
@@ -611,6 +616,7 @@ trait PrimitiveOpsExp extends PrimitiveOps with EffectExp {
       case Reflect(LongBinaryOr(x,y)          , u, es) => reflectMirrored(Reflect(LongBinaryOr(f(x),f(y))           , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongBinaryAnd(x,y)         , u, es) => reflectMirrored(Reflect(LongBinaryAnd(f(x),f(y))          , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongBinaryXor(x,y)         , u, es) => reflectMirrored(Reflect(LongBinaryXor(f(x),f(y))          , mapOver(f,u), f(es)))(using mtyp1[A], pos)
+      case Reflect(LongBitwiseNot(x)          , u, es) => reflectMirrored(Reflect(LongBitwiseNot(f(x))              , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case Reflect(LongToInt(x)               , u, es) => reflectMirrored(Reflect(LongToInt(f(x))                   , mapOver(f,u), f(es)))(using mtyp1[A], pos)
       case _ => super.mirror(e,f)
     }
@@ -859,6 +865,13 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
       }
     }
 
+    def interpretLongUnary(argExp: Exp[Long], op: String): Term = {
+      val arg = interpretExpWithEnv(argExp).asExprOf[Long]
+      op match {
+        case "~" => '{ ~$arg }.asTerm
+      }
+    }
+
     d match {
       case IntPlus(lhs, rhs) =>
         interpretIntBinary(lhs, rhs, "+")
@@ -892,6 +905,8 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
         interpretLongBinary(lhs, rhs, "|")
       case LongBinaryXor(lhs, rhs) =>
         interpretLongBinary(lhs, rhs, "^")
+      case LongBitwiseNot(arg) =>
+        interpretLongUnary(arg, "~")
       case LongShiftLeft(lhs, rhs) =>
         interpretLongShift(lhs, rhs, "<<")
       case LongShiftRightArith(lhs, rhs) =>
@@ -987,6 +1002,7 @@ trait ScalaGenPrimitiveOps extends ScalaGenBase {
     case LongBinaryOr(lhs,rhs) => emitValDef(sym, quote(lhs) + " | " + quote(rhs))
     case LongBinaryAnd(lhs,rhs) => emitValDef(sym, quote(lhs) + " & " + quote(rhs))
     case LongBinaryXor(lhs,rhs) => emitValDef(sym, quote(lhs) + " ^ " + quote(rhs))
+    case LongBitwiseNot(lhs) => emitValDef(sym, "~" + quote(lhs))
     case LongShiftLeft(lhs,rhs) => emitValDef(sym, quote(lhs) + " << " + quote(rhs))
     case LongShiftRightArith(lhs,rhs) => emitValDef(sym, quote(lhs) + " >> " + quote(rhs))
     case LongShiftRightUnsigned(lhs,rhs) => emitValDef(sym, quote(lhs) + " >>> " + quote(rhs))
@@ -1048,6 +1064,7 @@ trait CLikeGenPrimitiveOps extends CLikeGenBase {
       case LongBinaryOr(lhs,rhs) => emitValDef(sym, quote(lhs) + " | " + quote(rhs))
       case LongBinaryAnd(lhs,rhs) => emitValDef(sym, quote(lhs) + " & " + quote(rhs))
       case LongBinaryXor(lhs,rhs) => emitValDef(sym, quote(lhs) + " ^ " + quote(rhs))
+      case LongBitwiseNot(lhs) => emitValDef(sym, "~" + quote(lhs))
       case LongShiftLeft(lhs,rhs) => emitValDef(sym, quote(lhs) + " << " + quote(rhs))
       case LongShiftRightArith(lhs,rhs) => emitValDef(sym, quote(lhs) + " >> " + quote(rhs))
       case LongShiftRightUnsigned(lhs,rhs) => emitValDef(sym, "(uint64_t)" + quote(lhs) + " >> " + quote(rhs))
