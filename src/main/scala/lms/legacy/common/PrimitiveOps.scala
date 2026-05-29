@@ -887,6 +887,39 @@ trait PrimitiveOpsGen extends Gen with PrimitiveOpsExp {
     }
 
     d match {
+      case ObjDoubleParseDouble(s) =>
+        val value = interpretExpWithEnv(s).asExprOf[String]
+        '{ java.lang.Double.parseDouble($value) }.asTerm
+      case ObjDoublePositiveInfinity() =>
+        '{ scala.Double.PositiveInfinity }.asTerm
+      case ObjDoubleNegativeInfinity() =>
+        '{ scala.Double.NegativeInfinity }.asTerm
+      case ObjDoubleMinValue() =>
+        '{ scala.Double.MinValue }.asTerm
+      case ObjDoubleMaxValue() =>
+        '{ scala.Double.MaxValue }.asTerm
+      case DoubleFloatValue(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Double]
+        '{ $value.toFloat }.asTerm
+      case DoubleToInt(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Double]
+        '{ $value.toInt }.asTerm
+      case DoubleToFloat(lhs) =>
+        val value = interpretExpWithEnv(lhs).asExprOf[Double]
+        '{ $value.toFloat }.asTerm
+      case ObjFloatParseFloat(s) =>
+        val value = interpretExpWithEnv(s).asExprOf[String]
+        '{ java.lang.Float.parseFloat($value) }.asTerm
+      case ObjIntegerParseInt(s) =>
+        val value = interpretExpWithEnv(s).asExprOf[String]
+        '{ java.lang.Integer.parseInt($value) }.asTerm
+      case ObjIntMaxValue() =>
+        '{ scala.Int.MaxValue }.asTerm
+      case ObjIntMinValue() =>
+        '{ scala.Int.MinValue }.asTerm
+      case ObjLongParseLong(s) =>
+        val value = interpretExpWithEnv(s).asExprOf[String]
+        '{ java.lang.Long.parseLong($value) }.asTerm
       case IntPlus(lhs, rhs) =>
         interpretIntBinary(lhs, rhs, "+")
       case IntMinus(lhs, rhs) =>

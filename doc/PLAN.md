@@ -33,6 +33,7 @@
     - [x] Fill primitive `Long` bitwise/shift surface/runtime/codegen gaps for staged `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`
     - [x] Add primitive `Long` unary bitwise-not (`~`) surface/runtime/codegen support
     - [x] Add primitive `Long` numeric conversions for staged `toFloat` and `toDouble`
+    - [x] Add runtime-compile support for primitive parse nodes, primitive constants, and double conversion nodes already covered by Scala codegen
   - [x] Keep destructuring / pattern-bound local definitions host-side when the scrutinee is a host container, while preserving staged elements bound by the pattern
 - [ ] Improve type reification (nested type params, generic code staging)
   - [x] Preserve manifest-backed applied type arguments in `Typ.asTypeRepr`, including nested generics and array element types

@@ -40,6 +40,21 @@ trait PrimitiveNumericSnippets extends Dsl {
     val widened: Rep[Double] = x.toDouble
     widened + 1.25
   }
+
+  def parseIntPipeline(s: Rep[String]): Rep[Int] =
+    Integer.parseInt(s) + Int.MaxValue
+
+  def parseLongPipeline(s: Rep[String]): Rep[Long] =
+    Long.parseLong(s) + 7L
+
+  def parseFloatPipeline(s: Rep[String]): Rep[Float] =
+    Float.parseFloat(s) + 1.5f
+
+  def parseDoublePipeline(s: Rep[String]): Rep[Double] =
+    Double.parseDouble(s) + Double.MinValue
+
+  def doubleConversionPipeline(x: Rep[Double]): Rep[Int] =
+    x.toInt + x.toFloat.toInt
 }
 
 class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
@@ -107,5 +122,25 @@ class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
     List(-3L, 0L, 25L).foreach { x =>
       staged(x).shouldBe(x.toDouble + 1.25)
     }
+  }
+
+  test("runtime compilation handles primitive parse nodes and constants") {
+    val parseInt = compiler.compile[String, Int](compiler.parseIntPipeline(_))
+    val parseLong = compiler.compile[String, Long](compiler.parseLongPipeline(_))
+    val parseFloat = compiler.compile[String, Float](compiler.parseFloatPipeline(_))
+    val parseDouble = compiler.compile[String, Double](compiler.parseDoublePipeline(_))
+
+    parseInt("1") shouldBe (1 + Int.MaxValue)
+    parseLong("35") shouldBe 42L
+    parseFloat("2.5") shouldBe 4.0f
+    parseDouble("3.5") shouldBe (3.5 + Double.MinValue)
+  }
+
+  test("runtime compilation handles double conversion nodes") {
+    val f: compiler.Exp[Double] => compiler.Exp[Int] = compiler.doubleConversionPipeline(_)
+    val staged = compiler.compile[Double, Int](f)
+
+    staged(3.75) shouldBe (3.75.toInt + 3.75.toFloat.toInt)
+    staged(-2.25) shouldBe (-2.25.toInt + -2.25.toFloat.toInt)
   }
 }
