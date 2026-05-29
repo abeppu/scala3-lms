@@ -837,32 +837,42 @@ class virt extends MacroAnnotation {
           normalized.classSymbol.getOrElse(normalized.typeSymbol).fullName
         }
 
+        def throwableConstructor(tree: Term): Option[(String, Option[Term])] =
+          normalize(tree) match {
+            case Apply(Select(New(tpt), ctor), args) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
+              args match {
+                case List(msg) => Some((throwableClassName(tpt), Some(msg)))
+                case Nil => Some((throwableClassName(tpt), None))
+                case _ => None
+              }
+            case ident: Ident =>
+              ident.symbol.tree match {
+                case ValDef(_, _, Some(rhs: Term)) => throwableConstructor(rhs)
+                case _ => None
+              }
+            case sel: Select =>
+              sel.symbol.tree match {
+                case ValDef(_, _, Some(rhs: Term)) => throwableConstructor(rhs)
+                case _ => None
+              }
+            case _ =>
+              None
+          }
+
         normalize(term) match {
           case Apply(Select(New(tpt), ctor), List(msg)) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
-            normalize(msg) match {
-              case Apply(Select(New(causeTpt), causeCtorName), causeArgs)
-                  if causeCtorName == "<init>" && causeTpt.tpe <:< TypeRepr.of[Throwable] =>
-                causeArgs match {
-                  case List(causeMsg) =>
-                    Some(ThrownWithCause(throwableClassName(tpt), None, throwableClassName(causeTpt), Some(causeMsg)))
-                  case Nil =>
-                    Some(ThrownWithCause(throwableClassName(tpt), None, throwableClassName(causeTpt), None))
-                  case _ =>
-                    None
-                }
-              case _ =>
+            throwableConstructor(msg) match {
+              case Some((causeClassName, causeMsg)) =>
+                Some(ThrownWithCause(throwableClassName(tpt), None, causeClassName, causeMsg))
+              case None =>
                 Some(ThrownMessageOnly(throwableClassName(tpt), Some(msg)))
             }
-          case Apply(Select(New(tpt), ctor), List(msg, causeCtor @ Apply(Select(New(causeTpt), causeCtorName), causeArgs)))
-              if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] &&
-                 causeCtorName == "<init>" && causeTpt.tpe <:< TypeRepr.of[Throwable] =>
-            val causeClassName = throwableClassName(causeTpt)
-            causeArgs match {
-              case List(causeMsg) =>
-                Some(ThrownWithCause(throwableClassName(tpt), Some(msg), causeClassName, Some(causeMsg)))
-              case Nil =>
-                Some(ThrownWithCause(throwableClassName(tpt), Some(msg), causeClassName, None))
-              case _ =>
+          case Apply(Select(New(tpt), ctor), List(msg, cause))
+              if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
+            throwableConstructor(cause) match {
+              case Some((causeClassName, causeMsg)) =>
+                Some(ThrownWithCause(throwableClassName(tpt), Some(msg), causeClassName, causeMsg))
+              case None =>
                 None
             }
           case Apply(Select(New(tpt), ctor), Nil) if ctor == "<init>" && tpt.tpe <:< TypeRepr.of[Throwable] =>
@@ -901,7 +911,7 @@ class virt extends MacroAnnotation {
               Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
           case None =>
             if shouldForceThrowVirtualization then
-              report.errorAndAbort("virtualized throw currently supports Throwable subclasses with zero args, single-String constructors, and (String, Throwable) where the cause is a constructor-form Throwable")
+              report.errorAndAbort("virtualized throw currently supports Throwable subclasses with zero args, single-String constructors, and constructor-form Throwable causes, including local vals initialized from supported Throwable constructors")
             else
               Apply.copy(throwApply)(throwApply.fun, List(transformTerm(throwExpr)(owner)))
         }

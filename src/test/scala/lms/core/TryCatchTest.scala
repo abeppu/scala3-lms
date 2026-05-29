@@ -122,6 +122,26 @@ trait TryCatchSnippets extends Dsl {
       case _: Exception => 180
     }
 
+  def throwSyntaxWithLocalCause(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      val cause = new IllegalArgumentException("inner")
+      if (flag) throw new RuntimeException("outer", cause)
+      10
+    } catch {
+      case _: RuntimeException => 190
+      case _: Exception => 200
+    }
+
+  def throwSyntaxCauseOnlyLocal(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      val cause = new IllegalArgumentException("inner")
+      if (flag) throw new RuntimeException(cause)
+      10
+    } catch {
+      case _: RuntimeException => 210
+      case _: Exception => 220
+    }
+
   def finallyOnNormalPath(x: Rep[Int]): Rep[Int] = {
     var side = 0
     try {
@@ -318,6 +338,22 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 10
     staged(true) shouldBe 170
+  }
+
+  test("virtualized throw syntax supports local-val Throwable causes with messages") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.throwSyntaxWithLocalCause(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 10
+    staged(true) shouldBe 190
+  }
+
+  test("virtualized throw syntax supports Throwable-only constructors with local-val causes") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.throwSyntaxCauseOnlyLocal(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 10
+    staged(true) shouldBe 210
   }
 
   test("virtualized finally runs on the normal path") {
