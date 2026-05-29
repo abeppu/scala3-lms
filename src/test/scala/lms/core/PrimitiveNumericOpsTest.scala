@@ -55,6 +55,12 @@ trait PrimitiveNumericSnippets extends Dsl {
 
   def doubleConversionPipeline(x: Rep[Double]): Rep[Int] =
     x.toInt + x.toFloat.toInt
+
+  def intMinPipeline(x: Rep[Int]): Rep[Int] =
+    x + Int.MinValue
+
+  def doubleConstantsPipeline(flag: Rep[Boolean]): Rep[Double] =
+    if (flag) Double.PositiveInfinity else Double.NegativeInfinity
 }
 
 class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
@@ -142,5 +148,14 @@ class PrimitiveNumericOpsTest extends AnyFunSuite with Matchers {
 
     staged(3.75) shouldBe (3.75.toInt + 3.75.toFloat.toInt)
     staged(-2.25) shouldBe (-2.25.toInt + -2.25.toFloat.toInt)
+  }
+
+  test("runtime compilation handles additional primitive constants") {
+    val intMin = compiler.compile[Int, Int](compiler.intMinPipeline(_))
+    val doubleConstants = compiler.compile[Boolean, Double](compiler.doubleConstantsPipeline(_))
+
+    intMin(1) shouldBe (1 + Int.MinValue)
+    doubleConstants(true).isPosInfinity shouldBe true
+    doubleConstants(false).isNegInfinity shouldBe true
   }
 }
