@@ -200,6 +200,15 @@ trait TryCatchSnippets extends Dsl {
       }
     result * 100 + readVar(side)
   }
+
+  def hostTryCatchBinderUsage(x: Int): Int =
+    try {
+      if (x < 0) throw new IllegalArgumentException("neg")
+      x + 1
+    } catch {
+      case e: IllegalArgumentException if e.getMessage == "neg" => 10
+      case e: Exception => e.getMessage.length
+    }
 }
 
 class TryCatchTest extends AnyFunSuite with Matchers {
@@ -362,5 +371,10 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 1011
     staged(true) shouldBe 2011
+  }
+
+  test("host try/catch binder usage is preserved inside @virt code when no staged values are involved") {
+    compiler.hostTryCatchBinderUsage(3) shouldBe 4
+    compiler.hostTryCatchBinderUsage(-1) shouldBe 10
   }
 }

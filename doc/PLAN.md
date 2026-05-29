@@ -23,6 +23,7 @@
     - [x] Support staged `return` for early exits in the Scala backend/runtime-compile path
     - [x] Support `throw new ThrowableSubclass(msg, cause)` where `cause` is a constructor-form Throwable (message or no-arg constructor)
     - [x] Support `throw new ThrowableSubclass(cause)` where `cause` is a constructor-form Throwable (message or no-arg constructor)
+    - [x] Preserve host-only catch-binder guard/handler usage inside `@virt` methods when no staged `try/catch` virtualization is needed
     - [ ] Remaining gaps: richer `throw` constructor shapes beyond zero-arg/single-String/constructor-form Throwable-cause variants, and catch binders whose values are referenced in guards or handlers
   - [ ] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`

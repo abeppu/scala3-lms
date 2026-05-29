@@ -1399,9 +1399,9 @@ class virt extends MacroAnnotation {
         val body = transformTerm(tryTerm.body)(ctx.owner)
         val transformedCases = tryTerm.cases.map(transformCaseDefHost(_, ctx.owner))
 
-        def caseHandler(cdef: CaseDef): Option[(String, Option[Term], Term)] = {
+        def caseHandler(cdef: CaseDef, enforceBinderRestriction: Boolean): Option[(String, Option[Term], Term)] = {
           val binders = tryCatchPatternBinders(cdef.pattern).toSet
-          if binders.nonEmpty && (cdef.guard.exists(mentionsSymbols(_, binders)) || mentionsSymbols(cdef.rhs, binders)) then
+          if enforceBinderRestriction && binders.nonEmpty && (cdef.guard.exists(mentionsSymbols(_, binders)) || mentionsSymbols(cdef.rhs, binders)) then
             report.errorAndAbort("virtualized try/catch does not yet support using catch binder values inside guards or handlers")
           tryCatchCaseExceptionName(cdef.pattern).map { exceptionClassName =>
             val guard = cdef.guard.map { g =>
@@ -1416,19 +1416,20 @@ class virt extends MacroAnnotation {
           }
         }
 
-        val handlers = tryTerm.cases.map(caseHandler)
         val hasStagedBody = !classifyTerm(body).isInstanceOf[Bare]
-        val hasStagedHandler = handlers.flatten.exists { case (_, _, rhs) => !classifyTerm(rhs).isInstanceOf[Bare] }
-        val hasStagedGuard = handlers.flatten.exists { case (_, guard, _) => guard.exists(g => !classifyTerm(g).isInstanceOf[Bare]) }
+        val hasStagedHandler = transformedCases.exists(cdef => !classifyTerm(cdef.rhs).isInstanceOf[Bare])
+        val hasStagedGuard = transformedCases.exists(cdef => cdef.guard.exists(g => !classifyTerm(g).isInstanceOf[Bare]))
         val finalizerTerm = tryTerm.finalizer.map(transformTermRec(_, ctx.owner, expectVar = false))
         val hasStagedFinalizer = finalizerTerm.exists(t => !classifyTerm(t).isInstanceOf[Bare])
         val shouldVirtualize = hasStagedBody || hasStagedHandler || hasStagedGuard || hasStagedFinalizer
 
         if !shouldVirtualize then
           Try.copy(tryTerm)(body, transformedCases, finalizerTerm)
-        else if handlers.contains(None) then
-          report.errorAndAbort("virtualized try/catch currently supports only wildcard or Throwable-typed catch cases")
         else {
+          val handlers = tryTerm.cases.map(caseHandler(_, enforceBinderRestriction = true))
+          if handlers.contains(None) then
+          report.errorAndAbort("virtualized try/catch currently supports only wildcard or Throwable-typed catch cases")
+          else {
           val bodyRep = withForcedEscapeVirtualization {
             ensureTrailingRep(transformTerm(tryTerm.body)(ctx.owner), ctx)
           }
@@ -1459,6 +1460,7 @@ class virt extends MacroAnnotation {
                 Select.overloaded(ctx.thist, "__tryCatch", List(valueType), bodyRep :: materializedCatchTerms),
                 List(findTypW(ctx.thist, valueType), ctx.srcGen))
           }
+        }
         }
       }
 
