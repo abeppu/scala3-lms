@@ -14,7 +14,7 @@
     - [x] Preserve richer host-only extractor matches when `@virt` code stays on bare Scala scrutinees
     - [ ] Blocked: extractor patterns on staged scrutinees that require pre-typer extractor typing the current `Rep` surface cannot satisfy
     - [x] Harden staged extractor lowering internals for Scala 3 `Unapply` tree shapes (`unapply(scrutinee)` call construction and nested-condition plumbing)
-    - [ ] Document the Scala-typer boundary for extractor syntax over staged scrutinees and the supported staged-match subset
+    - [x] Document the Scala-typer boundary for extractor syntax over staged scrutinees and the supported staged-match subset
     - [ ] Add a staged match-combinator API for cases that Scala pattern syntax cannot typecheck before macro expansion
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use

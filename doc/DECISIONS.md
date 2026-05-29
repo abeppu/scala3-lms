@@ -35,8 +35,16 @@ bind staged elements without forcing staged extractor-pattern support.
 
 Current staged scrutinee support covers literals, stable ids, alternatives,
 wildcards, guards, simple binders/aliases, and typed binders over `Rep[Any]`.
-Extractor patterns on staged scrutinees remain out of scope until there is a
-clear staged extractor representation.
+The macro can lower some extractor-shaped trees once Scala has already typed
+them, but extractor syntax over a staged scrutinee is still constrained by
+Scala 3 typer running before `@virt`. If a pattern requires the pre-macro
+`Rep[T]` surface to satisfy an extractor's expected scrutinee type, the code
+will fail before the virtualization macro can rewrite it.
+
+For that reason, extractor-pattern parity should not be pursued only by adding
+more macro cases. The staged path needs either a source shape that typechecks
+against `Rep` before rewriting or an explicit staged match/combinator API whose
+case tests and projections are already expressed as LMS terms.
 
 ## Exceptions
 
@@ -45,10 +53,12 @@ the existing `ThrowException` IR. `throw new ThrowableSubclass(msg)` and
 `throw new ThrowableSubclass()` lower to that representation; no-arg throws use
 an empty staged message.
 
-Catch cases currently carry only an exception class name plus optional staged
-guard and handler blocks. They do not carry the caught exception value. Supporting
-catch binders referenced in guards or handlers requires an IR/API redesign, not
-just a macro pattern rewrite.
+Catch cases carry an exception class name plus optional staged guard and handler
+blocks. They can also bind the caught exception's `getMessage` result as a
+fresh staged `Rep[String]` for use in guards and handlers. The IR intentionally
+does not model a full staged `Throwable`; unsupported catch-binder member use
+should fail in the macro until there is a concrete need for a broader exception
+object representation.
 
 ## Type Reification
 
