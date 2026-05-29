@@ -12,7 +12,8 @@
     - [x] Initial typed-pattern support for staged wildcard type tests over `Rep[Any]`
     - [x] Add typed binders and typed aliases over staged `Rep[Any]` scrutinees
     - [x] Preserve richer host-only extractor matches when `@virt` code stays on bare Scala scrutinees
-    - [ ] Remaining staged gaps: extractor patterns on staged scrutinees
+    - [ ] Remaining staged gaps: extractor patterns on staged scrutinees that require pre-typer extractor typing the current `Rep` surface cannot satisfy
+    - [x] Harden staged extractor lowering internals for Scala 3 `Unapply` tree shapes (`unapply(scrutinee)` call construction and nested-condition plumbing)
   - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
     - [x] Lower `throw new ThrowableSubclass(msg)` into staged exception IR for Throwable subclasses with single-String constructors

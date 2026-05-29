@@ -1158,8 +1158,7 @@ class virt extends MacroAnnotation {
             if args.nonEmpty then
               report.errorAndAbort(s"unsupported virtualized extractor arity in pattern: ${tree.show}")
             val extractorTerm = transformTerm(extractor)(ctx.owner)
-            val unapplyCall = Select.overloaded(extractorTerm, "unapply", Nil, List(scrutinee))
-            val cond = Apply(unapplyCall, Nil)
+            val cond = Select.overloaded(extractorTerm, "unapply", Nil, List(scrutinee))
             classifyTerm(cond) match {
               case RepW(_) =>
                 Some(cond)
