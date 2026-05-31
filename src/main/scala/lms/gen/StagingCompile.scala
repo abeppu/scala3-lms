@@ -58,15 +58,30 @@ trait StagingCompile extends QuotedGen with CodeMotion {
       buildExactScopeForResult(other, scope)
   }
 
+  protected def enclosingStatementForEffect(exp: Exp[Any], candidates: List[Stm]): Option[Stm] = exp match {
+    case sym: Sym[?] =>
+      val effectSym = sym.asInstanceOf[Sym[Any]]
+      candidates.collectFirst {
+        case stm @ TP(_, rhs) if boundSyms(rhs).contains(effectSym) => stm
+      }
+    case _ =>
+      None
+  }
+
   protected def scheduleForBlock(block: Block[?], scope: List[Stm]): List[Stm] =
     blockReify(block) match {
       case Some(reify) =>
         val effectTargets = reify.effects.asInstanceOf[List[Exp[Any]]].distinct
-        val effectScope = effectTargets.flatMap(statementForEffect(_, scope))
         val resultExp = reify.x.asInstanceOf[Exp[Any]]
         val resultScope =
           if effectTargets.contains(resultExp) then Nil
           else buildExactScopeForResult(resultExp, scope)
+        val effectScope = effectTargets.flatMap { exp =>
+          enclosingStatementForEffect(exp, resultScope).toList match {
+            case Nil => statementForEffect(exp, scope)
+            case enclosing => enclosing
+          }
+        }
         val wanted = (effectScope ++ resultScope).toSet
         scope.filter(wanted)
       case None =>
@@ -184,12 +199,25 @@ trait StagingCompile extends QuotedGen with CodeMotion {
       case _ => false
     }
 
+    def ownsBlock(stm: Stm): Boolean =
+      blocks(infix_rhs(stm)).exists { candidate =>
+        candidate.asInstanceOf[AnyRef] eq block.asInstanceOf[AnyRef]
+      }
+
     val schedule =
       blockReify(block) match {
         case Some(reify) =>
           val effectTargets = reify.effects.asInstanceOf[List[Exp[Any]]].distinct
-          val effectScope = effectTargets.flatMap(exp => buildExactScopeForResult(exp, compileDefs))
           val resultScope = buildExactScopeForResult(reify.x.asInstanceOf[Exp[Any]], compileDefs)
+          val enclosingCandidates = compileDefs.filterNot(ownsBlock)
+          val effectScope = effectTargets.flatMap { exp =>
+            enclosingStatementForEffect(exp, resultScope)
+              .orElse(enclosingStatementForEffect(exp, enclosingCandidates))
+              .toList match {
+                case Nil => buildExactScopeForResult(exp, compileDefs)
+                case enclosing => enclosing
+              }
+          }
           val wanted = (effectScope ++ resultScope).toSet
           compileDefs.filter(wanted)
         case None =>
@@ -214,6 +242,12 @@ trait StagingCompile extends QuotedGen with CodeMotion {
       case Reflect(inner, _, _) => reifiedResult(inner)
       case reify: Reify[?] @unchecked => Some(reify.x.asInstanceOf[Exp[?]])
       case _ => None
+    }
+
+    def reifiedEffects(defn: Def[?]): List[Sym[Any]] = defn match {
+      case Reflect(inner, _, _) => reifiedEffects(inner)
+      case reify: Reify[?] @unchecked => reify.effects.asInstanceOf[List[Sym[Any]]]
+      case _ => Nil
     }
 
     def unwrapDef(defn: Def[?]): Def[?] = defn match {
@@ -253,7 +287,7 @@ trait StagingCompile extends QuotedGen with CodeMotion {
       graph._2
         .flatMap { case TP(_, rhs) =>
           blocks(rhs).flatMap { block =>
-            buildExactScopeForResult(block.res, compileDefs)
+            (scheduleForBlock(block, compileDefs) ++ buildExactScopeForResult(block.res, compileDefs))
               .filter {
                 case TP(_, blockRhs) => varInit(blockRhs).isEmpty
               }
@@ -279,7 +313,7 @@ trait StagingCompile extends QuotedGen with CodeMotion {
     def isMaterializationRoot(sym: Sym[?], rhs: Def[?]): Boolean =
       varInit(rhs).nonEmpty ||
       (isReadVar(rhs) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]])) ||
-      isReifyNode(rhs) ||
+      (isReifyNode(rhs) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]])) ||
       (shouldMaterialize(rhs) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]]))
 
     val directDependencySymbols =
@@ -294,8 +328,26 @@ trait StagingCompile extends QuotedGen with CodeMotion {
         (directDependencySymbols(sym.asInstanceOf[Sym[Any]]) && !nestedBlockSymbols(sym.asInstanceOf[Sym[Any]]))
     }
 
+    val boundByMaterializedControl: Set[Sym[Any]] =
+      candidateStatements.flatMap { stm =>
+        val rhs = infix_rhs(stm).asInstanceOf[Def[?]]
+        boundSyms(unwrapDef(rhs)) :::
+          blocks(rhs).flatMap(block => scheduleForBlock(block, compileDefs).flatMap(infix_lhs))
+      }.map(_.asInstanceOf[Sym[Any]]).toSet
+
+    def isNestedMaterializedElsewhere(stm: Stm): Boolean = {
+      val lhsOwned = infix_lhs(stm).exists(sym => boundByMaterializedControl(sym.asInstanceOf[Sym[Any]]))
+      val effects = infix_rhs(stm) match {
+        case rhs: Def[?] @unchecked => reifiedEffects(rhs)
+        case _ => Nil
+      }
+      val effectsOwned = effects.nonEmpty && effects.forall(boundByMaterializedControl)
+      lhsOwned || effectsOwned
+    }
+
     val statements =
-      if includeAllStatements then graph._2
+      if includeAllStatements then
+        graph._2.filterNot(isNestedMaterializedElsewhere)
       else candidateStatements
 
     def materializePureValue(exp: Exp[?]): List[ValDef] = exp match {

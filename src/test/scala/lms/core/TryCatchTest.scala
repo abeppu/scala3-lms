@@ -255,6 +255,22 @@ trait TryCatchSnippets extends Dsl {
       case e: IllegalArgumentException => e.toString.length
     }
 
+  def stagedNestedCatchBinders(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new IllegalArgumentException("outer")
+      1
+    } catch {
+      case e: IllegalArgumentException =>
+        val nested =
+          try {
+            throw new RuntimeException("inner")
+            0
+          } catch {
+            case e: RuntimeException => e.getMessage.length + 100
+          }
+        nested + e.getMessage.length
+    }
+
   def hostTryCatchBinderUsage(x: Int): Int =
     try {
       if (x < 0) throw new IllegalArgumentException("neg")
@@ -474,6 +490,14 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 1
     staged(true) shouldBe "java.lang.IllegalArgumentException: bad".length
+  }
+
+  test("virtualized try/catch keeps nested catch binders scoped") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.stagedNestedCatchBinders(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 1
+    staged(true) shouldBe 110
   }
 
   test("host try/catch binder usage is preserved inside @virt code when no staged values are involved") {

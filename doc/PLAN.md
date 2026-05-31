@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 145 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 146 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -37,9 +37,9 @@
       - [x] Teach Scala codegen and runtime compile to bind the caught exception object itself, not only a derived message string
       - [x] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
       - [ ] Extend macro lowering to support passing the catch binder to staged helper methods when their parameter type can be represented
-      - [ ] Fix runtime-compile preservation of nested staged `try/catch` inside catch handlers; a draft nested-binder regression exposed the inner throw escaping its catch
+      - [x] Fix runtime-compile preservation of nested staged `try/catch` inside catch handlers; nested catch-binder regression now keeps the inner throw inside its catch
       - [ ] Keep arbitrary host-side exception mutation, stack trace inspection, suppressed exceptions, and backend-specific exception semantics out of scope unless a concrete tutorial/test requires them
-      - [ ] Add focused regressions for binder use in guards, handlers, helper calls, nested catches, and fallback behavior for unsupported exception operations
+      - [ ] Add focused regressions for binder use in helper calls and fallback behavior for unsupported exception operations
   - [x] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`
