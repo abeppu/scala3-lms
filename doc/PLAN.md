@@ -74,6 +74,8 @@
       - [x] Extend the record facade to multi-field records with typed `name` and `age` projections plus generated-source coverage
       - [ ] Decide whether to pursue legacy `Record { val ... }` syntax directly or keep the explicit `record(...)` facade for Scala 3 tutorial parity
     - [ ] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
+      - [x] Add LINQ regression coverage for staged `++` / `ListConcat`
+      - [x] Add LINQ regression coverage for staged `.isEmpty` / `ListIsEmpty`
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
     - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
     - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves

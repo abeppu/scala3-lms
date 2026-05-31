@@ -256,6 +256,12 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
       b <- ageFromName(end)
       record <- range(a, b)
     } yield record
+
+  def concatenatedRanges: Rep[Names] =
+    rangeWithAge(30, 34) ++ rangeWithAge(55, 61)
+
+  def emptyRangeCheck: Rep[Boolean] =
+    rangeWithAge(90, 100).isEmpty
 }
 
 @virt
@@ -276,6 +282,26 @@ object TutorialLinqAgeSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Re
 
   def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
     rangeWithAge(30, 40)
+}
+
+@virt
+object TutorialLinqConcatSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    concatenatedRanges
+}
+
+@virt
+object TutorialLinqIsEmptySnippet extends DslDriver[Unit, Boolean] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[Boolean] =
+    emptyRangeCheck
 }
 
 class TutorialLinqTest extends TutorialFunSuite with Matchers {
@@ -326,5 +352,39 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
     TutorialLinqAgeSnippet.code should include("new TutorialLinqSchema.Record")
     TutorialLinqAgeSnippet.code should include("val name =")
     TutorialLinqAgeSnippet.code should include("val age =")
+  }
+
+  test("linq list concat host result combines query results") {
+    val db = TutorialLinqSchema.db
+    def range(start: Int, end: Int): List[(String, Int)] =
+      for {
+        person <- db.people
+        if start <= person.age && person.age < end
+      } yield person.name -> person.age
+
+    range(30, 34) ++ range(55, 61) shouldBe List(
+      "Cora" -> 33,
+      "Drew" -> 31,
+      "Alex" -> 60,
+      "Bert" -> 55,
+      "Fred" -> 60
+    )
+  }
+
+  test("linq list concat emits staged ListConcat") {
+    check("rangeConcat", TutorialLinqConcatSnippet.code)
+    TutorialLinqConcatSnippet.code should include(" ::: ")
+    TutorialLinqConcatSnippet.code should include("new TutorialLinqSchema.Record")
+  }
+
+  test("linq list isEmpty host result detects empty query") {
+    val db = TutorialLinqSchema.db
+    db.people.filter(person => 90 <= person.age && person.age < 100).isEmpty shouldBe true
+  }
+
+  test("linq list isEmpty emits staged ListIsEmpty") {
+    check("rangeIsEmpty", TutorialLinqIsEmptySnippet.code)
+    TutorialLinqIsEmptySnippet.code should include(".isEmpty")
+    TutorialLinqIsEmptySnippet.code should include("TutorialLinqSchema.db.people.flatMap")
   }
 }
