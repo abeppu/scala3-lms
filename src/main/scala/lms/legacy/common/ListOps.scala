@@ -23,6 +23,22 @@ trait ListOps extends Variables {
   given listToListOps[T:Typ]: Conversion[List[T], ListOpsCls[T]] with {
   def apply(a: List[T]): ListOpsCls[T] = new ListOpsCls(unit(a))
 }
+
+  extension [A: Typ](l: Rep[List[A]])
+    def map[B: Typ](f: Rep[A] => Rep[B]): Rep[List[B]] = list_map(l, f)
+    def flatMap[B: Typ](f: Rep[A] => Rep[List[B]]): Rep[List[B]] = list_flatMap(l, f)
+    def filter(f: Rep[A] => Rep[Boolean]): Rep[List[A]] = list_filter(l, f)
+    def withFilter(f: Rep[A] => Rep[Boolean]): Rep[List[A]] = list_filter(l, f)
+    def sortBy[B: Typ: Ordering](f: Rep[A] => Rep[B]): Rep[List[A]] = list_sortby(l, f)
+    def ::(e: Rep[A]): Rep[List[A]] = list_prepend(l, e)
+    def ++(l2: Rep[List[A]]): Rep[List[A]] = list_concat(l, l2)
+    def mkString: Rep[String] = list_mkString(l)
+    def mkString(s: Rep[String]): Rep[String] = list_mkString2(l, s)
+    def head: Rep[A] = list_head(l)
+    def tail: Rep[List[A]] = list_tail(l)
+    def isEmpty: Rep[Boolean] = list_isEmpty(l)
+    def toArray: Rep[Array[A]] = list_toarray(l)
+    def toSeq: Rep[Seq[A]] = list_toseq(l)
   
   class ListOpsCls[A:Typ](l: Rep[List[A]]) {
     def map[B:Typ](f: Rep[A] => Rep[B]): Rep[List[B]] = list_map(l,f)
