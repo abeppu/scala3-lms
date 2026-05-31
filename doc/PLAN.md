@@ -77,7 +77,10 @@
       - [x] Add LINQ regression coverage for staged `++` / `ListConcat`
       - [x] Add LINQ regression coverage for staged `.isEmpty` / `ListIsEmpty`
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
+      - [x] Generalize the hardcoded `People` table node into typed table projection IR so `DBFor` can normalize multiple database-backed tables
+      - [x] Add the legacy-style `differences` query over `couples` and `people` as multi-table `DBFor` regression coverage
     - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
+      - [x] Add Scala codegen coverage for generic table projection and multi-table `DBFor`
     - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves
   - [ ] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
     - [ ] Port `query_unstaged.scala` as the host baseline and SQL parser/AST reference

@@ -10,7 +10,8 @@ import scala.annotation.targetName
 
 object TutorialLinqSchema {
   case class Person(name: String, age: Int)
-  case class PeopleDB(people: List[Person])
+  case class Couple(her: String, him: String)
+  case class PeopleDB(people: List[Person], couples: List[Couple])
 
   abstract class Record extends Product {
     lazy val elems: List[(String, Any)] = {
@@ -36,6 +37,10 @@ object TutorialLinqSchema {
       Person("Drew", 31),
       Person("Edna", 21),
       Person("Fred", 60)
+    ),
+    couples = List(
+      Couple("Alex", "Bert"),
+      Couple("Cora", "Drew")
     )
   )
 }
@@ -44,6 +49,7 @@ trait TutorialLinqDsl extends Dsl with ListOps {
   import TutorialLinqSchema.*
 
   given personTyp: Typ[Person]
+  given coupleTyp: Typ[Couple]
   given recordTyp: Typ[Record]
   given peopleDbTyp: Typ[PeopleDB]
 
@@ -51,14 +57,21 @@ trait TutorialLinqDsl extends Dsl with ListOps {
     def name(using SourceContext): Rep[String]
     def age(using SourceContext): Rep[Int]
 
+  extension (couple: Rep[Couple])
+    def her(using SourceContext): Rep[String]
+    def him(using SourceContext): Rep[String]
+
   extension (record: Rep[Record])
     @targetName("recordName")
     def name(using SourceContext): Rep[String]
     @targetName("recordAge")
     def age(using SourceContext): Rep[Int]
+    @targetName("recordDiff")
+    def diff(using SourceContext): Rep[Int]
 
   extension (db: Rep[PeopleDB])
     def people(using SourceContext): Rep[List[Person]]
+    def couples(using SourceContext): Rep[List[Couple]]
 
   def database(name: String)(using SourceContext): Rep[PeopleDB]
   def record(fields: (String, Rep[Any])*)(using SourceContext): Rep[Record]
@@ -68,13 +81,16 @@ trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
   import TutorialLinqSchema.*
 
   override given personTyp: Typ[Person] = manifestTyp
+  override given coupleTyp: Typ[Couple] = manifestTyp
   override given recordTyp: Typ[Record] = manifestTyp
   override given peopleDbTyp: Typ[PeopleDB] = manifestTyp
 
   case class Database(name: String) extends Def[PeopleDB]
-  case class People(db: Exp[PeopleDB]) extends Def[List[Person]]
+  case class Table[A: Typ](db: Exp[PeopleDB], table: String) extends Def[List[A]]
   case class PersonName(person: Exp[Person]) extends Def[String]
   case class PersonAge(person: Exp[Person]) extends Def[Int]
+  case class CoupleHer(couple: Exp[Couple]) extends Def[String]
+  case class CoupleHim(couple: Exp[Couple]) extends Def[String]
   case class RecordNew(fields: Seq[(String, Exp[Any])]) extends Def[Record]
   case class RecordField[A: Typ](record: Exp[Record], field: String) extends Def[A]
 
@@ -129,14 +145,21 @@ trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
     def name(using SourceContext): Rep[String] = PersonName(person)
     def age(using SourceContext): Rep[Int] = PersonAge(person)
 
+  extension (couple: Rep[Couple])
+    def her(using SourceContext): Rep[String] = CoupleHer(couple)
+    def him(using SourceContext): Rep[String] = CoupleHim(couple)
+
   extension (record: Rep[Record])
     @targetName("recordName")
     def name(using SourceContext): Rep[String] = RecordField[String](record, "name")
     @targetName("recordAge")
     def age(using SourceContext): Rep[Int] = RecordField[Int](record, "age")
+    @targetName("recordDiff")
+    def diff(using SourceContext): Rep[Int] = RecordField[Int](record, "diff")
 
   extension (db: Rep[PeopleDB])
-    def people(using SourceContext): Rep[List[Person]] = People(db)
+    def people(using SourceContext): Rep[List[Person]] = Table[Person](db, "people")
+    def couples(using SourceContext): Rep[List[Couple]] = Table[Couple](db, "couples")
 
   def database(name: String)(using SourceContext): Rep[PeopleDB] = Database(name)
   def record(fields: (String, Rep[Any])*)(using SourceContext): Rep[Record] =
@@ -159,9 +182,9 @@ trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
         nested.flatMap(x => nestedF(x).flatMap(y => f(y.asInstanceOf[Exp[A]])))
       case Concat(a, b) =>
         a.flatMap(f) ++ b.flatMap(f)
-      case Def(People(Def(Database(db)))) =>
+      case Def(Table(Def(Database(db)), table)) =>
         val fun = reifyFun(f)
-        reflectEffect(DBFor(source, f, db, "people", fun), infix_star(summarizeEffects(fun.body)))
+        reflectEffect(DBFor(source, f, db, table, fun), infix_star(summarizeEffects(fun.body)))
       case _ =>
         super.list_flatMap(source, f)
     }
@@ -203,12 +226,16 @@ trait TutorialLinqGen extends DslGen with ScalaGenListOps {
   override def emitNode(sym: Sym[Any], rhs: Def[Any]): Unit = rhs match {
     case Database(name) =>
       emitValDef(sym, s"TutorialLinqSchema.$name")
-    case People(db) =>
-      emitValDef(sym, s"${quote(db)}.people")
+    case Table(db, table) =>
+      emitValDef(sym, s"${quote(db)}.$table")
     case PersonName(person) =>
       emitValDef(sym, s"${quote(person)}.name")
     case PersonAge(person) =>
       emitValDef(sym, s"${quote(person)}.age")
+    case CoupleHer(couple) =>
+      emitValDef(sym, s"${quote(couple)}.her")
+    case CoupleHim(couple) =>
+      emitValDef(sym, s"${quote(couple)}.him")
     case RecordNew(fields) =>
       val fieldDefs = fields.map { case (name, value) => s"val $name = ${quote(value)}" }.mkString("; ")
       emitValDef(sym, s"new TutorialLinqSchema.Record { $fieldDefs }")
@@ -231,6 +258,14 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
   val db: Rep[PeopleDB] = database("db")
 
   type Names = List[Record]
+
+  def ageDifferences: Rep[Names] =
+    for {
+      couple <- db.couples
+      her <- db.people
+      him <- db.people
+      if couple.her == her.name && couple.him == him.name && her.age > him.age
+    } yield record("name" -> her.name, "diff" -> (her.age - him.age))
 
   def range(a: Rep[Int], b: Rep[Int]): Rep[Names] =
     for {
@@ -302,6 +337,16 @@ object TutorialLinqIsEmptySnippet extends DslDriver[Unit, Boolean] with Tutorial
 
   def snippet(unit: Rep[Unit]): Rep[Boolean] =
     emptyRangeCheck
+}
+
+@virt
+object TutorialLinqDifferencesSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    ageDifferences
 }
 
 class TutorialLinqTest extends TutorialFunSuite with Matchers {
@@ -386,5 +431,25 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
     check("rangeIsEmpty", TutorialLinqIsEmptySnippet.code)
     TutorialLinqIsEmptySnippet.code should include(".isEmpty")
     TutorialLinqIsEmptySnippet.code should include("TutorialLinqSchema.db.people.flatMap")
+  }
+
+  test("linq differences host result covers multiple database tables") {
+    val db = TutorialLinqSchema.db
+    val result =
+      for {
+        couple <- db.couples
+        her <- db.people
+        him <- db.people
+        if couple.her == her.name && couple.him == him.name && her.age > him.age
+      } yield couple.her -> (her.age - him.age)
+
+    result shouldBe List("Alex" -> 5, "Cora" -> 2)
+  }
+
+  test("linq differences emits normalized multi-table DBFor traversal") {
+    check("differences", TutorialLinqDifferencesSnippet.code)
+    TutorialLinqDifferencesSnippet.code should include("TutorialLinqSchema.db.couples.flatMap")
+    TutorialLinqDifferencesSnippet.code should include("TutorialLinqSchema.db.people.flatMap")
+    TutorialLinqDifferencesSnippet.code should include("val diff =")
   }
 }
