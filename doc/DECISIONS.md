@@ -11,6 +11,9 @@ Scala 2 compiler-plugin virtualization model. The macro rewrites only annotated
 definitions after typer and classifies terms by type as staged `Rep[T]`, staged
 mutable `Var[T]`, or host `T`.
 
+`@virt` is the only supported annotation surface, avoiding multiple spellings
+for the same local macro model.
+
 Plain host expressions should remain host expressions. Rewrites switch to LMS
 combinators only when a staged value participates, because broad rewrites after
 typer can easily break valid host code inside `@virt` definitions.
@@ -76,9 +79,9 @@ erasing nested type arguments is not acceptable.
 
 Arrays are reified from their element `Typ` rather than directly from JVM array
 runtime classes so primitive arrays and generic element arrays produce Scala
-`Array[T]` type representations. Path-dependent LMS types such as `Variable[T]`
-do not currently have direct `TypeRepr` reification; prefer representing them
-through their element/result operations unless a concrete use case requires more.
+`Array[T]` type representations. Path-dependent LMS variable types are reified
+directly as `Variable[T]`, including nested `Array[Variable[T]]` shapes needed
+by quoted runtime compilation.
 
 ## Primitive Operators
 
