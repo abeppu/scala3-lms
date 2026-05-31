@@ -539,4 +539,36 @@ class TryCatchTest extends AnyFunSuite with Matchers {
     compiler.hostTryCatchBinderUsage(3) shouldBe 4
     compiler.hostTryCatchBinderUsage(-1) shouldBe 10
   }
+
+  test("virtualized try/catch rejects unsupported catch binder helper calls") {
+    assertDoesNotCompile("""
+      @virt
+      trait BadCatchBinderHelper extends Dsl {
+        def helper(e: Exception): Int = e.getMessage.length
+
+        def bad(flag: Rep[Boolean]): Rep[Int] =
+          try {
+            if (flag) throw new Exception("boom")
+            1
+          } catch {
+            case e: Exception => helper(e)
+          }
+      }
+    """)
+  }
+
+  test("virtualized try/catch rejects unsupported catch binder member operations") {
+    assertDoesNotCompile("""
+      @virt
+      trait BadCatchBinderMember extends Dsl {
+        def bad(flag: Rep[Boolean]): Rep[Int] =
+          try {
+            if (flag) throw new Exception("boom")
+            1
+          } catch {
+            case e: Exception => e.getStackTrace.length
+          }
+      }
+    """)
+  }
 }

@@ -30,7 +30,7 @@
     - [x] Add staged catch-binder representation for supported exception members, starting with `e.getMessage`
     - [x] Lower catch-binder `getMessage` references in staged guards and handlers through the new catch IR
     - [x] Add regression coverage for staged guards/handlers that depend on catch-binder messages
-    - [ ] Decide whether full staged exception objects are needed after message-only support lands
+    - [x] Decide whether full staged exception objects are needed after message-only support lands
       - [x] Define a real staged exception-object representation, likely `Rep[Throwable]`-like catch binder symbols that are scoped to each `ReifiedCatch`
       - [x] Add IR nodes for selected exception members beyond `getMessage`, starting with `getCause` and `toString`
       - [x] Decide whether `getClass`/type-test operations should be explicit exception ops or reuse the existing staged cast/type-test surface
@@ -38,8 +38,8 @@
       - [x] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
       - [ ] Blocked: passing catch binders or catch-derived staged members through ordinary helper methods needs a macro inlining/source-shape strategy; direct supported member operations remain the safe path
       - [x] Fix runtime-compile preservation of nested staged `try/catch` inside catch handlers; nested catch-binder regression now keeps the inner throw inside its catch
-      - [ ] Keep arbitrary host-side exception mutation, stack trace inspection, suppressed exceptions, and backend-specific exception semantics out of scope unless a concrete tutorial/test requires them
-      - [ ] Add focused regressions for fallback behavior around unsupported exception helper-call/member-operation shapes
+      - [x] Keep arbitrary host-side exception mutation, stack trace inspection, suppressed exceptions, and backend-specific exception semantics out of scope unless a concrete tutorial/test requires them
+      - [x] Add focused regressions for fallback behavior around unsupported exception helper-call/member-operation shapes
   - [x] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`
