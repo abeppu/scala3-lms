@@ -55,11 +55,28 @@
   - [x] Support nested `Array[Variable[T]]` type reification without runtime TODOs
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
-  - [ ] Deferred: non-Scala backends (C/CUDA/OpenCL) until the docker image/toolchain is explicitly in scope
+  - [ ] Bring up minimal C backend smoke coverage before attempting full query codegen
+    - [ ] Add a Scala 3 `DslDriverC` equivalent that emits C source and can optionally compile/run it when a C compiler is available
+    - [ ] Add C source golden tests for tiny staged snippets: arithmetic, `if`, `while`, mutable vars, arrays, strings/printing
+    - [ ] Validate that the existing `CCodegen`/`CLikeCodegen` and `CGen*` traits still compile and preserve expected semantics after the Scala 3 port
+    - [ ] Keep CUDA/OpenCL deferred until the C backend path is exercised and the container toolchain is explicitly in scope
 - [ ] Port and validate original Scala 2 LMS examples under @virt
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [x] Redesign `eval.scala` for Scala 3 around the current `DslCompile` runtime-compile path (no `CompileScala` reintroduction)
-  - [ ] Deferred: query/compiler/backend-heavy tutorial chapters (`query*`, `linq`, `03_compiler`, `04_atwork`, scanner C lowering) until the non-Scala backend/runtime story is back in scope
+  - [ ] Port `linq.scalax` first as a Scala-backend tutorial, before taking on the C/query path
+    - [ ] Port the source to Scala 3 syntax and `@virt` usage
+    - [ ] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
+    - [ ] Add the staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
+    - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
+    - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
+    - [ ] Add a regression against the legacy `linq-rangeFromNames.check.scala` output and host result
+  - [ ] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
+    - [ ] Port `query_unstaged.scala` as the host baseline and SQL parser/AST reference
+    - [ ] Port `query_staged0.scala` and `query_staged.scala` for Scala source generation before switching to C
+    - [ ] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
+    - [ ] Port `query_optc.scala` once the C driver and scanner lowering are in place
+    - [ ] Add staged query tests in phases: AST parity, Scala generated source, Scala output CSV, C generated source, then C output CSV when the local toolchain supports it
+    - [ ] Keep `query_live.scala`, `query_live_steps.scala`, `03_compiler.scala`, and `04_atwork.scala` deferred until the core query/C path is stable
 
 ### Legacy tutorial parity tracker (`/legacy-lms-tutorials/src/test/scala/lms/tutorial`)
 
@@ -77,14 +94,14 @@
 - [x] `fft.scala` -> Scala 3 equivalent in tree (Scala backend/runtime-compile path)
 - [x] `eval.scala` -> Scala 3 evaluator-specialization equivalent in tree (`DslCompile` runtime path)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
-- [ ] `linq.scalax` -> deferred until query/linq staging story is back in scope
-- [ ] `query.scala` -> deferred until query staging + non-Scala backend path is back in scope
-- [ ] `query_unstaged.scala` -> deferred with query chapter
-- [ ] `query_staged0.scala` -> deferred with query chapter
-- [ ] `query_staged.scala` -> deferred with query chapter
-- [ ] `query_live.scala` -> deferred with query chapter
-- [ ] `query_live_steps.scala` -> deferred with query chapter
-- [ ] `query_optc.scala` -> deferred until non-Scala backend/runtime story is back in scope
+- [ ] `linq.scalax` -> next target: Scala-backend port with structural records, staged lists, and LINQ normalization IR
+- [ ] `query.scala` -> planned after LINQ and C smoke coverage
+- [ ] `query_unstaged.scala` -> planned as query host baseline
+- [ ] `query_staged0.scala` -> planned as first Scala-backend query compiler
+- [ ] `query_staged.scala` -> planned after `query_staged0`
+- [ ] `query_live.scala` -> deferred until core query/C path is stable
+- [ ] `query_live_steps.scala` -> deferred until core query/C path is stable
+- [ ] `query_optc.scala` -> planned after C driver smoke tests and scanner lowering
 - [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
 - [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
