@@ -228,6 +228,9 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
 
   type Names = List[Record]
 
+  def stagedList[A: Typ](xs: Rep[List[A]]): ListOpsCls[A] =
+    new ListOpsCls[A](xs)
+
   def range(a: Rep[Int], b: Rep[Int]): Rep[Names] =
     for {
       person <- db.people
@@ -241,11 +244,11 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
     } yield person.age
 
   def rangeFromNames(start: Rep[String], end: Rep[String]): Rep[Names] =
-    list_flatMap[Int, Record](ageFromName(start), (a: Rep[Int]) =>
-      list_flatMap[Int, Record](ageFromName(end), (b: Rep[Int]) =>
-        list_map[Record, Record](range(a, b), (record: Rep[Record]) => record)
-      )
-    )
+    for {
+      a <- stagedList[Int](ageFromName(start))
+      b <- stagedList[Int](ageFromName(end))
+      record <- stagedList[Record](range(a, b))
+    } yield record
 }
 
 @virt

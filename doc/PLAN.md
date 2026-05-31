@@ -66,6 +66,8 @@
   - [ ] Port `linq.scalax` first as a Scala-backend tutorial, before taking on the C/query path
     - [x] Add an initial Scala 3 LINQ `rangeFromNames` slice using a typed schema facade, staged lists, and DB traversal normalization
     - [ ] Port the source to Scala 3 syntax and `@virt` usage
+      - [x] Convert `rangeFromNames` from explicit `list_flatMap`/`list_map` calls to a Scala `for` comprehension using an explicit `stagedList[A](...)` view
+      - [ ] Investigate whether Scala 3's covariant `Rep[List[A]]` implicit-conversion widening can be avoided so plain `a <- ageFromName(start)` keeps `a: Rep[Int]` without the explicit staged-list view
     - [ ] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
       - [x] Replace the temporary typed `Name` case-class facade with an explicit staged `record("field" -> value)` constructor that emits anonymous `new TutorialLinqSchema.Record { val ... }` Scala code
       - [x] Add staged field projection for the current `name` record field

@@ -25,20 +25,20 @@ trait ListOps extends Variables {
 }
   
   class ListOpsCls[A:Typ](l: Rep[List[A]]) {
-    def map[B:Typ](f: Rep[A] => Rep[B]) = list_map(l,f)
-    def flatMap[B : Typ](f: Rep[A] => Rep[List[B]]) = list_flatMap(l,f)
-    def filter(f: Rep[A] => Rep[Boolean]) = list_filter(l, f)
-    def withFilter(f: Rep[A] => Rep[Boolean]) = list_filter(l, f)
-    def sortBy[B:Typ:Ordering](f: Rep[A] => Rep[B]) = list_sortby(l,f)
-    def ::(e: Rep[A]) = list_prepend(l,e)
-    def ++ (l2: Rep[List[A]]) = list_concat(l, l2)
-    def mkString = list_mkString(l)
-    def mkString(s:Rep[String]) = list_mkString2(l,s)
-    def head = list_head(l)
-    def tail = list_tail(l)
-    def isEmpty = list_isEmpty(l)
-    def toArray = list_toarray(l)
-    def toSeq = list_toseq(l)
+    def map[B:Typ](f: Rep[A] => Rep[B]): Rep[List[B]] = list_map(l,f)
+    def flatMap[B : Typ](f: Rep[A] => Rep[List[B]]): Rep[List[B]] = list_flatMap(l,f)
+    def filter(f: Rep[A] => Rep[Boolean]): Rep[List[A]] = list_filter(l, f)
+    def withFilter(f: Rep[A] => Rep[Boolean]): Rep[List[A]] = list_filter(l, f)
+    def sortBy[B:Typ:Ordering](f: Rep[A] => Rep[B]): Rep[List[A]] = list_sortby(l,f)
+    def ::(e: Rep[A]): Rep[List[A]] = list_prepend(l,e)
+    def ++ (l2: Rep[List[A]]): Rep[List[A]] = list_concat(l, l2)
+    def mkString: Rep[String] = list_mkString(l)
+    def mkString(s:Rep[String]): Rep[String] = list_mkString2(l,s)
+    def head: Rep[A] = list_head(l)
+    def tail: Rep[List[A]] = list_tail(l)
+    def isEmpty: Rep[Boolean] = list_isEmpty(l)
+    def toArray: Rep[Array[A]] = list_toarray(l)
+    def toSeq: Rep[Seq[A]] = list_toseq(l)
   }
   
   def list_new[A:Typ](xs: Seq[Rep[A]])(using pos: SourceContext): Rep[List[A]]
