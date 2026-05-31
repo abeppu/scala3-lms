@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 171 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 179 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -91,7 +91,7 @@
       - [x] Add Scala codegen coverage for generic table projection and multi-table `DBFor`
     - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves
   - [ ] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
-    - [ ] Port `query_unstaged.scala` as the host baseline and SQL parser/AST reference
+    - [x] Port `query_unstaged.scala` as the host baseline and SQL parser/AST reference
     - [ ] Port `query_staged0.scala` and `query_staged.scala` for Scala source generation before switching to C
     - [ ] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
     - [ ] Port `query_optc.scala` once the C driver and scanner lowering are in place
@@ -116,7 +116,7 @@
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
 - [x] `linq.scalax` -> Scala 3 Scala-backend equivalent in tree through nested LINQ examples, using explicit staged records
 - [ ] `query.scala` -> planned after LINQ and C smoke coverage
-- [ ] `query_unstaged.scala` -> planned as query host baseline
+- [x] `query_unstaged.scala` -> Scala 3 host baseline and SQL parser/AST reference in tree
 - [ ] `query_staged0.scala` -> planned as first Scala-backend query compiler
 - [ ] `query_staged.scala` -> planned after `query_staged0`
 - [ ] `query_live.scala` -> deferred until core query/C path is stable

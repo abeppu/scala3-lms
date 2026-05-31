@@ -14,6 +14,7 @@ class TutorialIndexTest extends AnyFunSuite with Matchers {
     "TutorialAutomata.scala",
     "TutorialDynVar.scala",
     "TutorialLinq.scala",
+    "TutorialQueryUnstaged.scala",
     "TutorialShonan.scala",
     "TutorialStencil.scala",
     "TutorialScanner.scala",
