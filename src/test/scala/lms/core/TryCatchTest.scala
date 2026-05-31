@@ -239,6 +239,22 @@ trait TryCatchSnippets extends Dsl {
       case e: IllegalArgumentException => e.getMessage.length
     }
 
+  def stagedCatchCauseMessage(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new RuntimeException("outer", new IllegalArgumentException("inner"))
+      1
+    } catch {
+      case e: RuntimeException => e.getCause.getMessage.length
+    }
+
+  def stagedCatchToString(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new IllegalArgumentException("bad")
+      1
+    } catch {
+      case e: IllegalArgumentException => e.toString.length
+    }
+
   def hostTryCatchBinderUsage(x: Int): Int =
     try {
       if (x < 0) throw new IllegalArgumentException("neg")
@@ -442,6 +458,22 @@ class TryCatchTest extends AnyFunSuite with Matchers {
     staged(1) shouldBe 1
     staged(-1) shouldBe 2
     staged(0) shouldBe 4
+  }
+
+  test("virtualized try/catch supports catch binder getCause in handlers") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.stagedCatchCauseMessage(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 1
+    staged(true) shouldBe 5
+  }
+
+  test("virtualized try/catch supports catch binder toString in handlers") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.stagedCatchToString(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 1
+    staged(true) shouldBe "java.lang.IllegalArgumentException: bad".length
   }
 
   test("host try/catch binder usage is preserved inside @virt code when no staged values are involved") {

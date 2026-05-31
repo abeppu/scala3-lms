@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 143 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 145 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -31,10 +31,11 @@
     - [x] Lower catch-binder `getMessage` references in staged guards and handlers through the new catch IR
     - [x] Add regression coverage for staged guards/handlers that depend on catch-binder messages
     - [ ] Decide whether full staged exception objects are needed after message-only support lands
-      - [ ] Define a real staged exception-object representation, likely `Rep[Throwable]`-like catch binder symbols that are scoped to each `ReifiedCatch`
-      - [ ] Add IR nodes for selected exception members beyond `getMessage`, starting with `getCause`, `getClass`/type tests, and possibly `toString`
-      - [ ] Teach Scala codegen and runtime compile to bind the caught exception object itself, not only a derived message string
-      - [ ] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
+      - [x] Define a real staged exception-object representation, likely `Rep[Throwable]`-like catch binder symbols that are scoped to each `ReifiedCatch`
+      - [x] Add IR nodes for selected exception members beyond `getMessage`, starting with `getCause` and `toString`
+      - [ ] Decide whether `getClass`/type-test operations should be explicit exception ops or reuse the existing staged cast/type-test surface
+      - [x] Teach Scala codegen and runtime compile to bind the caught exception object itself, not only a derived message string
+      - [x] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
       - [ ] Extend macro lowering to support passing the catch binder to staged helper methods when their parameter type can be represented
       - [ ] Keep arbitrary host-side exception mutation, stack trace inspection, suppressed exceptions, and backend-specific exception semantics out of scope unless a concrete tutorial/test requires them
       - [ ] Add focused regressions for binder use in guards, handlers, helper calls, nested catches, and fallback behavior for unsupported exception operations

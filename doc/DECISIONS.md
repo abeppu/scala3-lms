@@ -57,11 +57,16 @@ the existing `ThrowException` IR. `throw new ThrowableSubclass(msg)` and
 an empty staged message.
 
 Catch cases carry an exception class name plus optional staged guard and handler
-blocks. They can also bind the caught exception's `getMessage` result as a
-fresh staged `Rep[String]` for use in guards and handlers. The IR intentionally
-does not model a full staged `Throwable`; unsupported catch-binder member use
-should fail in the macro until there is a concrete need for a broader exception
-object representation.
+blocks. They can bind the caught exception itself as a scoped staged
+`Rep[Throwable]` for supported member operations. Current member coverage is
+`getMessage`, `getCause`, and `toString`; these are emitted through explicit
+exception IR so guard/handler computations stay inside the catch scope in Scala
+codegen and runtime compile.
+
+The staged exception object is intentionally not an arbitrary mutable host
+`Throwable`. Unsupported operations such as stack-trace mutation, suppressed
+exceptions, or backend-specific exception behavior should continue to fail in
+the macro until a concrete tutorial or regression requires them.
 
 ## Type Reification
 

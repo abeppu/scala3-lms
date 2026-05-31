@@ -92,6 +92,7 @@ class virt extends MacroAnnotation {
     // through this alias table during the recursive walk.
     val reboundAliases = collection.mutable.Map.empty[Symbol, Symbol]
     val reboundPatternNames = collection.mutable.Map.empty[String, Symbol]
+    val catchExceptionAliases = collection.mutable.Map.empty[Symbol, Term]
     val catchMessageAliases = collection.mutable.Map.empty[Symbol, Term]
     val activeTypedPatternNames = collection.mutable.Set.empty[String]
     var forceThrowVirtualizationDepth = 0
@@ -1389,18 +1390,22 @@ class virt extends MacroAnnotation {
 
       private def unsupportedCatchBinderUse(term: Tree, targets: Set[Symbol]): Boolean = {
         var unsupported = false
-        def isTargetIdent(tree: Tree): Option[Symbol] = tree match {
-          case ident: Ident if targets.contains(ident.symbol) => Some(ident.symbol)
-          case _ => None
+        def supportedCatchBinderTree(tree: Tree): Boolean = tree match {
+          case ident: Ident if targets.contains(ident.symbol) =>
+            true
+          case Select(receiver, "getMessage" | "getCause" | "toString") =>
+            supportedCatchBinderTree(receiver)
+          case Apply(Select(receiver, "getMessage" | "getCause" | "toString"), Nil) =>
+            supportedCatchBinderTree(receiver)
+          case _ =>
+            false
         }
         var found = false
         val traverser = new TreeTraverser {
           override def traverseTree(tree: Tree)(owner: Symbol): Unit =
             if !unsupported then
               tree match {
-                case Select(receiver, "getMessage") if isTargetIdent(receiver).nonEmpty =>
-                  found = true
-                case Apply(Select(receiver, "getMessage"), Nil) if isTargetIdent(receiver).nonEmpty =>
+                case t if supportedCatchBinderTree(t) =>
                   found = true
                 case ident: Ident if targets.contains(ident.symbol) =>
                   unsupported = true
@@ -1412,15 +1417,25 @@ class virt extends MacroAnnotation {
         unsupported
       }
 
-      private def mentionsCatchMessage(term: Tree, targets: Set[Symbol]): Boolean = {
+      private def mentionsSupportedCatchException(term: Tree, targets: Set[Symbol]): Boolean = {
         var found = false
+        def supportedCatchBinderMember(tree: Tree): Boolean = tree match {
+          case Select(ident: Ident, "getMessage" | "getCause" | "toString") if targets.contains(ident.symbol) =>
+            true
+          case Apply(Select(ident: Ident, "getMessage" | "getCause" | "toString"), Nil) if targets.contains(ident.symbol) =>
+            true
+          case Select(receiver, "getMessage" | "getCause" | "toString") =>
+            supportedCatchBinderMember(receiver)
+          case Apply(Select(receiver, "getMessage" | "getCause" | "toString"), Nil) =>
+            supportedCatchBinderMember(receiver)
+          case _ =>
+            false
+        }
         val traverser = new TreeTraverser {
           override def traverseTree(tree: Tree)(owner: Symbol): Unit =
             if !found then
               tree match {
-                case Select(ident: Ident, "getMessage") if targets.contains(ident.symbol) =>
-                  found = true
-                case Apply(Select(ident: Ident, "getMessage"), Nil) if targets.contains(ident.symbol) =>
+                case t if supportedCatchBinderMember(t) =>
                   found = true
                 case _ =>
                   super.traverseTree(tree)(owner)
@@ -1428,6 +1443,20 @@ class virt extends MacroAnnotation {
         }
         traverser.traverseTree(term)(Symbol.spliceOwner)
         found
+      }
+
+      private def withCatchExceptionAliases(bindings: List[(Symbol, Term)])(body: => Term): Term = {
+        if bindings.isEmpty then body
+        else {
+          val saved = bindings.map { case (sym, _) => sym -> catchExceptionAliases.get(sym) }
+          bindings.foreach { case (sym, exception) => catchExceptionAliases.update(sym, exception) }
+          try body
+          finally
+            saved.foreach {
+              case (sym, Some(prev)) => catchExceptionAliases.update(sym, prev)
+              case (sym, None) => catchExceptionAliases.remove(sym)
+            }
+        }
       }
 
       private def withCatchMessageAliases(bindings: List[(Symbol, Term)])(body: => Term): Term = {
@@ -1454,30 +1483,30 @@ class virt extends MacroAnnotation {
         def caseHandler(cdef: CaseDef, enforceBinderRestriction: Boolean): Option[(String, Option[ValDef], Option[Term], Option[Term], Term)] = {
           val binders = tryCatchPatternBinders(cdef.pattern).toSet
           if enforceBinderRestriction && binders.nonEmpty && (cdef.guard.exists(unsupportedCatchBinderUse(_, binders)) || unsupportedCatchBinderUse(cdef.rhs, binders)) then
-            report.errorAndAbort("virtualized try/catch currently supports catch binder values only through e.getMessage in guards or handlers")
+            report.errorAndAbort("virtualized try/catch currently supports catch binder values only through getMessage/getCause/toString in guards or handlers")
           tryCatchCaseExceptionName(cdef.pattern).map { exceptionClassName =>
-            val messageBinding =
-              if binders.nonEmpty && (cdef.guard.exists(mentionsCatchMessage(_, binders)) || mentionsCatchMessage(cdef.rhs, binders)) then
-                val message = Select.unique(ctx.thist, "__catchMessage")
-                val messageSym = Symbol.newVal(ctx.owner, "catchMessage", message.tpe, Flags.EmptyFlags, Symbol.noSymbol)
-                Some((ValDef(messageSym, Some(message)), Ref(messageSym)))
+            val exceptionBinding =
+              if binders.nonEmpty && (cdef.guard.exists(mentionsSupportedCatchException(_, binders)) || mentionsSupportedCatchException(cdef.rhs, binders)) then
+                val exception = Select.unique(ctx.thist, "__catchException")
+                val exceptionSym = Symbol.newVal(ctx.owner, "catchException", exception.tpe, Flags.EmptyFlags, Symbol.noSymbol)
+                Some((ValDef(exceptionSym, Some(exception)), Ref(exceptionSym)))
               else
                 None
-            val message = messageBinding.map(_._2)
-            val aliases = binders.toList.flatMap(b => message.map(m => b -> m))
+            val exception = exceptionBinding.map(_._2)
+            val aliases = binders.toList.flatMap(b => exception.map(e => b -> e))
             val guard = cdef.guard.map { g =>
               withForcedEscapeVirtualization {
-                withCatchMessageAliases(aliases) {
+                withCatchExceptionAliases(aliases) {
                   ensureTrailingRep(transformTerm(g)(ctx.owner), ctx)
                 }
               }
             }
             val handler = withForcedEscapeVirtualization {
-              withCatchMessageAliases(aliases) {
+              withCatchExceptionAliases(aliases) {
                 ensureTrailingRep(transformTerm(cdef.rhs)(ctx.owner), ctx)
               }
             }
-            (exceptionClassName, messageBinding.map(_._1), message, guard, handler)
+            (exceptionClassName, exceptionBinding.map(_._1), exception, guard, handler)
           }
         }
 
@@ -1499,18 +1528,18 @@ class virt extends MacroAnnotation {
             ensureTrailingRep(transformTerm(tryTerm.body)(ctx.owner), ctx)
           }
           val valueType = selectRepResultType(bodyRep :: handlers.flatten.map(_._5))
-          val materializedCatchTerms = handlers.flatten.map { case (exceptionClassName, messageDef, message, guard, handler) =>
-            val catchTerm = (message, guard) match {
-              case (Some(msg), Some(cond)) =>
-                Select.overloaded(ctx.thist, "__guardedCatchCaseWithMessage", List(valueType), List(Literal(StringConstant(exceptionClassName)), msg, cond, handler))
-              case (Some(msg), None) =>
-                Select.overloaded(ctx.thist, "__catchCaseWithMessage", List(valueType), List(Literal(StringConstant(exceptionClassName)), msg, handler))
+          val materializedCatchTerms = handlers.flatten.map { case (exceptionClassName, exceptionDef, exception, guard, handler) =>
+            val catchTerm = (exception, guard) match {
+              case (Some(ex), Some(cond)) =>
+                Select.overloaded(ctx.thist, "__guardedCatchCaseWithException", List(valueType), List(Literal(StringConstant(exceptionClassName)), ex, cond, handler))
+              case (Some(ex), None) =>
+                Select.overloaded(ctx.thist, "__catchCaseWithException", List(valueType), List(Literal(StringConstant(exceptionClassName)), ex, handler))
               case (None, Some(cond)) =>
                 Select.overloaded(ctx.thist, "__guardedCatchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), cond, handler))
               case (None, None) =>
                 Select.overloaded(ctx.thist, "__catchCase", List(valueType), List(Literal(StringConstant(exceptionClassName)), handler))
             }
-            messageDef match {
+            exceptionDef match {
               case Some(defn) => Block(List(defn), catchTerm)
               case None => catchTerm
             }
@@ -1632,6 +1661,23 @@ class virt extends MacroAnnotation {
         }
       }
 
+      private def rewriteExceptionMember(ctx: MacroCtx, sel: Select, receiverTree: Term, owner: Symbol, name: String, applied: Boolean): Term = {
+        val receiverValue = transformTerm(receiverTree)(owner)
+        val (receiverRep, receiverKind) = normalizeRepTerm(receiverValue, ctx)
+        receiverKind match {
+          case RepW(t) if t <:< TypeRepr.of[Throwable] =>
+            val method = name match {
+              case "getMessage" => "exception_get_message"
+              case "getCause" => "exception_get_cause"
+              case "toString" => "exception_to_string"
+            }
+            Select.overloaded(ctx.thist, method, Nil, List(receiverRep))
+          case _ =>
+            val rebuilt = Select.copy(sel)(receiverValue, name)
+            if applied then Apply(rebuilt, Nil) else rebuilt
+        }
+      }
+
       // Replace while loops with __whileDo(cond, body).
       private def rewriteWhile(ctx: MacroCtx, guard: Term, body: Term): Term = {
         val normalizedBody = withForcedEscapeVirtualization {
@@ -1705,6 +1751,12 @@ class virt extends MacroAnnotation {
             Ref(reboundPatternNames(ident.name))
           case ident: Ident if mutableVars.contains(ident.symbol) =>
             ident
+          case ident: Ident if catchExceptionAliases.contains(ident.symbol) =>
+            catchExceptionAliases(ident.symbol)
+          case Apply(sel @ Select(ident: Ident, name @ ("getMessage" | "getCause" | "toString")), Nil) if catchExceptionAliases.contains(ident.symbol) =>
+            rewriteExceptionMember(ctx, sel, catchExceptionAliases(ident.symbol), owner, name, applied = false)
+          case sel @ Select(ident: Ident, name @ ("getMessage" | "getCause" | "toString")) if catchExceptionAliases.contains(ident.symbol) =>
+            rewriteExceptionMember(ctx, sel, catchExceptionAliases(ident.symbol), owner, name, applied = false)
           case Select(ident: Ident, "getMessage") if catchMessageAliases.contains(ident.symbol) =>
             catchMessageAliases(ident.symbol)
           case Apply(Select(ident: Ident, "getMessage"), Nil) if catchMessageAliases.contains(ident.symbol) =>
@@ -1864,6 +1916,10 @@ class virt extends MacroAnnotation {
           case applyTerm @ Apply(Apply(sel @ Select(th, "apply"), List(receiver, idx)), implicitArgs)
               if isStringOpsApply(sel.symbol) =>
             rewriteRepStringApply(ctx, receiver, idx, ctx.owner)
+          case Apply(sel @ Select(receiver, name @ ("getMessage" | "getCause" | "toString")), Nil) =>
+            rewriteExceptionMember(ctx, sel, receiver, ctx.owner, name, applied = true)
+          case sel @ Select(receiver, name @ ("getMessage" | "getCause" | "toString")) =>
+            rewriteExceptionMember(ctx, sel, receiver, ctx.owner, name, applied = false)
           case Apply(sel @ Select(receiver, "length"), Nil) =>
             rewriteRepStringLength(ctx, sel, receiver, ctx.owner, applied = true)
           case sel @ Select(receiver, "length") =>
