@@ -68,6 +68,8 @@
     - [ ] Port the source to Scala 3 syntax and `@virt` usage
       - [x] Convert `rangeFromNames` from explicit `list_flatMap`/`list_map` calls to a Scala `for` comprehension
       - [x] Avoid Scala 3's covariant `Rep[List[A]]` implicit-conversion widening by adding direct `Rep[List[A]]` extension methods, so plain `a <- ageFromName(start)` keeps `a: Rep[Int]`
+      - [x] Port the legacy `satisfies` higher-order predicate query shape
+      - [x] Port the legacy dynamic predicate-AST examples (`Above`/`Below`/`And`/`Or`/`Not`) as host-side matches producing staged predicates
     - [ ] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
       - [x] Replace the temporary typed `Name` case-class facade with an explicit staged `record("field" -> value)` constructor that emits anonymous `new TutorialLinqSchema.Record { val ... }` Scala code
       - [x] Add staged field projection for the current `name` record field
@@ -79,6 +81,7 @@
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
       - [x] Generalize the hardcoded `People` table node into typed table projection IR so `DBFor` can normalize multiple database-backed tables
       - [x] Add the legacy-style `differences` query over `couples` and `people` as multi-table `DBFor` regression coverage
+      - [x] Add regression coverage for higher-order query predicates and host-selected dynamic predicate trees
     - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
       - [x] Add Scala codegen coverage for generic table projection and multi-table `DBFor`
     - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves

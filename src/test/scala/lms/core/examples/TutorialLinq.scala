@@ -13,6 +13,13 @@ object TutorialLinqSchema {
   case class Couple(her: String, him: String)
   case class PeopleDB(people: List[Person], couples: List[Couple])
 
+  sealed trait AgePredicate
+  case class Above(x: Int) extends AgePredicate
+  case class Below(x: Int) extends AgePredicate
+  case class And(x: AgePredicate, y: AgePredicate) extends AgePredicate
+  case class Or(x: AgePredicate, y: AgePredicate) extends AgePredicate
+  case class Not(x: AgePredicate) extends AgePredicate
+
   abstract class Record extends Product {
     lazy val elems: List[(String, Any)] = {
       val fields = getClass.getDeclaredFields.toList
@@ -279,6 +286,33 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
       if a <= person.age && person.age < b
     } yield record("name" -> person.name, "age" -> person.age)
 
+  def satisfies(p: Rep[Int] => Rep[Boolean]): Rep[Names] =
+    for {
+      person <- db.people
+      if p(person.age)
+    } yield record("name" -> person.name)
+
+  def predicate(predicate: AgePredicate)(age: Rep[Int]): Rep[Boolean] =
+    predicate match {
+      case Above(x) => x <= age
+      case Below(x) => age < x
+      case And(x, y) => this.predicate(x)(age) && this.predicate(y)(age)
+      case Or(x, y) => this.predicate(x)(age) || this.predicate(y)(age)
+      case Not(x) => !this.predicate(x)(age)
+    }
+
+  def thirtySomethingsByPredicate: Rep[Names] =
+    satisfies(x => 30 <= x && x < 40)
+
+  def evenAges: Rep[Names] =
+    satisfies(_ % 2 == 0)
+
+  def dynamicPredicateRange: Rep[Names] =
+    satisfies(predicate(And(Above(30), Below(40))))
+
+  def dynamicPredicateNotOr: Rep[Names] =
+    satisfies(predicate(Not(Or(Below(30), Above(40)))))
+
   def ageFromName(name: Rep[String]): Rep[List[Int]] =
     for {
       person <- db.people
@@ -317,6 +351,46 @@ object TutorialLinqAgeSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Re
 
   def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
     rangeWithAge(30, 40)
+}
+
+@virt
+object TutorialLinqPredicateSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    thirtySomethingsByPredicate
+}
+
+@virt
+object TutorialLinqEvenAgeSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    evenAges
+}
+
+@virt
+object TutorialLinqDynamicPredicateSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    dynamicPredicateRange
+}
+
+@virt
+object TutorialLinqDynamicPredicateNotOrSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    dynamicPredicateNotOr
 }
 
 @virt
@@ -397,6 +471,57 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
     TutorialLinqAgeSnippet.code should include("new TutorialLinqSchema.Record")
     TutorialLinqAgeSnippet.code should include("val name =")
     TutorialLinqAgeSnippet.code should include("val age =")
+  }
+
+  test("linq satisfies host result covers higher-order predicates") {
+    val db = TutorialLinqSchema.db
+    val result =
+      for {
+        person <- db.people
+        if 30 <= person.age && person.age < 40
+      } yield person.name
+
+    result shouldBe List("Cora", "Drew")
+  }
+
+  test("linq satisfies emits normalized higher-order predicate query") {
+    check("predicateRange", TutorialLinqPredicateSnippet.code)
+    TutorialLinqPredicateSnippet.code should include("TutorialLinqSchema.db.people.flatMap")
+    TutorialLinqPredicateSnippet.code should include("30 <= ")
+    TutorialLinqPredicateSnippet.code should include(" < 40")
+  }
+
+  test("linq satisfies supports staged modulo predicates") {
+    check("evenAges", TutorialLinqEvenAgeSnippet.code)
+    TutorialLinqEvenAgeSnippet.code should include(" % 2")
+    TutorialLinqEvenAgeSnippet.code should include(" == 0")
+  }
+
+  test("linq dynamic predicate AST host result matches direct predicate") {
+    val db = TutorialLinqSchema.db
+    def p(predicate: TutorialLinqSchema.AgePredicate)(age: Int): Boolean =
+      predicate match {
+        case TutorialLinqSchema.Above(x) => x <= age
+        case TutorialLinqSchema.Below(x) => age < x
+        case TutorialLinqSchema.And(x, y) => p(x)(age) && p(y)(age)
+        case TutorialLinqSchema.Or(x, y) => p(x)(age) || p(y)(age)
+        case TutorialLinqSchema.Not(x) => !p(x)(age)
+      }
+
+    db.people.filter(person => p(TutorialLinqSchema.And(TutorialLinqSchema.Above(30), TutorialLinqSchema.Below(40)))(person.age)).map(_.name) shouldBe List("Cora", "Drew")
+    db.people.filter(person => p(TutorialLinqSchema.Not(TutorialLinqSchema.Or(TutorialLinqSchema.Below(30), TutorialLinqSchema.Above(40))))(person.age)).map(_.name) shouldBe List("Cora", "Drew")
+  }
+
+  test("linq dynamic predicate AST emits host-match-selected staged query") {
+    check("dynamicPredicateRange", TutorialLinqDynamicPredicateSnippet.code)
+    TutorialLinqDynamicPredicateSnippet.code should include("30 <= ")
+    TutorialLinqDynamicPredicateSnippet.code should include(" < 40")
+  }
+
+  test("linq dynamic predicate AST supports host-side not/or composition") {
+    check("dynamicPredicateNotOr", TutorialLinqDynamicPredicateNotOrSnippet.code)
+    TutorialLinqDynamicPredicateNotOrSnippet.code should include("||")
+    TutorialLinqDynamicPredicateNotOrSnippet.code should include("} else {")
   }
 
   test("linq list concat host result combines query results") {
