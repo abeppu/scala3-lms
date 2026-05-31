@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 146 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 148 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -64,9 +64,10 @@
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [x] Redesign `eval.scala` for Scala 3 around the current `DslCompile` runtime-compile path (no `CompileScala` reintroduction)
   - [ ] Port `linq.scalax` first as a Scala-backend tutorial, before taking on the C/query path
+    - [x] Add an initial Scala 3 LINQ `rangeFromNames` slice using a typed schema facade, staged lists, and DB traversal normalization
     - [ ] Port the source to Scala 3 syntax and `@virt` usage
     - [ ] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
-    - [ ] Add the staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
+    - [ ] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
     - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
     - [ ] Add a regression against the legacy `linq-rangeFromNames.check.scala` output and host result
@@ -94,7 +95,7 @@
 - [x] `fft.scala` -> Scala 3 equivalent in tree (Scala backend/runtime-compile path)
 - [x] `eval.scala` -> Scala 3 evaluator-specialization equivalent in tree (`DslCompile` runtime path)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
-- [ ] `linq.scalax` -> next target: Scala-backend port with structural records, staged lists, and LINQ normalization IR
+- [ ] `linq.scalax` -> initial `rangeFromNames` slice in tree; next target is structural records and fuller staged-list parity
 - [ ] `query.scala` -> planned after LINQ and C smoke coverage
 - [ ] `query_unstaged.scala` -> planned as query host baseline
 - [ ] `query_staged0.scala` -> planned as first Scala-backend query compiler

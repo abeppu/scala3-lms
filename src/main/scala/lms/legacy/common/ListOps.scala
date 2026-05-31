@@ -28,6 +28,7 @@ trait ListOps extends Variables {
     def map[B:Typ](f: Rep[A] => Rep[B]) = list_map(l,f)
     def flatMap[B : Typ](f: Rep[A] => Rep[List[B]]) = list_flatMap(l,f)
     def filter(f: Rep[A] => Rep[Boolean]) = list_filter(l, f)
+    def withFilter(f: Rep[A] => Rep[Boolean]) = list_filter(l, f)
     def sortBy[B:Typ:Ordering](f: Rep[A] => Rep[B]) = list_sortby(l,f)
     def ::(e: Rep[A]) = list_prepend(l,e)
     def ++ (l2: Rep[List[A]]) = list_concat(l, l2)
