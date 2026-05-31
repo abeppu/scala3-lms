@@ -175,6 +175,11 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
     case _ => super.aliasSyms(e)
   }
 
+  override def syms(e: Any): List[Sym[Any]] = e match {
+    case TryCatch(body, _, finalizer) => syms(body) ::: finalizer.toList.flatMap(syms)
+    case _ => super.syms(e)
+  }
+
   override def containSyms(e: Any): List[Sym[Any]] = e match {
     case TryCatch(_, _, _) => Nil
     case _ => super.containSyms(e)
