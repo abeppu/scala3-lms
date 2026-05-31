@@ -241,7 +241,9 @@ object TutorialLinqSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Name]
     rangeFromNames("Edna", "Bert")
 }
 
-class TutorialLinqTest extends AnyFunSuite with Matchers {
+class TutorialLinqTest extends TutorialFunSuite with Matchers {
+  val under = "linq/"
+
   test("linq rangeFromNames host result matches legacy tutorial") {
     val db = TutorialLinqSchema.db
     def ageFromName(name: String): List[Int] =
@@ -269,6 +271,7 @@ class TutorialLinqTest extends AnyFunSuite with Matchers {
   }
 
   test("linq rangeFromNames emits normalized staged list traversal") {
+    check("rangeFromNames", TutorialLinqSnippet.code)
     TutorialLinqSnippet.code should include("TutorialLinqSchema.db.people.flatMap")
     TutorialLinqSnippet.code should include("TutorialLinqSchema.Name(")
   }

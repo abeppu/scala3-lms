@@ -70,7 +70,7 @@
     - [ ] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
     - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
-    - [ ] Add a regression against the legacy `linq-rangeFromNames.check.scala` output and host result
+    - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves
   - [ ] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
     - [ ] Port `query_unstaged.scala` as the host baseline and SQL parser/AST reference
     - [ ] Port `query_staged0.scala` and `query_staged.scala` for Scala source generation before switching to C
