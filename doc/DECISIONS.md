@@ -71,6 +71,14 @@ The staged exception object is intentionally not an arbitrary mutable host
 exceptions, or backend-specific exception behavior should continue to fail in
 the macro until a concrete tutorial or regression requires them.
 
+Passing a catch binder, or a staged member derived from it, through an ordinary
+helper method is not supported by the current local macro model. Scala 3 types
+the catch binder as the host exception class before `@virt` runs, while ordinary
+helper calls are not inlined by the macro; allowing a staged catch-derived
+symbol to flow into such a call can turn into a host/JVM call during staging.
+For now, catch-binder use should stay directly in staged guards/handlers through
+the supported `getMessage`, `getCause`, and `toString` operations.
+
 ## Type Reification
 
 `Typ.asTypeRepr` must preserve manifest-backed applied type arguments. Runtime

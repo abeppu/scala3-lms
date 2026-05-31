@@ -36,10 +36,10 @@
       - [ ] Decide whether `getClass`/type-test operations should be explicit exception ops or reuse the existing staged cast/type-test surface
       - [x] Teach Scala codegen and runtime compile to bind the caught exception object itself, not only a derived message string
       - [x] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
-      - [ ] Extend macro lowering to support passing the catch binder to staged helper methods when their parameter type can be represented
+      - [ ] Blocked: passing catch binders or catch-derived staged members through ordinary helper methods needs a macro inlining/source-shape strategy; direct supported member operations remain the safe path
       - [x] Fix runtime-compile preservation of nested staged `try/catch` inside catch handlers; nested catch-binder regression now keeps the inner throw inside its catch
       - [ ] Keep arbitrary host-side exception mutation, stack trace inspection, suppressed exceptions, and backend-specific exception semantics out of scope unless a concrete tutorial/test requires them
-      - [ ] Add focused regressions for binder use in helper calls and fallback behavior for unsupported exception operations
+      - [ ] Add focused regressions for fallback behavior around unsupported exception helper-call/member-operation shapes
   - [x] Audit and extend operator coverage beyond the currently hard-coded boolean/arithmetic/equality/ordering/string-index cases
     - [x] Add staged `Int` support for `%`, `&`, `|`, `^`, `<<`, `>>`, `>>>`, and unary `~`
     - [x] Fill primitive `Float`/`Double` arithmetic surface/runtime gaps for staged `+`, `-`, `*`, `/`
