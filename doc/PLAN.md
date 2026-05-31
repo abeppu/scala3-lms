@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 148 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 171 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -63,9 +63,9 @@
 - [ ] Port and validate original Scala 2 LMS examples under @virt
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [x] Redesign `eval.scala` for Scala 3 around the current `DslCompile` runtime-compile path (no `CompileScala` reintroduction)
-  - [ ] Port `linq.scalax` first as a Scala-backend tutorial, before taking on the C/query path
+  - [x] Port `linq.scalax` first as a Scala-backend tutorial, before taking on the C/query path
     - [x] Add an initial Scala 3 LINQ `rangeFromNames` slice using a typed schema facade, staged lists, and DB traversal normalization
-    - [ ] Port the source to Scala 3 syntax and `@virt` usage
+    - [x] Port the source to Scala 3 syntax and `@virt` usage
       - [x] Convert `rangeFromNames` from explicit `list_flatMap`/`list_map` calls to a Scala `for` comprehension
       - [x] Avoid Scala 3's covariant `Rep[List[A]]` implicit-conversion widening by adding direct `Rep[List[A]]` extension methods, so plain `a <- ageFromName(start)` keeps `a: Rep[Int]`
       - [x] Port the legacy `satisfies` higher-order predicate query shape
@@ -81,13 +81,13 @@
       - [x] Add LINQ regression coverage for staged `++` / `ListConcat`
       - [x] Add LINQ regression coverage for staged `.isEmpty` / `ListIsEmpty`
       - [x] Add LINQ regression coverage for explicit staged `map`, `filter`, and `List(...)` construction
-    - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
+    - [x] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
       - [x] Generalize the hardcoded `People` table node into typed table projection IR so `DBFor` can normalize multiple database-backed tables
       - [x] Add the legacy-style `differences` query over `couples` and `people` as multi-table `DBFor` regression coverage
       - [x] Add regression coverage for higher-order query predicates and host-selected dynamic predicate trees
       - [x] Add nested `DBFor`/`isEmpty` regression coverage for `expertise`
       - [x] Add nested record/list-field regression coverage for `nestedOrg` and higher-order `all`/`contains` query composition
-    - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
+    - [x] Add Scala codegen for `Database`, `DBFor`, and generated record construction
       - [x] Add Scala codegen coverage for generic table projection and multi-table `DBFor`
     - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves
   - [ ] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
@@ -114,7 +114,7 @@
 - [x] `fft.scala` -> Scala 3 equivalent in tree (Scala backend/runtime-compile path)
 - [x] `eval.scala` -> Scala 3 evaluator-specialization equivalent in tree (`DslCompile` runtime path)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
-- [ ] `linq.scalax` -> initial `rangeFromNames` slice in tree with explicit staged records; next target is legacy source shape and fuller staged-list parity
+- [x] `linq.scalax` -> Scala 3 Scala-backend equivalent in tree through nested LINQ examples, using explicit staged records
 - [ ] `query.scala` -> planned after LINQ and C smoke coverage
 - [ ] `query_unstaged.scala` -> planned as query host baseline
 - [ ] `query_staged0.scala` -> planned as first Scala-backend query compiler
