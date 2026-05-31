@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out the repository code
+      - name: Checkout Project
+        uses: actions/checkout@v4
+
+      # 2. Install and configure the Java Development Kit (JDK)
+      - name: Setup Java (JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin' # Alternatives: 'corretto', 'zulu'
+          java-version: '17'      # Match your project's Scala/Java version
+          cache: 'sbt'            # Built-in caching for sbt/Ivy dependencies
+
+      # 3. Explicitly install the sbt runner
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      # 4. Run compilation and test suites
+      - name: Run Tests
+        run: sbt clean compile test  
