@@ -3,30 +3,30 @@ Emitting Generated Code
 *******************************************/
 import lms.core.examples.TutorialLinqSchema
 class Snippet extends ((Unit)=>(collection.immutable.List)) {
-  def apply(x1:Unit): collection.immutable.List = {
+  def apply(x2:Unit): collection.immutable.List = {
     val x0 = TutorialLinqSchema.db
-    val x2 = x0.people
-    val x26 = TutorialLinqSchema.db.people.flatMap { x13 =>
-      val x14 = x13.age
-      val x15 = x14 < 30
-      val x16 = 40 <= x14
-      val x17 = x15 || x16
-      val x20 = if (x17) {
-        val x9 = List()
-        x9
+    val x3 = x0.people
+    val x27 = TutorialLinqSchema.db.people.flatMap { x14 =>
+      val x15 = x14.age
+      val x16 = x15 < 30
+      val x17 = 40 <= x15
+      val x18 = x16 || x17
+      val x21 = if (x18) {
+        val x10 = List()
+        x10
       } else {
-        val x19 = List(x13)
-        x19
+        val x20 = List(x14)
+        x20
       }
-      val x25 = x20.flatMap { x21 =>
-        val x22 = x21.name
-        val x23 = new TutorialLinqSchema.Record { val name = x22 }
-        val x24 = List(x23)
-        x24
+      val x26 = x21.flatMap { x22 =>
+        val x23 = x22.name
+        val x24 = new TutorialLinqSchema.Record { val name = x23 }
+        val x25 = List(x24)
+        x25
       }
-      x25
+      x26
     }
-    x26
+    x27
   }
 }
 /*****************************************

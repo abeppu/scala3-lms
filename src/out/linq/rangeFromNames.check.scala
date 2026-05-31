@@ -3,50 +3,50 @@ Emitting Generated Code
 *******************************************/
 import lms.core.examples.TutorialLinqSchema
 class Snippet extends ((Unit)=>(collection.immutable.List)) {
-  def apply(x1:Unit): collection.immutable.List = {
+  def apply(x2:Unit): collection.immutable.List = {
     val x0 = TutorialLinqSchema.db
-    val x2 = x0.people
-    val x85 = TutorialLinqSchema.db.people.flatMap { x19 =>
-      val x20 = x19.name
-      val x21 = x20 == "Edna"
-      val x84 = if (x21) {
-        val x83 = TutorialLinqSchema.db.people.flatMap { x42 =>
-          val x43 = x42.name
-          val x44 = x43 == "Bert"
-          val x82 = if (x44) {
-            val x81 = TutorialLinqSchema.db.people.flatMap { x70 =>
-              val x24 = x19.age
-              val x71 = x70.age
-              val x72 = x24 <= x71
-              val x47 = x42.age
-              val x73 = x71 < x47
-              val x74 = x72 && x73
-              val x80 = if (x74) {
-                val x77 = x70.name
-                val x78 = new TutorialLinqSchema.Record { val name = x77 }
-                val x79 = List(x78)
-                x79
+    val x3 = x0.people
+    val x86 = TutorialLinqSchema.db.people.flatMap { x20 =>
+      val x21 = x20.name
+      val x22 = x21 == "Edna"
+      val x85 = if (x22) {
+        val x84 = TutorialLinqSchema.db.people.flatMap { x43 =>
+          val x44 = x43.name
+          val x45 = x44 == "Bert"
+          val x83 = if (x45) {
+            val x82 = TutorialLinqSchema.db.people.flatMap { x71 =>
+              val x25 = x20.age
+              val x72 = x71.age
+              val x73 = x25 <= x72
+              val x48 = x43.age
+              val x74 = x72 < x48
+              val x75 = x73 && x74
+              val x81 = if (x75) {
+                val x78 = x71.name
+                val x79 = new TutorialLinqSchema.Record { val name = x78 }
+                val x80 = List(x79)
+                x80
               } else {
-                val x7 = List()
-                x7
+                val x8 = List()
+                x8
               }
-              x80
+              x81
             }
-            x81
+            x82
           } else {
-            val x7 = List()
-            x7
+            val x8 = List()
+            x8
           }
-          x82
+          x83
         }
-        x83
+        x84
       } else {
-        val x7 = List()
-        x7
+        val x8 = List()
+        x8
       }
-      x84
+      x85
     }
-    x85
+    x86
   }
 }
 /*****************************************

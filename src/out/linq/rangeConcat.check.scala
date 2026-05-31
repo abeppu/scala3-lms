@@ -3,43 +3,43 @@ Emitting Generated Code
 *******************************************/
 import lms.core.examples.TutorialLinqSchema
 class Snippet extends ((Unit)=>(collection.immutable.List)) {
-  def apply(x1:Unit): collection.immutable.List = {
+  def apply(x2:Unit): collection.immutable.List = {
     val x0 = TutorialLinqSchema.db
-    val x2 = x0.people
-    val x23 = TutorialLinqSchema.db.people.flatMap { x12 =>
-      val x13 = x12.age
-      val x14 = 30 <= x13
-      val x15 = x13 < 34
-      val x16 = x14 && x15
-      val x22 = if (x16) {
-        val x19 = x12.name
-        val x20 = new TutorialLinqSchema.Record { val name = x19; val age = x13 }
-        val x21 = List(x20)
-        x21
+    val x3 = x0.people
+    val x24 = TutorialLinqSchema.db.people.flatMap { x13 =>
+      val x14 = x13.age
+      val x15 = 30 <= x14
+      val x16 = x14 < 34
+      val x17 = x15 && x16
+      val x23 = if (x17) {
+        val x20 = x13.name
+        val x21 = new TutorialLinqSchema.Record { val name = x20; val age = x14 }
+        val x22 = List(x21)
+        x22
       } else {
-        val x9 = List()
-        x9
+        val x10 = List()
+        x10
       }
-      x22
+      x23
     }
-    val x43 = TutorialLinqSchema.db.people.flatMap { x32 =>
-      val x33 = x32.age
-      val x34 = 55 <= x33
-      val x35 = x33 < 61
-      val x36 = x34 && x35
-      val x42 = if (x36) {
-        val x39 = x32.name
-        val x40 = new TutorialLinqSchema.Record { val name = x39; val age = x33 }
-        val x41 = List(x40)
-        x41
+    val x44 = TutorialLinqSchema.db.people.flatMap { x33 =>
+      val x34 = x33.age
+      val x35 = 55 <= x34
+      val x36 = x34 < 61
+      val x37 = x35 && x36
+      val x43 = if (x37) {
+        val x40 = x33.name
+        val x41 = new TutorialLinqSchema.Record { val name = x40; val age = x34 }
+        val x42 = List(x41)
+        x42
       } else {
-        val x9 = List()
-        x9
+        val x10 = List()
+        x10
       }
-      x42
+      x43
     }
-    val x44 = x23 ::: x43
-    x44
+    val x45 = x24 ::: x44
+    x45
   }
 }
 /*****************************************
