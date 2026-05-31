@@ -67,6 +67,9 @@
     - [x] Add an initial Scala 3 LINQ `rangeFromNames` slice using a typed schema facade, staged lists, and DB traversal normalization
     - [ ] Port the source to Scala 3 syntax and `@virt` usage
     - [ ] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
+      - [x] Replace the temporary typed `Name` case-class facade with an explicit staged `record("field" -> value)` constructor that emits anonymous `new TutorialLinqSchema.Record { val ... }` Scala code
+      - [x] Add staged field projection for the current `name` record field
+      - [ ] Decide whether to pursue legacy `Record { val ... }` syntax directly or keep the explicit `record(...)` facade for Scala 3 tutorial parity
     - [ ] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
     - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
@@ -95,7 +98,7 @@
 - [x] `fft.scala` -> Scala 3 equivalent in tree (Scala backend/runtime-compile path)
 - [x] `eval.scala` -> Scala 3 evaluator-specialization equivalent in tree (`DslCompile` runtime path)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
-- [ ] `linq.scalax` -> initial `rangeFromNames` slice in tree; next target is structural records and fuller staged-list parity
+- [ ] `linq.scalax` -> initial `rangeFromNames` slice in tree with explicit staged records; next target is legacy source shape and fuller staged-list parity
 - [ ] `query.scala` -> planned after LINQ and C smoke coverage
 - [ ] `query_unstaged.scala` -> planned as query host baseline
 - [ ] `query_staged0.scala` -> planned as first Scala-backend query compiler

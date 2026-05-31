@@ -23,7 +23,7 @@ class Snippet extends ((Unit)=>(collection.immutable.List)) {
               val x74 = x72 && x73
               val x80 = if (x74) {
                 val x77 = x70.name
-                val x78 = TutorialLinqSchema.Name(x77)
+                val x78 = new TutorialLinqSchema.Record { val name = x77 }
                 val x79 = List(x78)
                 x79
               } else {

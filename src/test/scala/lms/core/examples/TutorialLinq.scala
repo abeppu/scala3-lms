@@ -10,8 +10,23 @@ import scala.annotation.targetName
 
 object TutorialLinqSchema {
   case class Person(name: String, age: Int)
-  case class Name(name: String)
   case class PeopleDB(people: List[Person])
+
+  abstract class Record extends Product {
+    lazy val elems: List[(String, Any)] = {
+      val fields = getClass.getDeclaredFields.toList
+      for (field <- fields if !field.getName.contains("$")) yield {
+        field.setAccessible(true)
+        (field.getName, field.get(this))
+      }
+    }
+
+    def canEqual(that: Any): Boolean = true
+    def productElement(n: Int): Any = elems(n)._2
+    def productArity: Int = elems.length
+    override def productIterator: Iterator[Any] = elems.map(_._2).iterator
+    override def toString: String = elems.map { case (name, value) => s"$name:$value" }.mkString("{", ",", "}")
+  }
 
   val db: PeopleDB = PeopleDB(
     people = List(
@@ -29,37 +44,37 @@ trait TutorialLinqDsl extends Dsl with ListOps {
   import TutorialLinqSchema.*
 
   given personTyp: Typ[Person]
-  given nameTyp: Typ[Name]
+  given recordTyp: Typ[Record]
   given peopleDbTyp: Typ[PeopleDB]
 
   extension (person: Rep[Person])
     def name(using SourceContext): Rep[String]
     def age(using SourceContext): Rep[Int]
 
-  extension (nameRecord: Rep[Name])
-    @targetName("nameRecordName")
+  extension (record: Rep[Record])
+    @targetName("recordName")
     def name(using SourceContext): Rep[String]
 
   extension (db: Rep[PeopleDB])
     def people(using SourceContext): Rep[List[Person]]
 
   def database(name: String)(using SourceContext): Rep[PeopleDB]
-  def nameRecord(name: Rep[String])(using SourceContext): Rep[Name]
+  def record(fields: (String, Rep[Any])*)(using SourceContext): Rep[Record]
 }
 
 trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
   import TutorialLinqSchema.*
 
   override given personTyp: Typ[Person] = manifestTyp
-  override given nameTyp: Typ[Name] = manifestTyp
+  override given recordTyp: Typ[Record] = manifestTyp
   override given peopleDbTyp: Typ[PeopleDB] = manifestTyp
 
   case class Database(name: String) extends Def[PeopleDB]
   case class People(db: Exp[PeopleDB]) extends Def[List[Person]]
   case class PersonName(person: Exp[Person]) extends Def[String]
   case class PersonAge(person: Exp[Person]) extends Def[Int]
-  case class NameNew(name: Exp[String]) extends Def[Name]
-  case class NameValue(nameRecord: Exp[Name]) extends Def[String]
+  case class RecordNew(fields: Seq[(String, Exp[Any])]) extends Def[Record]
+  case class RecordField(record: Exp[Record], field: String) extends Def[String]
 
   case class DBFor[A: Typ, B: Typ](
     source: Exp[List[A]],
@@ -112,15 +127,16 @@ trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
     def name(using SourceContext): Rep[String] = PersonName(person)
     def age(using SourceContext): Rep[Int] = PersonAge(person)
 
-  extension (nameRecord: Rep[Name])
-    @targetName("nameRecordName")
-    def name(using SourceContext): Rep[String] = NameValue(nameRecord)
+  extension (record: Rep[Record])
+    @targetName("recordName")
+    def name(using SourceContext): Rep[String] = RecordField(record, "name")
 
   extension (db: Rep[PeopleDB])
     def people(using SourceContext): Rep[List[Person]] = People(db)
 
   def database(name: String)(using SourceContext): Rep[PeopleDB] = Database(name)
-  def nameRecord(name: Rep[String])(using SourceContext): Rep[Name] = NameNew(name)
+  def record(fields: (String, Rep[Any])*)(using SourceContext): Rep[Record] =
+    RecordNew(fields.map { case (name, value) => name -> value })
 
   def reifyFun[A: Typ, B: Typ](f: Rep[A] => Rep[B]): Fun[A, B] = {
     val arg = fresh[A]
@@ -189,10 +205,11 @@ trait TutorialLinqGen extends DslGen with ScalaGenListOps {
       emitValDef(sym, s"${quote(person)}.name")
     case PersonAge(person) =>
       emitValDef(sym, s"${quote(person)}.age")
-    case NameNew(name) =>
-      emitValDef(sym, s"TutorialLinqSchema.Name(${quote(name)})")
-    case NameValue(nameRecord) =>
-      emitValDef(sym, s"${quote(nameRecord)}.name")
+    case RecordNew(fields) =>
+      val fieldDefs = fields.map { case (name, value) => s"val $name = ${quote(value)}" }.mkString("; ")
+      emitValDef(sym, s"new TutorialLinqSchema.Record { $fieldDefs }")
+    case RecordField(record, field) =>
+      emitValDef(sym, s"${quote(record)}.$field")
     case DBFor(_, _, db, table, Fun(arg, body)) =>
       stream.println(s"val ${quote(sym)} = TutorialLinqSchema.$db.$table.flatMap { ${quote(arg)} =>")
       emitBlock(body)
@@ -209,13 +226,13 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
 
   val db: Rep[PeopleDB] = database("db")
 
-  type Names = List[Name]
+  type Names = List[Record]
 
   def range(a: Rep[Int], b: Rep[Int]): Rep[Names] =
     for {
       person <- db.people
       if a <= person.age && person.age < b
-    } yield nameRecord(person.name)
+    } yield record("name" -> person.name)
 
   def ageFromName(name: Rep[String]): Rep[List[Int]] =
     for {
@@ -224,20 +241,20 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
     } yield person.age
 
   def rangeFromNames(start: Rep[String], end: Rep[String]): Rep[Names] =
-    list_flatMap[Int, Name](ageFromName(start), (a: Rep[Int]) =>
-      list_flatMap[Int, Name](ageFromName(end), (b: Rep[Int]) =>
-        list_map[Name, Name](range(a, b), (name: Rep[Name]) => name)
+    list_flatMap[Int, Record](ageFromName(start), (a: Rep[Int]) =>
+      list_flatMap[Int, Record](ageFromName(end), (b: Rep[Int]) =>
+        list_map[Record, Record](range(a, b), (record: Rep[Record]) => record)
       )
     )
 }
 
 @virt
-object TutorialLinqSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Name]] with TutorialLinqProgram with TutorialLinqExp { self =>
+object TutorialLinqSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
   override val codegen = new TutorialLinqGen {
     val IR: self.type = self
   }
 
-  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Name]] =
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
     rangeFromNames("Edna", "Bert")
 }
 
@@ -251,11 +268,11 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
         person <- db.people
         if person.name == name
       } yield person.age
-    def range(start: Int, end: Int): List[TutorialLinqSchema.Name] =
+    def range(start: Int, end: Int): List[String] =
       for {
         person <- db.people
         if start <= person.age && person.age < end
-      } yield TutorialLinqSchema.Name(person.name)
+      } yield person.name
     val result =
       for {
         start <- ageFromName("Edna")
@@ -263,16 +280,13 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
         name <- range(start, end)
       } yield name
 
-    result shouldBe List(
-      TutorialLinqSchema.Name("Cora"),
-      TutorialLinqSchema.Name("Drew"),
-      TutorialLinqSchema.Name("Edna")
-    )
+    result shouldBe List("Cora", "Drew", "Edna")
   }
 
   test("linq rangeFromNames emits normalized staged list traversal") {
     check("rangeFromNames", TutorialLinqSnippet.code)
     TutorialLinqSnippet.code should include("TutorialLinqSchema.db.people.flatMap")
-    TutorialLinqSnippet.code should include("TutorialLinqSchema.Name(")
+    TutorialLinqSnippet.code should include("new TutorialLinqSchema.Record")
+    TutorialLinqSnippet.code should include("val name =")
   }
 }
