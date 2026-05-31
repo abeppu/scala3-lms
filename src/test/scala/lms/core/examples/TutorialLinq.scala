@@ -54,6 +54,8 @@ trait TutorialLinqDsl extends Dsl with ListOps {
   extension (record: Rep[Record])
     @targetName("recordName")
     def name(using SourceContext): Rep[String]
+    @targetName("recordAge")
+    def age(using SourceContext): Rep[Int]
 
   extension (db: Rep[PeopleDB])
     def people(using SourceContext): Rep[List[Person]]
@@ -74,7 +76,7 @@ trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
   case class PersonName(person: Exp[Person]) extends Def[String]
   case class PersonAge(person: Exp[Person]) extends Def[Int]
   case class RecordNew(fields: Seq[(String, Exp[Any])]) extends Def[Record]
-  case class RecordField(record: Exp[Record], field: String) extends Def[String]
+  case class RecordField[A: Typ](record: Exp[Record], field: String) extends Def[A]
 
   case class DBFor[A: Typ, B: Typ](
     source: Exp[List[A]],
@@ -129,7 +131,9 @@ trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
 
   extension (record: Rep[Record])
     @targetName("recordName")
-    def name(using SourceContext): Rep[String] = RecordField(record, "name")
+    def name(using SourceContext): Rep[String] = RecordField[String](record, "name")
+    @targetName("recordAge")
+    def age(using SourceContext): Rep[Int] = RecordField[Int](record, "age")
 
   extension (db: Rep[PeopleDB])
     def people(using SourceContext): Rep[List[Person]] = People(db)
@@ -237,6 +241,12 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
       if a <= person.age && person.age < b
     } yield record("name" -> person.name)
 
+  def rangeWithAge(a: Rep[Int], b: Rep[Int]): Rep[Names] =
+    for {
+      person <- db.people
+      if a <= person.age && person.age < b
+    } yield record("name" -> person.name, "age" -> person.age)
+
   def ageFromName(name: Rep[String]): Rep[List[Int]] =
     for {
       person <- db.people
@@ -259,6 +269,16 @@ object TutorialLinqSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Recor
 
   def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
     rangeFromNames("Edna", "Bert")
+}
+
+@virt
+object TutorialLinqAgeSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    rangeWithAge(30, 40)
 }
 
 class TutorialLinqTest extends TutorialFunSuite with Matchers {
@@ -291,5 +311,23 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
     TutorialLinqSnippet.code should include("TutorialLinqSchema.db.people.flatMap")
     TutorialLinqSnippet.code should include("new TutorialLinqSchema.Record")
     TutorialLinqSnippet.code should include("val name =")
+  }
+
+  test("linq rangeWithAge host result covers multi-field records") {
+    val db = TutorialLinqSchema.db
+    val result =
+      for {
+        person <- db.people
+        if 30 <= person.age && person.age < 40
+      } yield (person.name, person.age)
+
+    result shouldBe List("Cora" -> 33, "Drew" -> 31)
+  }
+
+  test("linq rangeWithAge emits multi-field staged records") {
+    check("rangeWithAge", TutorialLinqAgeSnippet.code)
+    TutorialLinqAgeSnippet.code should include("new TutorialLinqSchema.Record")
+    TutorialLinqAgeSnippet.code should include("val name =")
+    TutorialLinqAgeSnippet.code should include("val age =")
   }
 }

@@ -71,6 +71,7 @@
     - [ ] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
       - [x] Replace the temporary typed `Name` case-class facade with an explicit staged `record("field" -> value)` constructor that emits anonymous `new TutorialLinqSchema.Record { val ... }` Scala code
       - [x] Add staged field projection for the current `name` record field
+      - [x] Extend the record facade to multi-field records with typed `name` and `age` projections plus generated-source coverage
       - [ ] Decide whether to pursue legacy `Record { val ... }` syntax directly or keep the explicit `record(...)` facade for Scala 3 tutorial parity
     - [ ] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
