@@ -100,3 +100,17 @@ exercise runtime compile, not only generated source emission.
 Scala-only tutorial examples are the current validation target. C/CUDA/OpenCL
 and compiler/backend-heavy tutorial chapters remain deferred until the runtime
 and non-Scala backend story is explicit again.
+
+## LINQ Records
+
+The Scala 3 LINQ tutorial uses an explicit `record("field" -> value, ...)`
+facade instead of trying to accept the legacy Scala 2 `new Record { val ... }`
+source shape directly. The generated Scala still emits anonymous
+`TutorialLinqSchema.Record` instances so the output remains close to the
+original tutorial.
+
+This keeps the staged record surface typecheckable before `@virt` runs. Legacy
+structural-refinement syntax would require either a fuller `StructOps` port or
+macro support for typed anonymous record construction after Scala 3 typer has
+already accepted the source. Until a later query/backend chapter requires that
+surface, the explicit constructor is the supported Scala 3 tutorial shape.

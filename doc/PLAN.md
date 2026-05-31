@@ -70,11 +70,11 @@
       - [x] Avoid Scala 3's covariant `Rep[List[A]]` implicit-conversion widening by adding direct `Rep[List[A]]` extension methods, so plain `a <- ageFromName(start)` keeps `a: Rep[Int]`
       - [x] Port the legacy `satisfies` higher-order predicate query shape
       - [x] Port the legacy dynamic predicate-AST examples (`Above`/`Below`/`And`/`Or`/`Not`) as host-side matches producing staged predicates
-    - [ ] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
+    - [x] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
       - [x] Replace the temporary typed `Name` case-class facade with an explicit staged `record("field" -> value)` constructor that emits anonymous `new TutorialLinqSchema.Record { val ... }` Scala code
       - [x] Add staged field projection for the current `name` record field
       - [x] Extend the record facade to multi-field records with typed `name` and `age` projections plus generated-source coverage
-      - [ ] Decide whether to pursue legacy `Record { val ... }` syntax directly or keep the explicit `record(...)` facade for Scala 3 tutorial parity
+      - [x] Decide to keep the explicit `record(...)` facade for Scala 3 tutorial parity; direct legacy `Record { val ... }` source syntax remains deferred with rationale in `DECISIONS.md`
     - [x] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
       - [x] Add LINQ regression coverage for staged `++` / `ListConcat`
       - [x] Add LINQ regression coverage for staged `.isEmpty` / `ListIsEmpty`
