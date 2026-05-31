@@ -75,9 +75,10 @@
       - [x] Add staged field projection for the current `name` record field
       - [x] Extend the record facade to multi-field records with typed `name` and `age` projections plus generated-source coverage
       - [ ] Decide whether to pursue legacy `Record { val ... }` syntax directly or keep the explicit `record(...)` facade for Scala 3 tutorial parity
-    - [ ] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
+    - [x] Add the full staged `List` surface needed by LINQ (`map`, `flatMap`, `filter`, `++`, `isEmpty`, `ListNew`, `ListConcat`) to the active tutorial DSL path
       - [x] Add LINQ regression coverage for staged `++` / `ListConcat`
       - [x] Add LINQ regression coverage for staged `.isEmpty` / `ListIsEmpty`
+      - [x] Add LINQ regression coverage for explicit staged `map`, `filter`, and `List(...)` construction
     - [ ] Port the LINQ-specific IR and normalization rewrites: `Database`, `DBFor`, `Fun`, `dbfor`, and the staged `ifThenElse` normalization cases
       - [x] Generalize the hardcoded `People` table node into typed table projection IR so `DBFor` can normalize multiple database-backed tables
       - [x] Add the legacy-style `differences` query over `couples` and `people` as multi-table `DBFor` regression coverage

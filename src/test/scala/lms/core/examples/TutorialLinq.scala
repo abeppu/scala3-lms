@@ -331,6 +331,15 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
 
   def emptyRangeCheck: Rep[Boolean] =
     rangeWithAge(90, 100).isEmpty
+
+  def explicitMapNames: Rep[Names] =
+    db.people.map(person => record("name" -> person.name))
+
+  def explicitFilterMapNames: Rep[Names] =
+    db.people.filter(person => person.age < 40).map(person => record("name" -> person.name))
+
+  def literalRecords: Rep[Names] =
+    List(record("name" -> "literal", "age" -> 1))
 }
 
 @virt
@@ -421,6 +430,36 @@ object TutorialLinqDifferencesSnippet extends DslDriver[Unit, List[TutorialLinqS
 
   def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
     ageDifferences
+}
+
+@virt
+object TutorialLinqExplicitMapSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    explicitMapNames
+}
+
+@virt
+object TutorialLinqExplicitFilterMapSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    explicitFilterMapNames
+}
+
+@virt
+object TutorialLinqLiteralListSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    literalRecords
 }
 
 class TutorialLinqTest extends TutorialFunSuite with Matchers {
@@ -576,5 +615,23 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
     TutorialLinqDifferencesSnippet.code should include("TutorialLinqSchema.db.couples.flatMap")
     TutorialLinqDifferencesSnippet.code should include("TutorialLinqSchema.db.people.flatMap")
     TutorialLinqDifferencesSnippet.code should include("val diff =")
+  }
+
+  test("linq explicit map emits normalized staged list map") {
+    check("explicitMapNames", TutorialLinqExplicitMapSnippet.code)
+    TutorialLinqExplicitMapSnippet.code should include("TutorialLinqSchema.db.people.flatMap")
+    TutorialLinqExplicitMapSnippet.code should include("new TutorialLinqSchema.Record")
+  }
+
+  test("linq explicit filter/map emits normalized staged list filter") {
+    check("explicitFilterMapNames", TutorialLinqExplicitFilterMapSnippet.code)
+    TutorialLinqExplicitFilterMapSnippet.code should include(" < 40")
+    TutorialLinqExplicitFilterMapSnippet.code should include("if (")
+  }
+
+  test("linq literal List emits staged ListNew") {
+    check("literalRecords", TutorialLinqLiteralListSnippet.code)
+    TutorialLinqLiteralListSnippet.code should include("List(")
+    TutorialLinqLiteralListSnippet.code should include("literal")
   }
 }
