@@ -66,6 +66,13 @@ blocks. They can bind the caught exception itself as a scoped staged
 exception IR so guard/handler computations stay inside the catch scope in Scala
 codegen and runtime compile.
 
+Exception class discrimination reuses the existing staged cast/type-test IR.
+Direct catch-binder `isInstanceOf[T]` and `asInstanceOf[T]` syntax is rewritten
+to `rep_isinstanceof` / `rep_asinstanceof`, so no separate staged `getClass`
+operation is introduced. The exception DSL exposes `Typ` instances for the
+common exception classes currently covered by tests (`Throwable`, `Exception`,
+`RuntimeException`, and `IllegalArgumentException`).
+
 The staged exception object is intentionally not an arbitrary mutable host
 `Throwable`. Unsupported operations such as stack-trace mutation, suppressed
 exceptions, or backend-specific exception behavior should continue to fail in

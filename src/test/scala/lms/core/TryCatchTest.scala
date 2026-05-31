@@ -255,6 +255,24 @@ trait TryCatchSnippets extends Dsl {
       case e: IllegalArgumentException => e.toString.length
     }
 
+  def stagedCatchTypeTestGuard(flag: Rep[Int]): Rep[Int] =
+    try {
+      if (flag == 1) throw new IllegalArgumentException("bad")
+      if (flag == 2) throw new RuntimeException("other")
+      1
+    } catch {
+      case e: Exception if e.isInstanceOf[IllegalArgumentException] => 2
+      case _: Exception => 3
+    }
+
+  def stagedCatchAsInstanceOfHandler(flag: Rep[Boolean]): Rep[Int] =
+    try {
+      if (flag) throw new IllegalArgumentException("bad")
+      1
+    } catch {
+      case e: Exception => e.asInstanceOf[IllegalArgumentException].getMessage.length
+    }
+
   def stagedNestedCatchBinders(flag: Rep[Boolean]): Rep[Int] =
     try {
       if (flag) throw new IllegalArgumentException("outer")
@@ -490,6 +508,23 @@ class TryCatchTest extends AnyFunSuite with Matchers {
 
     staged(false) shouldBe 1
     staged(true) shouldBe "java.lang.IllegalArgumentException: bad".length
+  }
+
+  test("virtualized try/catch supports catch binder type tests in guards") {
+    val f: compiler.Exp[Int] => compiler.Exp[Int] = compiler.stagedCatchTypeTestGuard(_)
+    val staged = compiler.compile(f)
+
+    staged(0) shouldBe 1
+    staged(1) shouldBe 2
+    staged(2) shouldBe 3
+  }
+
+  test("virtualized try/catch supports catch binder casts in handlers") {
+    val f: compiler.Exp[Boolean] => compiler.Exp[Int] = compiler.stagedCatchAsInstanceOfHandler(_)
+    val staged = compiler.compile(f)
+
+    staged(false) shouldBe 1
+    staged(true) shouldBe 3
   }
 
   test("virtualized try/catch keeps nested catch binders scoped") {

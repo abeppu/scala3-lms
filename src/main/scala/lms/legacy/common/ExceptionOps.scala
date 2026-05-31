@@ -10,6 +10,9 @@ import scala.quoted.*
 
 trait ExceptionOps extends Variables {
   given throwableTyp: Typ[Throwable]
+  given exceptionTyp: Typ[Exception]
+  given runtimeExceptionTyp: Typ[RuntimeException]
+  given illegalArgumentExceptionTyp: Typ[IllegalArgumentException]
 
   case class VirtualCatchCase[T](
     exceptionClassName: String,
@@ -63,6 +66,9 @@ trait ExceptionOpsExp extends ExceptionOps with EffectExp with StringOpsExp {
   case class ExceptionToString(e: Rep[Throwable]) extends Def[String]
 
   override given throwableTyp: Typ[Throwable] = manifestTyp
+  override given exceptionTyp: Typ[Exception] = manifestTyp
+  override given runtimeExceptionTyp: Typ[RuntimeException] = manifestTyp
+  override given illegalArgumentExceptionTyp: Typ[IllegalArgumentException] = manifestTyp
 
   def __catchMessage: Rep[String] =
     fresh[String]

@@ -33,7 +33,7 @@
     - [ ] Decide whether full staged exception objects are needed after message-only support lands
       - [x] Define a real staged exception-object representation, likely `Rep[Throwable]`-like catch binder symbols that are scoped to each `ReifiedCatch`
       - [x] Add IR nodes for selected exception members beyond `getMessage`, starting with `getCause` and `toString`
-      - [ ] Decide whether `getClass`/type-test operations should be explicit exception ops or reuse the existing staged cast/type-test surface
+      - [x] Decide whether `getClass`/type-test operations should be explicit exception ops or reuse the existing staged cast/type-test surface
       - [x] Teach Scala codegen and runtime compile to bind the caught exception object itself, not only a derived message string
       - [x] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
       - [ ] Blocked: passing catch binders or catch-derived staged members through ordinary helper methods needs a macro inlining/source-shape strategy; direct supported member operations remain the safe path

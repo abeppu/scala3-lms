@@ -997,6 +997,25 @@ class virt extends MacroAnnotation {
         TypeApply(Select.unique(term, method), List(TypeTree.of(using targetType.asType)))
       }
 
+      private def rewriteTypeTestOrCast(ctx: MacroCtx, receiverTree: Term, targetType: TypeRepr, method: String): Term = {
+        val receiverValue = transformTerm(receiverTree)(ctx.owner)
+        val (receiver, receiverKind) = normalizeRepTerm(receiverValue, ctx)
+        receiverKind match {
+          case RepW(sourceType) if method == "isInstanceOf" =>
+            emitRepIsInstanceOf(ctx, receiver, sourceType, targetType)
+          case RepW(sourceType) if method == "asInstanceOf" =>
+            emitRepAsInstanceOf(ctx, receiver, sourceType, targetType)
+          case VarW(sourceType) if method == "isInstanceOf" =>
+            emitRepIsInstanceOf(ctx, readVarValue(ctx, receiver, sourceType), sourceType, targetType)
+          case VarW(sourceType) if method == "asInstanceOf" =>
+            emitRepAsInstanceOf(ctx, readVarValue(ctx, receiver, sourceType), sourceType, targetType)
+          case Bare(_) =>
+            emitHostTypeTest(receiver, targetType, method)
+          case _ =>
+            report.errorAndAbort(s"unsupported virtualized type operation .$method[${targetType.show}] on ${receiver.tpe.show}")
+        }
+      }
+
       private def emitEquality(ctx: MacroCtx, lhs: Term, rhs: Term): Term = {
         val combo = (classifyTerm(lhs), classifyTerm(rhs))
         val overload = combo match {
@@ -1390,13 +1409,25 @@ class virt extends MacroAnnotation {
 
       private def unsupportedCatchBinderUse(term: Tree, targets: Set[Symbol]): Boolean = {
         var unsupported = false
-        def supportedCatchBinderTree(tree: Tree): Boolean = tree match {
+        def catchBinderBase(tree: Tree): Boolean = tree match {
           case ident: Ident if targets.contains(ident.symbol) =>
             true
           case Select(receiver, "getMessage" | "getCause" | "toString") =>
-            supportedCatchBinderTree(receiver)
+            catchBinderBase(receiver)
           case Apply(Select(receiver, "getMessage" | "getCause" | "toString"), Nil) =>
-            supportedCatchBinderTree(receiver)
+            catchBinderBase(receiver)
+          case TypeApply(Select(receiver, "isInstanceOf" | "asInstanceOf"), _) =>
+            catchBinderBase(receiver)
+          case _ =>
+            false
+        }
+        def supportedCatchBinderTree(tree: Tree): Boolean = tree match {
+          case Select(receiver, "getMessage" | "getCause" | "toString") =>
+            catchBinderBase(receiver)
+          case Apply(Select(receiver, "getMessage" | "getCause" | "toString"), Nil) =>
+            catchBinderBase(receiver)
+          case TypeApply(Select(receiver, "isInstanceOf" | "asInstanceOf"), _) =>
+            catchBinderBase(receiver)
           case _ =>
             false
         }
@@ -1419,15 +1450,29 @@ class virt extends MacroAnnotation {
 
       private def mentionsSupportedCatchException(term: Tree, targets: Set[Symbol]): Boolean = {
         var found = false
-        def supportedCatchBinderMember(tree: Tree): Boolean = tree match {
+        def catchBinderBase(tree: Tree): Boolean = tree match {
+          case ident: Ident if targets.contains(ident.symbol) =>
+            true
           case Select(ident: Ident, "getMessage" | "getCause" | "toString") if targets.contains(ident.symbol) =>
             true
           case Apply(Select(ident: Ident, "getMessage" | "getCause" | "toString"), Nil) if targets.contains(ident.symbol) =>
             true
           case Select(receiver, "getMessage" | "getCause" | "toString") =>
-            supportedCatchBinderMember(receiver)
+            catchBinderBase(receiver)
           case Apply(Select(receiver, "getMessage" | "getCause" | "toString"), Nil) =>
-            supportedCatchBinderMember(receiver)
+            catchBinderBase(receiver)
+          case TypeApply(Select(receiver, "isInstanceOf" | "asInstanceOf"), _) =>
+            catchBinderBase(receiver)
+          case _ =>
+            false
+        }
+        def supportedCatchBinderMember(tree: Tree): Boolean = tree match {
+          case Select(receiver, "getMessage" | "getCause" | "toString") =>
+            catchBinderBase(receiver)
+          case Apply(Select(receiver, "getMessage" | "getCause" | "toString"), Nil) =>
+            catchBinderBase(receiver)
+          case TypeApply(Select(receiver, "isInstanceOf" | "asInstanceOf"), _) =>
+            catchBinderBase(receiver)
           case _ =>
             false
         }
@@ -1483,7 +1528,7 @@ class virt extends MacroAnnotation {
         def caseHandler(cdef: CaseDef, enforceBinderRestriction: Boolean): Option[(String, Option[ValDef], Option[Term], Option[Term], Term)] = {
           val binders = tryCatchPatternBinders(cdef.pattern).toSet
           if enforceBinderRestriction && binders.nonEmpty && (cdef.guard.exists(unsupportedCatchBinderUse(_, binders)) || unsupportedCatchBinderUse(cdef.rhs, binders)) then
-            report.errorAndAbort("virtualized try/catch currently supports catch binder values only through getMessage/getCause/toString in guards or handlers")
+            report.errorAndAbort("virtualized try/catch currently supports catch binder values only through getMessage/getCause/toString/isInstanceOf/asInstanceOf in guards or handlers")
           tryCatchCaseExceptionName(cdef.pattern).map { exceptionClassName =>
             val exceptionBinding =
               if binders.nonEmpty && (cdef.guard.exists(mentionsSupportedCatchException(_, binders)) || mentionsSupportedCatchException(cdef.rhs, binders)) then
@@ -1920,6 +1965,8 @@ class virt extends MacroAnnotation {
             rewriteExceptionMember(ctx, sel, receiver, ctx.owner, name, applied = true)
           case sel @ Select(receiver, name @ ("getMessage" | "getCause" | "toString")) =>
             rewriteExceptionMember(ctx, sel, receiver, ctx.owner, name, applied = false)
+          case TypeApply(Select(receiver, method @ ("isInstanceOf" | "asInstanceOf")), List(targetTypeTree)) =>
+            rewriteTypeTestOrCast(ctx, receiver, targetTypeTree.tpe, method)
           case Apply(sel @ Select(receiver, "length"), Nil) =>
             rewriteRepStringLength(ctx, sel, receiver, ctx.owner, applied = true)
           case sel @ Select(receiver, "length") =>
