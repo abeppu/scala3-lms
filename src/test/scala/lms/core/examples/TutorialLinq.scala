@@ -131,6 +131,12 @@ trait TutorialLinqDsl extends Dsl with ListOps {
     def diff(using SourceContext): Rep[Int]
     @targetName("recordDpt")
     def dpt(using SourceContext): Rep[String]
+    @targetName("recordEmp")
+    def emp(using SourceContext): Rep[String]
+    @targetName("recordEmployees")
+    def employees(using SourceContext): Rep[List[Record]]
+    @targetName("recordTasks")
+    def tasks(using SourceContext): Rep[List[String]]
 
   extension (db: Rep[PeopleDB])
     def people(using SourceContext): Rep[List[Person]]
@@ -254,6 +260,12 @@ trait TutorialLinqExp extends TutorialLinqDsl with DslExp with ListOpsExpOpt {
     def diff(using SourceContext): Rep[Int] = RecordField[Int](record, "diff")
     @targetName("recordDpt")
     def dpt(using SourceContext): Rep[String] = RecordField[String](record, "dpt")
+    @targetName("recordEmp")
+    def emp(using SourceContext): Rep[String] = RecordField[String](record, "emp")
+    @targetName("recordEmployees")
+    def employees(using SourceContext): Rep[List[Record]] = RecordField[List[Record]](record, "employees")
+    @targetName("recordTasks")
+    def tasks(using SourceContext): Rep[List[String]] = RecordField[List[String]](record, "tasks")
 
   extension (db: Rep[PeopleDB])
     def people(using SourceContext): Rep[List[Person]] = Table[Person](db, "people")
@@ -380,6 +392,7 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
   val org: Rep[OrgDB] = orgDatabase("org")
 
   type Names = List[Record]
+  type Records = List[Record]
 
   def ageDifferences: Rep[Names] =
     for {
@@ -473,6 +486,46 @@ trait TutorialLinqProgram extends TutorialLinqDsl {
           )
         } yield record()
       )
+    } yield record("dpt" -> department.dpt)
+
+  def nestedOrg: Rep[Records] =
+    for {
+      department <- org.departments
+    } yield {
+      val employees =
+        for {
+          employee <- org.employees
+          if department.dpt == employee.dpt
+        } yield {
+          val tasks =
+            for {
+              task <- org.tasks
+              if employee.emp == task.emp
+            } yield task.tsk
+          record("emp" -> employee.emp, "tasks" -> tasks)
+        }
+      record("dpt" -> department.dpt, "employees" -> employees)
+    }
+
+  def anyRecord(xs: Rep[List[Record]])(p: Rep[Record] => Rep[Boolean]): Rep[Boolean] =
+    exists(for {
+      x <- xs
+      if p(x)
+    } yield record())
+
+  def allRecords(xs: Rep[List[Record]])(p: Rep[Record] => Rep[Boolean]): Rep[Boolean] =
+    !anyRecord(xs)(x => !p(x))
+
+  def containsString(xs: Rep[List[String]], value: Rep[String]): Rep[Boolean] =
+    exists(for {
+      x <- xs
+      if x == value
+    } yield record())
+
+  def expertiseNested(taskName: Rep[String]): Rep[Names] =
+    for {
+      department <- nestedOrg
+      if allRecords(department.employees)(employee => containsString(employee.tasks, taskName))
     } yield record("dpt" -> department.dpt)
 }
 
@@ -604,6 +657,26 @@ object TutorialLinqExpertiseSnippet extends DslDriver[Unit, List[TutorialLinqSch
 
   def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
     expertise("abstract")
+}
+
+@virt
+object TutorialLinqNestedOrgSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    nestedOrg
+}
+
+@virt
+object TutorialLinqExpertiseNestedSnippet extends DslDriver[Unit, List[TutorialLinqSchema.Record]] with TutorialLinqProgram with TutorialLinqExp { self =>
+  override val codegen = new TutorialLinqGen {
+    val IR: self.type = self
+  }
+
+  def snippet(unit: Rep[Unit]): Rep[List[TutorialLinqSchema.Record]] =
+    expertiseNested("abstract")
 }
 
 class TutorialLinqTest extends TutorialFunSuite with Matchers {
@@ -808,5 +881,72 @@ class TutorialLinqTest extends TutorialFunSuite with Matchers {
     TutorialLinqExpertiseSnippet.code should include("TutorialLinqSchema.org.tasks.flatMap")
     TutorialLinqExpertiseSnippet.code should include(".isEmpty")
     TutorialLinqExpertiseSnippet.code should include("val dpt =")
+  }
+
+  test("linq nestedOrg host result groups employees and tasks") {
+    val org = TutorialLinqSchema.org
+    val result =
+      for {
+        department <- org.departments
+      } yield {
+        val employees =
+          for {
+            employee <- org.employees
+            if department.dpt == employee.dpt
+          } yield {
+            val tasks =
+              for {
+                task <- org.tasks
+                if employee.emp == task.emp
+              } yield task.tsk
+            employee.emp -> tasks
+          }
+        department.dpt -> employees
+      }
+
+    result.find(_._1 == "Research").map(_._2.map(_._1)) shouldBe Some(List("Cora", "Drew", "Edna"))
+  }
+
+  test("linq nestedOrg emits nested staged records") {
+    check("nestedOrg", TutorialLinqNestedOrgSnippet.code)
+    TutorialLinqNestedOrgSnippet.code should include("val employees =")
+    TutorialLinqNestedOrgSnippet.code should include("val tasks =")
+    TutorialLinqNestedOrgSnippet.code should include("TutorialLinqSchema.org.tasks.flatMap")
+  }
+
+  test("linq expertise2 host result matches expertise through nested org") {
+    val org = TutorialLinqSchema.org
+    def any[A](xs: List[A])(p: A => Boolean): Boolean =
+      xs.exists(p)
+    def all[A](xs: List[A])(p: A => Boolean): Boolean =
+      !any(xs)(x => !p(x))
+    val nested =
+      for {
+        department <- org.departments
+      } yield {
+        val employees =
+          for {
+            employee <- org.employees
+            if department.dpt == employee.dpt
+          } yield {
+            val tasks =
+              for {
+                task <- org.tasks
+                if employee.emp == task.emp
+              } yield task.tsk
+            employee.emp -> tasks
+          }
+        department.dpt -> employees
+      }
+
+    nested.filter { case (_, employees) => all(employees) { case (_, tasks) => tasks.contains("abstract") } }.map(_._1) shouldBe List("Quality", "Research")
+  }
+
+  test("linq expertise2 emits higher-order nested query") {
+    check("expertiseNested", TutorialLinqExpertiseNestedSnippet.code)
+    TutorialLinqExpertiseNestedSnippet.code should include("TutorialLinqSchema.org.departments.flatMap")
+    TutorialLinqExpertiseNestedSnippet.code should include("val employees =")
+    TutorialLinqExpertiseNestedSnippet.code should include("val tasks =")
+    TutorialLinqExpertiseNestedSnippet.code should include(".isEmpty")
   }
 }

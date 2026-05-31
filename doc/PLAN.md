@@ -71,6 +71,7 @@
       - [x] Port the legacy `satisfies` higher-order predicate query shape
       - [x] Port the legacy dynamic predicate-AST examples (`Above`/`Below`/`And`/`Or`/`Not`) as host-side matches producing staged predicates
       - [x] Port the legacy nested `expertise("abstract")` query over corporate departments/employees/tasks
+      - [x] Port the legacy `nestedOrg` and `expertise2("abstract")` higher-order nested-query shape
     - [x] Restore or adapt the required `StructOps`/structural-record surface for `Record { val ... }`, anonymous record construction, and field projection
       - [x] Replace the temporary typed `Name` case-class facade with an explicit staged `record("field" -> value)` constructor that emits anonymous `new TutorialLinqSchema.Record { val ... }` Scala code
       - [x] Add staged field projection for the current `name` record field
@@ -85,6 +86,7 @@
       - [x] Add the legacy-style `differences` query over `couples` and `people` as multi-table `DBFor` regression coverage
       - [x] Add regression coverage for higher-order query predicates and host-selected dynamic predicate trees
       - [x] Add nested `DBFor`/`isEmpty` regression coverage for `expertise`
+      - [x] Add nested record/list-field regression coverage for `nestedOrg` and higher-order `all`/`contains` query composition
     - [ ] Add Scala codegen for `Database`, `DBFor`, and generated record construction
       - [x] Add Scala codegen coverage for generic table projection and multi-table `DBFor`
     - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves
