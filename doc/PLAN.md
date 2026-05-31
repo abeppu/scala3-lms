@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 181 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 182 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -93,7 +93,9 @@
   - [ ] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
     - [x] Port `query_unstaged.scala` as the host baseline and SQL parser/AST reference
     - [x] Port `query_staged0.scala` for initial Scala source generation over scans, filters, projections, and nested-loop joins
-    - [ ] Port `query_staged.scala` for Scala source generation with grouping/hash-join support before switching to C
+    - [ ] Port `query_staged.scala` for Scala source generation with grouping support before switching to C
+      - [x] Accept `HashJoin` ASTs on the Scala backend through a nested-loop fallback so parser/test coverage can move forward
+      - [ ] Blocked: staged group-by needs array/effect scheduling work or a dedicated query IR; the direct array-backed port currently trips mutable-sharing checks
     - [ ] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
     - [ ] Port `query_optc.scala` once the C driver and scanner lowering are in place
     - [ ] Add staged query tests in phases: AST parity, Scala generated source, Scala output CSV, C generated source, then C output CSV when the local toolchain supports it
@@ -119,7 +121,7 @@
 - [ ] `query.scala` -> planned after LINQ and C smoke coverage
 - [x] `query_unstaged.scala` -> Scala 3 host baseline and SQL parser/AST reference in tree
 - [x] `query_staged0.scala` -> initial Scala-backend query compiler in tree for scans, filters, projections, and nested-loop joins
-- [ ] `query_staged.scala` -> planned after `query_staged0`
+- [ ] `query_staged.scala` -> partially covered by Scala-backend `HashJoin` fallback; group-by lowering still blocked on staged mutable array scheduling/query IR
 - [ ] `query_live.scala` -> deferred until core query/C path is stable
 - [ ] `query_live_steps.scala` -> deferred until core query/C path is stable
 - [ ] `query_optc.scala` -> planned after C driver smoke tests and scanner lowering

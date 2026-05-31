@@ -115,6 +115,39 @@ object TutorialQueryStaged0JoinSnippet extends DslDriver[String, Unit] with Dsl 
     execQuery(query, path)
 }
 
+@virt
+trait TutorialQueryStagedCompiler extends TutorialQueryStaged0Compiler {
+  override def execOp(op: Operator, dynamicPath: Rep[String])(yld: StagedRecord => Rep[Unit])(using SourceContext): Rep[Unit] = op match {
+    case HashJoin(left, right) =>
+      execNestedJoin(left, right, dynamicPath)(yld)
+    case other =>
+      super.execOp(other, dynamicPath)(yld)
+  }
+
+  private def execNestedJoin(left: Operator, right: Operator, dynamicPath: Rep[String])(yld: StagedRecord => Rep[Unit])(using SourceContext): Rep[Unit] =
+    execOp(left, dynamicPath) { leftRecord =>
+      execOp(right, dynamicPath) { rightRecord =>
+        val keys = leftRecord.schema.intersect(rightRecord.schema)
+        if fieldsEqual(leftRecord(keys), rightRecord(keys)) then
+          yld(StagedRecord(leftRecord.fields ++ rightRecord.fields, leftRecord.schema ++ rightRecord.schema))
+        else ()
+      }
+    }
+}
+
+@virt
+object TutorialQueryStagedHashJoinSnippet extends DslDriver[String, Unit] with Dsl with TutorialScannerExp with TutorialQueryStagedCompiler { self =>
+  override val codegen = new TutorialScalaGenScanner {
+    val IR: self.type = self
+  }
+
+  private val query =
+    Engine(identity).parseSql("select * from ? schema Name, Value, Flag join (select Name from ? schema Name, Value, Flag)")
+
+  def snippet(path: Rep[String]): Rep[Unit] =
+    execQuery(query, path)
+}
+
 class TutorialQueryStaged0Test extends AnyFunSuite with Matchers {
   test("query_staged0 emits scanner-driven Scala for filtered projection") {
     val code = TutorialQueryStaged0Snippet.code
@@ -131,5 +164,11 @@ class TutorialQueryStaged0Test extends AnyFunSuite with Matchers {
     code should include("while")
     code.sliding("while".length).count(_ == "while") should be >= 2
     code should include("Name1")
+  }
+
+  test("query_staged accepts hash-join ASTs on the Scala backend") {
+    val code = TutorialQueryStagedHashJoinSnippet.code
+    code.sliding("while".length).count(_ == "while") should be >= 2
+    code should include("==")
   }
 }
