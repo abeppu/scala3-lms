@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 188 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 189 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -103,7 +103,9 @@
     - [x] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
     - [ ] Port `query_optc.scala` once the C driver and scanner lowering are in place
       - [x] Add an initial C-source slice for scan/project queries over scanner lowering
+      - [x] Extend the C-source slice to numeric field tokenization/projection
       - [ ] Extend the C-source slice to filters and staged string/numeric field comparisons
+        - [ ] Blocked: the first manual C query-loop attempt dropped a staged `if` whose selected branch only sinks `Unit` effects; needs query-specific conditional emission or an effect-scheduling fix before enabling filter tests
       - [ ] Reintroduce the legacy hash/group data structures after the staged array/effect scheduling boundary is addressed
     - [ ] Add staged query tests in phases: AST parity, Scala generated source, Scala output CSV, C generated source, then C output CSV when the local toolchain supports it
     - [ ] Keep `query_live.scala`, `query_live_steps.scala`, `03_compiler.scala`, and `04_atwork.scala` deferred until the core query/C path is stable

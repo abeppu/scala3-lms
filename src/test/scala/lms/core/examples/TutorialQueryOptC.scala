@@ -16,6 +16,12 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
       prints(data)
       ()
     }
+
+  }
+
+  final case class CIntField(value: Rep[Int]) extends CField {
+    def printField()(using SourceContext): Rep[Unit] =
+      printf("%d", value)
   }
 
   type CFields = Vector[CField]
@@ -33,12 +39,23 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
 
     def next(delim: Char)(using SourceContext): CStringField = {
       val start = readVar(pos)
-      __whileDo(data(readVar(pos)) != unit(delim), {
+      __whileDo(notequals(data(readVar(pos)), unit(delim)), {
         var_assign(pos, int_plus(readVar(pos), unit(1)))
       })
       val fieldLen = int_minus(readVar(pos), start)
       var_assign(pos, int_plus(readVar(pos), unit(1)))
       CStringField(stringFromCharArray(data, start, fieldLen), fieldLen)
+    }
+
+    def nextInt(delim: Char)(using SourceContext): CIntField = {
+      val value = var_new(unit(0))
+      __whileDo(notequals(data(readVar(pos)), unit(delim)), {
+        val digit = uncheckedPure[Int](data(readVar(pos)), " - '0'")
+        var_assign(value, int_plus(int_times(readVar(value), unit(10)), digit))
+        var_assign(pos, int_plus(readVar(pos), unit(1)))
+      })
+      var_assign(pos, int_plus(readVar(pos), unit(1)))
+      CIntField(readVar(value))
     }
 
     def hasNext(using SourceContext): Rep[Boolean] =
@@ -51,16 +68,23 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
   def tablePath(name: String, dynamicPath: Rep[String]): Rep[String] =
     if name == "?" then dynamicPath else name
 
+  def isNumericCol(name: String): Boolean =
+    name.startsWith("#")
+
   def processCSV(filename: Rep[String], schema: Schema, fieldDelimiter: Char, externalSchema: Boolean)(yld: CRecord => Rep[Unit])(using SourceContext): Rep[Unit] = {
     val scanner = CScanner(filename)
     val last = schema.last
     def nextRecord: CRecord =
-      CRecord(schema.map(field => scanner.next(if field == last then '\n' else fieldDelimiter)), schema)
+      CRecord(schema.map { field =>
+        val delim = if field == last then '\n' else fieldDelimiter
+        if isNumericCol(field) then scanner.nextInt(delim) else scanner.next(delim)
+      }, schema)
     if !externalSchema then {
       val _ = nextRecord
     }
     __whileDo(scanner.hasNext, {
-      yld(nextRecord)
+      val record = nextRecord
+      yld(record)
     })
     scanner.done()
   }
@@ -112,6 +136,22 @@ object TutorialQueryOptCSnippet extends TutorialDslDriverC[String, Unit] with Ds
     execQuery(query, path)
 }
 
+object TutorialQueryOptCNumericSnippet extends TutorialDslDriverC[String, Unit] with Dsl with TutorialScannerLowerExp with TutorialQueryOptCCompiler { self =>
+  override val codegen = new TutorialDslGenC with TutorialCGenScannerLower {
+    val IR: self.type = self
+  }
+
+  private val query =
+    Project(
+      Vector("Name", "#Value"),
+      Vector("Name", "#Value"),
+      Scan("?", Vector("Name", "#Value", "Flag"), ',', externalSchema = true)
+    )
+
+  def snippet(path: Rep[String]): Rep[Unit] =
+    execQuery(query, path)
+}
+
 class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
   test("query_optc initial slice emits C source over scanner lowering") {
     val code = TutorialQueryOptCSnippet.cSource
@@ -119,7 +159,17 @@ class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
     code should include("fsize(")
     code should include("mmap(0,")
     code should include("for (;;)")
+    code should include("!=")
     code should include("printll(")
     code should include("close(")
+  }
+
+  test("query_optc initial slice emits C source for numeric fields") {
+    val code = TutorialQueryOptCNumericSnippet.cSource
+    code should include(" - '0'")
+    code should include(" * 10")
+    code should include("!=")
+    code should include("printll(")
+    code should include("printf(\"%d\"")
   }
 }
