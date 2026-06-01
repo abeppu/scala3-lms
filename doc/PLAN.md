@@ -100,6 +100,7 @@
     - [ ] Port `query_staged.scala` for Scala source generation with grouping support before switching to C
       - [x] Accept `HashJoin` ASTs on the Scala backend through a nested-loop fallback so parser/test coverage can move forward
       - [ ] Blocked: staged group-by needs array/effect scheduling work or a dedicated query IR; the direct array-backed port currently trips mutable-sharing checks
+        - [x] Rechecked with a bounded one-key/one-sum fallback after C group support landed; Scala backend still reports illegal sharing of mutable objects during scheduling
     - [x] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
     - [ ] Port `query_optc.scala` once the C driver and scanner lowering are in place
       - [x] Add an initial C-source slice for scan/project queries over scanner lowering
