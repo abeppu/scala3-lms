@@ -6,6 +6,8 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
 import java.io.StringWriter
+import java.nio.file.Files
+import scala.sys.process.*
 import scala.reflect.ClassTag
 
 trait TutorialDslGenC
@@ -104,12 +106,40 @@ object TutorialCArraySnippet extends TutorialDslDriverC[Int, Int] {
 }
 
 class TutorialCBackendTest extends AnyFunSuite with Matchers {
+  private def compileAndRun(code: String, main: String): String = {
+    val dir = Files.createTempDirectory("lms-c-backend")
+    val source = dir.resolve("snippet.c")
+    val binary = dir.resolve("snippet")
+    Files.writeString(source, code + "\n" + main)
+    try {
+      Seq("gcc", source.toString, "-o", binary.toString).!!
+      Seq(binary.toString).!!.trim
+    } finally {
+      Files.deleteIfExists(binary)
+      Files.deleteIfExists(source)
+      Files.deleteIfExists(dir)
+    }
+  }
+
   test("C backend emits source for arithmetic and if") {
     val code = TutorialCArithmeticSnippet.cSource
     code should include("#include <stdio.h>")
     code should include("int32_t snippet(int32_t")
     code should include("if")
     code should include("return")
+  }
+
+  test("C backend compiles and runs arithmetic and if") {
+    val output = compileAndRun(
+      TutorialCArithmeticSnippet.cSource,
+      """int main() {
+        |  printf("%d\n", snippet(4));
+        |  printf("%d\n", snippet(0));
+        |  return 0;
+        |}
+        |""".stripMargin
+    )
+    output shouldBe "8\n1"
   }
 
   test("C backend emits source for while loops and mutable vars") {
@@ -121,10 +151,34 @@ class TutorialCBackendTest extends AnyFunSuite with Matchers {
     code should include("return")
   }
 
+  test("C backend compiles and runs while loops and mutable vars") {
+    val output = compileAndRun(
+      TutorialCWhileVarSnippet.cSource,
+      """int main() {
+        |  printf("%d\n", snippet(5));
+        |  return 0;
+        |}
+        |""".stripMargin
+    )
+    output shouldBe "10"
+  }
+
   test("C backend emits source for printf") {
     val code = TutorialCPrintSnippet.cSource
     code should include("printf")
     code should include("value=%d")
+  }
+
+  test("C backend compiles and runs printf") {
+    val output = compileAndRun(
+      TutorialCPrintSnippet.cSource,
+      """int main() {
+        |  snippet(7);
+        |  return 0;
+        |}
+        |""".stripMargin
+    )
+    output shouldBe "value=7"
   }
 
   test("C backend emits source for arrays") {
@@ -133,5 +187,17 @@ class TutorialCBackendTest extends AnyFunSuite with Matchers {
     code should include("calloc")
     code should include("[0]")
     code should include("[1]")
+  }
+
+  test("C backend compiles and runs arrays") {
+    val output = compileAndRun(
+      TutorialCArraySnippet.cSource,
+      """int main() {
+        |  printf("%d\n", snippet(4));
+        |  return 0;
+        |}
+        |""".stripMargin
+    )
+    output shouldBe "9"
   }
 }
