@@ -26,7 +26,8 @@ class TutorialIndexTest extends AnyFunSuite with Matchers {
     "TutorialStencil.scala",
     "TutorialScanner.scala",
     "StagedRegexpMatcher.scala",
-    "TutorialCBackend.scala"
+    "TutorialCBackend.scala",
+    "TutorialCudaBackend.scala"
   )
 
   test("index lists Scala 3 tutorial chapters currently available in-tree") {

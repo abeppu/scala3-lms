@@ -63,7 +63,8 @@
       - [x] Extend smoke coverage to arrays after the Scala 3 C driver has a C array surface that emits usable source
       - [x] Compile/run emitted C when a C compiler is available
     - [x] Validate that the existing `CCodegen`/`CLikeCodegen` and `CGen*` traits still compile and preserve expected semantics after the Scala 3 port through focused C source and executable smoke tests
-    - [x] Keep CUDA/OpenCL deferred until a CUDA/OpenCL toolchain is explicitly in scope; this container has no `nvcc`, `clang`, or `clinfo`
+    - [x] Add source-only CUDA smoke coverage for the existing `CudaCodegen.emitSource` path so `.cu`-style output remains testable without `nvcc`
+    - [x] Keep CUDA compile/run and OpenCL deferred until a CUDA/OpenCL toolchain is explicitly in scope; this container has no `nvcc`, `clang`, or `clinfo`
 - [x] Port and validate original Scala 2 LMS examples under @virt
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [x] Redesign `eval.scala` for Scala 3 around the current `DslCompile` runtime-compile path (no `CompileScala` reintroduction)
