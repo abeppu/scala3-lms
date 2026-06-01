@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 185 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 186 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -60,7 +60,7 @@
     - [ ] Add C source golden tests for tiny staged snippets: arithmetic, `if`, `while`, mutable vars, arrays, strings/printing
       - [x] First smoke: arithmetic plus `if` C source emission
       - [x] Extend smoke coverage to `while`, mutable vars, and printing after the Scala 3 C driver handles those shapes cleanly
-      - [ ] Extend smoke coverage to arrays after the Scala 3 C driver has a C array surface that emits usable source
+      - [x] Extend smoke coverage to arrays after the Scala 3 C driver has a C array surface that emits usable source
       - [ ] Compile/run emitted C when a C compiler is available; this container currently has no `gcc`/`cc`
     - [ ] Validate that the existing `CCodegen`/`CLikeCodegen` and `CGen*` traits still compile and preserve expected semantics after the Scala 3 port
     - [ ] Keep CUDA/OpenCL deferred until the C backend path is exercised and the container toolchain is explicitly in scope

@@ -35,6 +35,22 @@ trait TutorialDslGenC
     case Const(value: String) => cString(value)
     case _ => super.quoteRawString(s)
   }
+
+  override def remap[A](m: Typ[A]): String =
+    if m.runtimeClass.isArray && m.typeArguments.nonEmpty then remap(m.typeArguments.head)
+    else super.remap(m)
+
+  override def emitNode(sym: Sym[Any], rhs: Def[Any]): Unit = rhs match {
+    case a @ ArrayNew(n) =>
+      val elementType = remap(a.m)
+      emitValDef(sym, s"($elementType*)calloc(${quote(n)}, sizeof($elementType))")
+    case ArrayApply(array, index) =>
+      emitValDef(sym, s"${quote(array)}[${quote(index)}]")
+    case ArrayUpdate(array, index, value) =>
+      stream.println(s"${quote(array)}[${quote(index)}] = ${quote(value)};")
+    case _ =>
+      super.emitNode(sym, rhs)
+  }
 }
 
 trait TutorialDslDriverC[A: ClassTag, B: ClassTag] extends DslSnippet[A, B] with DslExp { self =>
@@ -73,6 +89,15 @@ object TutorialCPrintSnippet extends TutorialDslDriverC[Int, Unit] {
     printf("value=%d\n", n)
 }
 
+object TutorialCArraySnippet extends TutorialDslDriverC[Int, Int] {
+  def snippet(n: Rep[Int]): Rep[Int] = {
+    val values = NewArray[Int](unit(2))
+    values(unit(0)) = n
+    values(unit(1)) = int_plus(n, unit(1))
+    int_plus(values(unit(0)), values(unit(1)))
+  }
+}
+
 class TutorialCBackendTest extends AnyFunSuite with Matchers {
   test("C backend emits source for arithmetic and if") {
     val code = TutorialCArithmeticSnippet.cSource
@@ -95,5 +120,12 @@ class TutorialCBackendTest extends AnyFunSuite with Matchers {
     val code = TutorialCPrintSnippet.cSource
     code should include("printf")
     code should include("value=%d")
+  }
+
+  test("C backend emits source for arrays") {
+    val code = TutorialCArraySnippet.cSource
+    code should include("calloc")
+    code should include("[0]")
+    code should include("[1]")
   }
 }
