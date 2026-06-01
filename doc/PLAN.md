@@ -133,7 +133,7 @@
 - [ ] `query_staged.scala` -> partially covered by Scala-backend `HashJoin` fallback; group-by lowering still blocked on staged mutable array scheduling/query IR
 - [ ] `query_live.scala` -> deferred until core query/C path is stable
 - [ ] `query_live_steps.scala` -> deferred until core query/C path is stable
-- [ ] `query_optc.scala` -> planned after C driver smoke tests and scanner lowering
+- [ ] `query_optc.scala` -> partial Scala 3 C-source port in tree for scan/project and numeric fields; filters/hash/group still blocked as tracked above
 - [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
 - [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
