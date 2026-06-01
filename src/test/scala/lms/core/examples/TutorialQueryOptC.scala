@@ -11,6 +11,7 @@ import java.nio.file.Files
 trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
   sealed trait CField {
     def printField()(using SourceContext): Rep[Unit]
+    def compare(other: CField)(using SourceContext): Rep[Boolean]
   }
 
   final case class CStringField(data: Rep[String], len: Rep[Int]) extends CField {
@@ -19,11 +20,24 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
       ()
     }
 
+    def compare(other: CField)(using SourceContext): Rep[Boolean] = other match {
+      case CStringField(otherData, otherLen) =>
+        uncheckedPure[Boolean]("strncmp(", data, ", ", otherData, ", ", len, ") == 0 && ", len, " == ", otherLen)
+      case CIntField(_) =>
+        unit(false)
+    }
   }
 
   final case class CIntField(value: Rep[Int]) extends CField {
     def printField()(using SourceContext): Rep[Unit] =
       printf("%d", value)
+
+    def compare(other: CField)(using SourceContext): Rep[Boolean] = other match {
+      case CIntField(otherValue) =>
+        __equal(value, otherValue)
+      case CStringField(_, _) =>
+        unit(false)
+    }
   }
 
   type CFields = Vector[CField]
@@ -73,6 +87,12 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
   def isNumericCol(name: String): Boolean =
     name.startsWith("#")
 
+  def emitIf(cond: Rep[Boolean])(body: => Rep[Unit])(using SourceContext): Rep[Unit] = {
+    unchecked[Unit]("if (", cond, ") {")
+    body
+    unchecked[Unit]("}")
+  }
+
   def processCSV(filename: Rep[String], schema: Schema, fieldDelimiter: Char, externalSchema: Boolean)(yld: CRecord => Rep[Unit])(using SourceContext): Rep[Unit] = {
     val scanner = CScanner(filename)
     val last = schema.last
@@ -102,6 +122,19 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
     printf("\n")
   }
 
+  def evalPred(pred: Predicate)(record: CRecord)(using SourceContext): Rep[Boolean] = pred match {
+    case Eq(lhs, rhs) => evalRef(lhs)(record).compare(evalRef(rhs)(record))
+  }
+
+  def evalRef(ref: Ref)(record: CRecord)(using SourceContext): CField = ref match {
+    case Field(name) => record(name)
+    case Value(value: Int) => CIntField(unit(value))
+    case Value(value) =>
+      val text = value.toString
+      CStringField(unit(text), unit(text.length))
+  }
+
+
   def resultSchema(op: Operator): Schema = op match {
     case Scan(_, schema, _, _) => schema
     case Project(schema, _, _) => schema
@@ -117,6 +150,12 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
     case Project(outSchema, inSchema, parent) =>
       execOp(parent, dynamicPath) { record =>
         yld(CRecord(record(inSchema), outSchema))
+      }
+    case Filter(pred, parent) =>
+      execOp(parent, dynamicPath) { record =>
+        emitIf(evalPred(pred)(record)) {
+          yld(record)
+        }
       }
     case other =>
       throw new UnsupportedOperationException(s"query_optc initial C slice does not yet support $other")
@@ -148,6 +187,44 @@ object TutorialQueryOptCNumericSnippet extends TutorialDslDriverC[String, Unit] 
       Vector("Name", "#Value"),
       Vector("Name", "#Value"),
       Scan("?", Vector("Name", "#Value", "Flag"), ',', externalSchema = true)
+    )
+
+  def snippet(path: Rep[String]): Rep[Unit] =
+    execQuery(query, path)
+}
+
+object TutorialQueryOptCStringFilterSnippet extends TutorialDslDriverC[String, Unit] with Dsl with TutorialScannerLowerExp with TutorialQueryOptCCompiler { self =>
+  override val codegen = new TutorialDslGenC with TutorialCGenScannerLower {
+    val IR: self.type = self
+  }
+
+  private val query =
+    Project(
+      Vector("Name"),
+      Vector("Name"),
+      Filter(
+        Eq(Field("Flag"), Value("yes")),
+        Scan("?", Vector("Name", "Value", "Flag"), ',', externalSchema = true)
+      )
+    )
+
+  def snippet(path: Rep[String]): Rep[Unit] =
+    execQuery(query, path)
+}
+
+object TutorialQueryOptCNumericFilterSnippet extends TutorialDslDriverC[String, Unit] with Dsl with TutorialScannerLowerExp with TutorialQueryOptCCompiler { self =>
+  override val codegen = new TutorialDslGenC with TutorialCGenScannerLower {
+    val IR: self.type = self
+  }
+
+  private val query =
+    Project(
+      Vector("Name", "#Value"),
+      Vector("Name", "#Value"),
+      Filter(
+        Eq(Field("#Value"), Value(2)),
+        Scan("?", Vector("Name", "#Value", "Flag"), ',', externalSchema = true)
+      )
     )
 
   def snippet(path: Rep[String]): Rep[Unit] =
@@ -248,6 +325,51 @@ class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
         runtimePrefix
       )
       output shouldBe "Alice,1\nBob,2"
+    }
+  }
+
+  test("query_optc initial slice emits C source for string filters") {
+    val code = TutorialQueryOptCStringFilterSnippet.cSource
+    code should include("strncmp(")
+    code should include("\"yes\"")
+    code should include("if (")
+    code should include("printll(")
+  }
+
+  test("query_optc initial slice compiles and runs string filters") {
+    withCsv("Alice,1,yes\nBob,2,no\nEve,3,yes\n") { path =>
+      val output = compileAndRun(
+        TutorialQueryOptCStringFilterSnippet.cSource,
+        s"""int main() {
+           |  snippet(${cString(path)});
+           |  return 0;
+           |}
+           |""".stripMargin,
+        runtimePrefix
+      )
+      output shouldBe "Alice\nEve"
+    }
+  }
+
+  test("query_optc initial slice emits C source for numeric filters") {
+    val code = TutorialQueryOptCNumericFilterSnippet.cSource
+    code should include("== 2")
+    code should include("if (")
+    code should include("printf(\"%d\"")
+  }
+
+  test("query_optc initial slice compiles and runs numeric filters") {
+    withCsv("Alice,1,yes\nBob,2,no\nEve,2,yes\n") { path =>
+      val output = compileAndRun(
+        TutorialQueryOptCNumericFilterSnippet.cSource,
+        s"""int main() {
+           |  snippet(${cString(path)});
+           |  return 0;
+           |}
+           |""".stripMargin,
+        runtimePrefix
+      )
+      output shouldBe "Bob,2\nEve,2"
     }
   }
 }

@@ -55,6 +55,11 @@ trait TutorialDslGenC
     case _ => super.quoteRawString(s)
   }
 
+  override def quote(x: Exp[Any]): String = x match {
+    case Const(value: String) => cString(value)
+    case _ => super.quote(x)
+  }
+
   override def remap[A](m: Typ[A]): String =
     if m.runtimeClass.isArray && m.typeArguments.nonEmpty then remap(m.typeArguments.head)
     else if m.toString == "String" then "char *"
