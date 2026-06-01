@@ -6,6 +6,8 @@ import lms.legacy.compat.SourceContext
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
+import java.nio.file.Files
+
 trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
   sealed trait CField {
     def printField()(using SourceContext): Rep[Unit]
@@ -153,6 +155,52 @@ object TutorialQueryOptCNumericSnippet extends TutorialDslDriverC[String, Unit] 
 }
 
 class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
+  import TutorialCBackendSupport.compileAndRun
+
+  private val runtimePrefix =
+    """#include <fcntl.h>
+      |#include <stdint.h>
+      |#include <stdio.h>
+      |#include <stdlib.h>
+      |#include <string.h>
+      |#include <sys/mman.h>
+      |#include <sys/stat.h>
+      |#include <unistd.h>
+      |#ifndef MAP_FILE
+      |#define MAP_FILE 0
+      |#endif
+      |static int fsize(int fd) {
+      |  struct stat st;
+      |  fstat(fd, &st);
+      |  return (int)st.st_size;
+      |}
+      |static char *slice_string(char *data, int pos, int len) {
+      |  char *out = (char *)malloc((size_t)len + 1);
+      |  memcpy(out, data + pos, (size_t)len);
+      |  out[len] = '\0';
+      |  return out;
+      |}
+      |static int printll(char *s) {
+      |  return printf("%s", s);
+      |}
+      |""".stripMargin
+
+  private def cString(value: String): String =
+    "\"" + value.flatMap {
+      case '\\' => "\\\\"
+      case '"' => "\\\""
+      case '\n' => "\\n"
+      case '\t' => "\\t"
+      case ch => ch.toString
+    } + "\""
+
+  private def withCsv[A](contents: String)(body: String => A): A = {
+    val file = Files.createTempFile("lms-query-optc", ".csv")
+    Files.writeString(file, contents)
+    try body(file.toString)
+    finally Files.deleteIfExists(file)
+  }
+
   test("query_optc initial slice emits C source over scanner lowering") {
     val code = TutorialQueryOptCSnippet.cSource
     code should include("open(")
@@ -164,6 +212,21 @@ class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
     code should include("close(")
   }
 
+  test("query_optc initial slice compiles and runs string projection") {
+    withCsv("Alice,1,yes\nBob,2,no\n") { path =>
+      val output = compileAndRun(
+        TutorialQueryOptCSnippet.cSource,
+        s"""int main() {
+           |  snippet(${cString(path)});
+           |  return 0;
+           |}
+           |""".stripMargin,
+        runtimePrefix
+      )
+      output shouldBe "Alice\nBob"
+    }
+  }
+
   test("query_optc initial slice emits C source for numeric fields") {
     val code = TutorialQueryOptCNumericSnippet.cSource
     code should include(" - '0'")
@@ -171,5 +234,20 @@ class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
     code should include("!=")
     code should include("printll(")
     code should include("printf(\"%d\"")
+  }
+
+  test("query_optc initial slice compiles and runs numeric projection") {
+    withCsv("Alice,1,yes\nBob,2,no\n") { path =>
+      val output = compileAndRun(
+        TutorialQueryOptCNumericSnippet.cSource,
+        s"""int main() {
+           |  snippet(${cString(path)});
+           |  return 0;
+           |}
+           |""".stripMargin,
+        runtimePrefix
+      )
+      output shouldBe "Alice,1\nBob,2"
+    }
   }
 }

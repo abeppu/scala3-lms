@@ -10,6 +10,23 @@ import java.nio.file.Files
 import scala.sys.process.*
 import scala.reflect.ClassTag
 
+object TutorialCBackendSupport {
+  def compileAndRun(code: String, main: String, prefix: String = ""): String = {
+    val dir = Files.createTempDirectory("lms-c-backend")
+    val source = dir.resolve("snippet.c")
+    val binary = dir.resolve("snippet")
+    Files.writeString(source, prefix + code + "\n" + main)
+    try {
+      Seq("gcc", source.toString, "-o", binary.toString).!!
+      Seq(binary.toString).!!.trim
+    } finally {
+      Files.deleteIfExists(binary)
+      Files.deleteIfExists(source)
+      Files.deleteIfExists(dir)
+    }
+  }
+}
+
 trait TutorialDslGenC
     extends CGenPrimitiveOps
     with CGenBooleanOps
@@ -40,12 +57,17 @@ trait TutorialDslGenC
 
   override def remap[A](m: Typ[A]): String =
     if m.runtimeClass.isArray && m.typeArguments.nonEmpty then remap(m.typeArguments.head)
-    else if m.toString == "String" then "string"
+    else if m.toString == "String" then "char *"
+    else if m.toString == "Char" then "char"
     else super.remap(m)
 
   override def remapWithRef[A](m: Typ[A]): String =
     if m.runtimeClass.isArray && m.typeArguments.nonEmpty then s"${remap(m.typeArguments.head)} *"
+    else if m.toString == "String" then "char *"
     else super.remapWithRef(m)
+
+  override def isPrimitiveType(tpe: String): Boolean =
+    tpe == "char" || super.isPrimitiveType(tpe)
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any]): Unit = rhs match {
     case a @ ArrayNew(n) =>
@@ -106,20 +128,7 @@ object TutorialCArraySnippet extends TutorialDslDriverC[Int, Int] {
 }
 
 class TutorialCBackendTest extends AnyFunSuite with Matchers {
-  private def compileAndRun(code: String, main: String): String = {
-    val dir = Files.createTempDirectory("lms-c-backend")
-    val source = dir.resolve("snippet.c")
-    val binary = dir.resolve("snippet")
-    Files.writeString(source, code + "\n" + main)
-    try {
-      Seq("gcc", source.toString, "-o", binary.toString).!!
-      Seq(binary.toString).!!.trim
-    } finally {
-      Files.deleteIfExists(binary)
-      Files.deleteIfExists(source)
-      Files.deleteIfExists(dir)
-    }
-  }
+  import TutorialCBackendSupport.compileAndRun
 
   test("C backend emits source for arithmetic and if") {
     val code = TutorialCArithmeticSnippet.cSource

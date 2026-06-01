@@ -114,7 +114,7 @@ trait TutorialScannerLowerExp extends DslExp with TutorialScannerLowerBase with 
     uncheckedPure[Array[T]]("mmap(0, ", len, ", PROT_READ, MAP_FILE | MAP_SHARED, ", fd, ", 0)")
 
   def stringFromCharArray(data: Rep[Array[Char]], pos: Rep[Int], len: Rep[Int]): Rep[String] =
-    uncheckedPure[String](data, "+", pos)
+    uncheckedPure[String]("slice_string(", data, ", ", pos, ", ", len, ")")
 
   def prints(s: Rep[String]): Rep[Int] =
     unchecked[Int]("printll(", s, ")")
