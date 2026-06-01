@@ -38,6 +38,7 @@ trait TutorialDslGenC
 
   override def remap[A](m: Typ[A]): String =
     if m.runtimeClass.isArray && m.typeArguments.nonEmpty then remap(m.typeArguments.head)
+    else if m.toString == "String" then "string"
     else super.remap(m)
 
   override def remapWithRef[A](m: Typ[A]): String =

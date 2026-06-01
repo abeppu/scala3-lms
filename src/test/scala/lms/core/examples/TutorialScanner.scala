@@ -2,7 +2,7 @@ package lms.core.examples
 
 import lms.core.*
 import lms.legacy.compat.SourceContext
-import lms.legacy.common.{Base, EffectExp}
+import lms.legacy.common.{Base, CGenUncheckedOps, EffectExp, UncheckedOps, UncheckedOpsExp}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -91,6 +91,39 @@ trait TutorialScalaGenScanner extends DslGen {
   }
 }
 
+trait TutorialScannerLowerBase extends Base with UncheckedOps { this: Dsl =>
+  def open(path: Rep[String]): Rep[Int]
+  def closeFd(fd: Rep[Int]): Rep[Unit]
+  def filelen(fd: Rep[Int]): Rep[Int]
+  def mmap[T: Typ](fd: Rep[Int], len: Rep[Int]): Rep[Array[T]]
+  def stringFromCharArray(data: Rep[Array[Char]], pos: Rep[Int], len: Rep[Int]): Rep[String]
+  def prints(s: Rep[String]): Rep[Int]
+}
+
+trait TutorialScannerLowerExp extends DslExp with TutorialScannerLowerBase with UncheckedOpsExp {
+  def open(path: Rep[String]): Rep[Int] =
+    uncheckedPure[Int]("open(", path, ", 0)")
+
+  def closeFd(fd: Rep[Int]): Rep[Unit] =
+    unchecked[Unit]("close(", fd, ")")
+
+  def filelen(fd: Rep[Int]): Rep[Int] =
+    uncheckedPure[Int]("fsize(", fd, ")")
+
+  def mmap[T: Typ](fd: Rep[Int], len: Rep[Int]): Rep[Array[T]] =
+    uncheckedPure[Array[T]]("mmap(0, ", len, ", PROT_READ, MAP_FILE | MAP_SHARED, ", fd, ", 0)")
+
+  def stringFromCharArray(data: Rep[Array[Char]], pos: Rep[Int], len: Rep[Int]): Rep[String] =
+    uncheckedPure[String](data, "+", pos)
+
+  def prints(s: Rep[String]): Rep[Int] =
+    unchecked[Int]("printll(", s, ")")
+}
+
+trait TutorialCGenScannerLower extends CGenUncheckedOps {
+  val IR: TutorialScannerLowerExp
+}
+
 @virt
 object TutorialScannerSnippet extends DslDriver[String, String] with Dsl with TutorialScannerExp { self =>
   override val codegen = new TutorialScalaGenScanner {
@@ -102,6 +135,22 @@ object TutorialScannerSnippet extends DslDriver[String, String] with Dsl with Tu
     val header = scanner.next(',')
     scanner.close()
     header
+  }
+}
+
+object TutorialScannerLowerSnippet extends TutorialDslDriverC[String, Int] with Dsl with TutorialScannerLowerExp { self =>
+  override val codegen = new TutorialDslGenC with TutorialCGenScannerLower {
+    val IR: self.type = self
+  }
+
+  def snippet(path: Rep[String]): Rep[Int] = {
+    val fd = open(path)
+    val len = filelen(fd)
+    val data = mmap[Char](fd, len)
+    val text = stringFromCharArray(data, unit(0), len)
+    val printed = prints(text)
+    closeFd(fd)
+    printed
   }
 }
 
@@ -143,5 +192,14 @@ class TutorialScannerTest extends AnyFunSuite with Matchers {
     TutorialScannerSnippet.code should include("new lms.core.examples.TutorialScanner(")
     TutorialScannerSnippet.code should include(".next(',')")
     TutorialScannerSnippet.code should include(".close()")
+  }
+
+  test("scanner lowering emits unchecked C-level file operations") {
+    val code = TutorialScannerLowerSnippet.cSource
+    code should include("open(")
+    code should include("fsize(")
+    code should include("mmap(0,")
+    code should include("printll(")
+    code should include("close(")
   }
 }

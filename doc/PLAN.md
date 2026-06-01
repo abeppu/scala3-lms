@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 186 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 187 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -100,7 +100,7 @@
     - [ ] Port `query_staged.scala` for Scala source generation with grouping support before switching to C
       - [x] Accept `HashJoin` ASTs on the Scala backend through a nested-loop fallback so parser/test coverage can move forward
       - [ ] Blocked: staged group-by needs array/effect scheduling work or a dedicated query IR; the direct array-backed port currently trips mutable-sharing checks
-    - [ ] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
+    - [x] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
     - [ ] Port `query_optc.scala` once the C driver and scanner lowering are in place
     - [ ] Add staged query tests in phases: AST parity, Scala generated source, Scala output CSV, C generated source, then C output CSV when the local toolchain supports it
     - [ ] Keep `query_live.scala`, `query_live_steps.scala`, `03_compiler.scala`, and `04_atwork.scala` deferred until the core query/C path is stable
