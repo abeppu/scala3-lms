@@ -165,8 +165,8 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
       execNestedJoin(left, right, dynamicPath)(yld)
     case HashJoin(left, right) =>
       execNestedJoin(left, right, dynamicPath)(yld)
-    case other =>
-      throw new UnsupportedOperationException(s"query_optc initial C slice does not yet support $other")
+    case Group(keys, agg, parent) =>
+      execSingleStringKeyNumericGroup(keys, agg, parent, dynamicPath)(yld)
   }
 
   private def execNestedJoin(left: Operator, right: Operator, dynamicPath: Rep[String])(yld: CRecord => Rep[Unit])(using SourceContext): Rep[Unit] =
@@ -178,6 +178,48 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
         }
       }
     }
+
+  private def execSingleStringKeyNumericGroup(keys: Schema, agg: Schema, parent: Operator, dynamicPath: Rep[String])(yld: CRecord => Rep[Unit])(using SourceContext): Rep[Unit] = {
+    if keys.size != 1 || agg.size != 1 then
+      throw new UnsupportedOperationException("query_optc group fallback currently supports one key and one aggregate")
+
+    val capacity = unit(256)
+    val keyData = NewArray[String](capacity)
+    val keyLen = NewArray[Int](capacity)
+    val sums = NewArray[Int](capacity)
+    val count = var_new(unit(0))
+
+    execOp(parent, dynamicPath) { record =>
+      val key = record(keys.head).asInstanceOf[CStringField]
+      val value = record(agg.head).asInstanceOf[CIntField]
+      val found = var_new(unit(-1))
+      val i = var_new(unit(0))
+      __whileDo(boolean_and(ordering_lt(readVar(i), readVar(count)), __equal(readVar(found), unit(-1))), {
+        emitIf(CStringField(keyData(readVar(i)), keyLen(readVar(i))).compare(key)) {
+          var_assign(found, readVar(i))
+        }
+        var_assign(i, int_plus(readVar(i), unit(1)))
+      })
+      emitIf(__equal(readVar(found), unit(-1))) {
+        val slot = readVar(count)
+        keyData(slot) = key.data
+        keyLen(slot) = key.len
+        sums(slot) = value.value
+        var_assign(count, int_plus(readVar(count), unit(1)))
+      }
+      emitIf(notequals(readVar(found), unit(-1))) {
+        val slot = readVar(found)
+        sums(slot) = int_plus(sums(slot), value.value)
+      }
+    }
+
+    val out = var_new(unit(0))
+    __whileDo(ordering_lt(readVar(out), readVar(count)), {
+      val slot = readVar(out)
+      yld(CRecord(Vector(CStringField(keyData(slot), keyLen(slot)), CIntField(sums(slot))), keys ++ agg))
+      var_assign(out, int_plus(readVar(out), unit(1)))
+    })
+  }
 
   def execQuery(op: Operator, dynamicPath: Rep[String])(using SourceContext): Rep[Unit] =
     execOp(op, dynamicPath)(record => printFields(record.fields))
@@ -275,6 +317,22 @@ object TutorialQueryOptCHashJoinFallbackSnippet extends TutorialDslDriverC[Strin
     HashJoin(
       Scan("?", schema, ',', externalSchema = true),
       Project(Vector("Name"), Vector("Name"), Scan("?", schema, ',', externalSchema = true))
+    )
+
+  def snippet(path: Rep[String]): Rep[Unit] =
+    execQuery(query, path)
+}
+
+object TutorialQueryOptCGroupSnippet extends TutorialDslDriverC[String, Unit] with Dsl with TutorialScannerLowerExp with TutorialQueryOptCCompiler { self =>
+  override val codegen = new TutorialDslGenC with TutorialCGenScannerLower {
+    val IR: self.type = self
+  }
+
+  private val query =
+    Group(
+      Vector("Name"),
+      Vector("#Value"),
+      Scan("?", Vector("Name", "#Value", "Flag"), ',', externalSchema = true)
     )
 
   def snippet(path: Rep[String]): Rep[Unit] =
@@ -457,6 +515,28 @@ class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
         runtimePrefix
       )
       output shouldBe "Alice,1,yes,Alice\nBob,2,no,Bob"
+    }
+  }
+
+  test("query_optc group fallback emits C source for one string key and numeric sum") {
+    val code = TutorialQueryOptCGroupSnippet.cSource
+    code should include("calloc")
+    code should include("strncmp(")
+    code should include("printf(\"%d\"")
+  }
+
+  test("query_optc group fallback compiles and runs one string key and numeric sum") {
+    withCsv("Alice,1,yes\nBob,2,no\nAlice,3,yes\n") { path =>
+      val output = compileAndRun(
+        TutorialQueryOptCGroupSnippet.cSource,
+        s"""int main() {
+           |  snippet(${cString(path)});
+           |  return 0;
+           |}
+           |""".stripMargin,
+        runtimePrefix
+      )
+      output shouldBe "Alice,4\nBob,2"
     }
   }
 }

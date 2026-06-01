@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 202 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 204 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -107,11 +107,13 @@
       - [x] Extend the C-source slice to filters and staged string/numeric field comparisons
         - [x] Use a query-specific C conditional emitter for effect-only filter sinks instead of the generic staged `if` path
       - [x] Accept nested-loop joins and hash-join ASTs on the C backend through a nested-loop fallback
-      - [ ] Reintroduce the legacy hash/group data structures after the staged array/effect scheduling boundary is addressed
+      - [x] Add a bounded C group fallback for one string key and one numeric sum field
+      - [ ] Reintroduce the full legacy hash/group data structures after the staged array/effect scheduling boundary is addressed
     - [ ] Add staged query tests in phases: AST parity, Scala generated source, Scala output CSV, C generated source, then C output CSV when the local toolchain supports it
       - [x] Add C output CSV tests for the current `query_optc` scan/project slice
       - [x] Add C output CSV tests for the current `query_optc` filter slice
       - [x] Add C output CSV tests for the current `query_optc` nested-loop/hash-join fallback slice
+      - [x] Add C output CSV tests for the bounded `query_optc` group fallback
     - [ ] Keep `query_live.scala`, `query_live_steps.scala`, `03_compiler.scala`, and `04_atwork.scala` deferred until the core query/C path is stable
 
 ### Legacy tutorial parity tracker (`/legacy-lms-tutorials/src/test/scala/lms/tutorial`)
