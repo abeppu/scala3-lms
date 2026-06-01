@@ -40,6 +40,10 @@ trait TutorialDslGenC
     if m.runtimeClass.isArray && m.typeArguments.nonEmpty then remap(m.typeArguments.head)
     else super.remap(m)
 
+  override def remapWithRef[A](m: Typ[A]): String =
+    if m.runtimeClass.isArray && m.typeArguments.nonEmpty then s"${remap(m.typeArguments.head)} *"
+    else super.remapWithRef(m)
+
   override def emitNode(sym: Sym[Any], rhs: Def[Any]): Unit = rhs match {
     case a @ ArrayNew(n) =>
       val elementType = remap(a.m)
@@ -124,6 +128,7 @@ class TutorialCBackendTest extends AnyFunSuite with Matchers {
 
   test("C backend emits source for arrays") {
     val code = TutorialCArraySnippet.cSource
+    code should include("int32_t *")
     code should include("calloc")
     code should include("[0]")
     code should include("[1]")
