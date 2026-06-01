@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 204 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 205 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -133,7 +133,7 @@
 - [x] `eval.scala` -> Scala 3 evaluator-specialization equivalent in tree (`DslCompile` runtime path)
 - [x] `index.scala` -> Scala 3 equivalent tutorial catalog in tree
 - [x] `linq.scalax` -> Scala 3 Scala-backend equivalent in tree through nested LINQ examples, using explicit staged records
-- [ ] `query.scala` -> planned after LINQ and C smoke coverage
+- [x] `query.scala` -> Scala 3 query tutorial catalog in tree, split across focused query implementation files
 - [x] `query_unstaged.scala` -> Scala 3 host baseline and SQL parser/AST reference in tree
 - [x] `query_staged0.scala` -> initial Scala-backend query compiler in tree for scans, filters, projections, and nested-loop joins
 - [ ] `query_staged.scala` -> partially covered by Scala-backend `HashJoin` fallback; group-by lowering still blocked on staged mutable array scheduling/query IR
