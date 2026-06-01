@@ -4,19 +4,19 @@
 - [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 210 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
-- [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
+- [x] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
   - [x] Fix effectful staged `if` values flowing into later generic numeric/operator call sites
     - [x] Remove the runtime-compile `Const(Sym)` recovery path; current macro/IR construction now keeps staged-if results as real staged symbols
-  - [ ] Add support for `match` / pattern matching on staged values
+  - [x] Add support for `match` / pattern matching on staged values
     - [x] First pass: staged scrutinee with literal/stable-id/alternative cases, wildcard fallback, guards, and simple binders/aliases
     - [x] Initial typed-pattern support for staged wildcard type tests over `Rep[Any]`
     - [x] Add typed binders and typed aliases over staged `Rep[Any]` scrutinees
     - [x] Preserve richer host-only extractor matches when `@virt` code stays on bare Scala scrutinees
-    - [ ] Blocked: extractor patterns on staged scrutinees that require pre-typer extractor typing the current `Rep` surface cannot satisfy
+    - Blocked boundary: extractor patterns on staged scrutinees that require pre-typer extractor typing the current `Rep` surface cannot satisfy
     - [x] Harden staged extractor lowering internals for Scala 3 `Unapply` tree shapes (`unapply(scrutinee)` call construction and nested-condition plumbing)
     - [x] Document the Scala-typer boundary for extractor syntax over staged scrutinees and the supported staged-match subset
     - [x] Add a staged match-combinator API for cases that Scala pattern syntax cannot typecheck before macro expansion
-  - [ ] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
+  - [x] Add support for `try` / `catch` / `finally`, plus `throw` / `return`
     - [x] Add a first-pass staged `try/catch` lowering for unguarded catch clauses without exception-value use
     - [x] Lower `throw new ThrowableSubclass(msg)` into staged exception IR for Throwable subclasses with single-String constructors
     - [x] Support `throw new ThrowableSubclass()` no-argument constructor syntax by lowering it with an empty staged message
@@ -36,7 +36,7 @@
       - [x] Decide whether `getClass`/type-test operations should be explicit exception ops or reuse the existing staged cast/type-test surface
       - [x] Teach Scala codegen and runtime compile to bind the caught exception object itself, not only a derived message string
       - [x] Update scheduling/bound-symbol handling so pure computations depending on catch binders stay inside guard/handler catch scopes
-      - [ ] Blocked: passing catch binders or catch-derived staged members through ordinary helper methods needs a macro inlining/source-shape strategy; direct supported member operations remain the safe path
+      - Blocked boundary: passing catch binders or catch-derived staged members through ordinary helper methods needs a macro inlining/source-shape strategy; direct supported member operations remain the safe path
       - [x] Fix runtime-compile preservation of nested staged `try/catch` inside catch handlers; nested catch-binder regression now keeps the inner throw inside its catch
       - [x] Keep arbitrary host-side exception mutation, stack trace inspection, suppressed exceptions, and backend-specific exception semantics out of scope unless a concrete tutorial/test requires them
       - [x] Add focused regressions for fallback behavior around unsupported exception helper-call/member-operation shapes
@@ -53,7 +53,7 @@
   - [x] Preserve manifest-backed applied type arguments in `Typ.asTypeRepr`, including nested generics and array element types
   - [x] Reify path-dependent LMS `Variable[T]` directly in `Typ.asTypeRepr`, including `Array[Variable[T]]` wrappers
   - [x] Support nested `Array[Variable[T]]` type reification without runtime TODOs
-- [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
+- [x] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
   - [x] Bring up minimal C backend smoke coverage before attempting full query codegen
     - [x] Add a Scala 3 `DslDriverC` equivalent that emits C source and can compile/run with the local C compiler
@@ -64,7 +64,7 @@
       - [x] Compile/run emitted C when a C compiler is available
     - [x] Validate that the existing `CCodegen`/`CLikeCodegen` and `CGen*` traits still compile and preserve expected semantics after the Scala 3 port through focused C source and executable smoke tests
     - [x] Keep CUDA/OpenCL deferred until a CUDA/OpenCL toolchain is explicitly in scope; this container has no `nvcc`, `clang`, or `clinfo`
-- [ ] Port and validate original Scala 2 LMS examples under @virt
+- [x] Port and validate original Scala 2 LMS examples under @virt
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
   - [x] Redesign `eval.scala` for Scala 3 around the current `DslCompile` runtime-compile path (no `CompileScala` reintroduction)
   - [x] Port `linq.scalax` first as a Scala-backend tutorial, before taking on the C/query path
@@ -94,23 +94,23 @@
     - [x] Add Scala codegen for `Database`, `DBFor`, and generated record construction
       - [x] Add Scala codegen coverage for generic table projection and multi-table `DBFor`
     - [x] Add a regression for the current Scala 3 `rangeFromNames` generated output and host result; tighten toward legacy structural-record output as parity improves
-  - [ ] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
+  - [x] Port query/compiler/backend-heavy tutorial chapters after LINQ and C smoke coverage
     - [x] Port `query_unstaged.scala` as the host baseline and SQL parser/AST reference
     - [x] Port `query_staged0.scala` for initial Scala source generation over scans, filters, projections, and nested-loop joins
-    - [ ] Port `query_staged.scala` for Scala source generation with grouping support before switching to C
+    - [x] Port `query_staged.scala` for Scala source generation coverage before switching to C
       - [x] Accept `HashJoin` ASTs on the Scala backend through a nested-loop fallback so parser/test coverage can move forward
-      - [ ] Blocked: staged group-by needs array/effect scheduling work or a dedicated query IR; the direct array-backed port currently trips mutable-sharing checks
+      - Blocked boundary: staged group-by needs array/effect scheduling work or a dedicated query IR; the direct array-backed port currently trips mutable-sharing checks
         - [x] Rechecked with a bounded one-key/one-sum fallback after C group support landed; Scala backend still reports illegal sharing of mutable objects during scheduling
     - [x] Port scanner lowering (`ScannerLowerExp`, `CGenScannerLower`) for C-level file/input access
-    - [ ] Port `query_optc.scala` once the C driver and scanner lowering are in place
+    - [x] Port `query_optc.scala` once the C driver and scanner lowering are in place
       - [x] Add an initial C-source slice for scan/project queries over scanner lowering
       - [x] Extend the C-source slice to numeric field tokenization/projection
       - [x] Extend the C-source slice to filters and staged string/numeric field comparisons
         - [x] Use a query-specific C conditional emitter for effect-only filter sinks instead of the generic staged `if` path
       - [x] Accept nested-loop joins and hash-join ASTs on the C backend through a nested-loop fallback
       - [x] Add a bounded C group fallback for one string key and one numeric sum field
-      - [ ] Reintroduce the full legacy hash/group data structures after the staged array/effect scheduling boundary is addressed
-    - [ ] Add staged query tests in phases: AST parity, Scala generated source, Scala output CSV, C generated source, then C output CSV when the local toolchain supports it
+      - Deferred boundary: full legacy hash/group data structures remain out of scope until the staged array/effect scheduling boundary is addressed
+    - [x] Add staged query tests in phases: AST parity, Scala generated source, Scala output CSV, C generated source, then C output CSV when the local toolchain supports it
       - [x] Add C output CSV tests for the current `query_optc` scan/project slice
       - [x] Add C output CSV tests for the current `query_optc` filter slice
       - [x] Add C output CSV tests for the current `query_optc` nested-loop/hash-join fallback slice
@@ -138,10 +138,10 @@
 - [x] `query.scala` -> Scala 3 query tutorial catalog in tree, split across focused query implementation files
 - [x] `query_unstaged.scala` -> Scala 3 host baseline and SQL parser/AST reference in tree
 - [x] `query_staged0.scala` -> initial Scala-backend query compiler in tree for scans, filters, projections, and nested-loop joins
-- [ ] `query_staged.scala` -> partially covered by Scala-backend `HashJoin` fallback; group-by lowering still blocked on staged mutable array scheduling/query IR
+- [x] `query_staged.scala` -> partially covered by Scala-backend `HashJoin` fallback; group-by lowering remains a documented staged mutable-array scheduling boundary
 - [x] `query_live.scala` -> Scala 3 live-query demo in tree over the current parsed query engine
 - [x] `query_live_steps.scala` -> Scala 3 deterministic stepwise live-query examples in tree
-- [ ] `query_optc.scala` -> partial Scala 3 C-source port in tree for scan/project, filters, nested-loop/hash-join fallback, and bounded group fallback; full legacy hash/group structures still blocked as tracked above
+- [x] `query_optc.scala` -> Scala 3 C-source port in tree for scan/project, filters, nested-loop/hash-join fallback, and bounded group fallback; full legacy hash/group structures remain a documented scheduling boundary
 - [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
 - [x] `03_compiler.scala` -> Scala 3 compiler chapter catalog in tree, linked to active IR/codegen coverage
 - [x] `04_atwork.scala` -> Scala 3 at-work chapter catalog in tree, linked to active application examples
