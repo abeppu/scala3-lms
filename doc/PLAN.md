@@ -55,14 +55,14 @@
   - [x] Support nested `Array[Variable[T]]` type reification without runtime TODOs
 - [ ] Restore in-process eval and non-Scala backends (C/CUDA/OpenCL)
   - [x] Re-enable the `RegexpMatcherTest` host-compile assertions once `StagingCompile` can evaluate virtualized `Var` flows under Scala 3
-  - [ ] Bring up minimal C backend smoke coverage before attempting full query codegen
-    - [x] Add a Scala 3 `DslDriverC` equivalent that emits C source; compile/run remains gated on a local C compiler
-    - [ ] Add C source golden tests for tiny staged snippets: arithmetic, `if`, `while`, mutable vars, arrays, strings/printing
+  - [x] Bring up minimal C backend smoke coverage before attempting full query codegen
+    - [x] Add a Scala 3 `DslDriverC` equivalent that emits C source and can compile/run with the local C compiler
+    - [x] Add C source golden tests for tiny staged snippets: arithmetic, `if`, `while`, mutable vars, arrays, strings/printing
       - [x] First smoke: arithmetic plus `if` C source emission
       - [x] Extend smoke coverage to `while`, mutable vars, and printing after the Scala 3 C driver handles those shapes cleanly
       - [x] Extend smoke coverage to arrays after the Scala 3 C driver has a C array surface that emits usable source
       - [x] Compile/run emitted C when a C compiler is available
-    - [ ] Validate that the existing `CCodegen`/`CLikeCodegen` and `CGen*` traits still compile and preserve expected semantics after the Scala 3 port
+    - [x] Validate that the existing `CCodegen`/`CLikeCodegen` and `CGen*` traits still compile and preserve expected semantics after the Scala 3 port through focused C source and executable smoke tests
     - [ ] Keep CUDA/OpenCL deferred until the C backend path is exercised and the container toolchain is explicitly in scope
 - [ ] Port and validate original Scala 2 LMS examples under @virt
   - [x] Adapt the Scala-only tutorial examples that map cleanly to the current port (`start`, `ack`, `dynvar`, `shonan`, `automata`, `stencil`, `scanner`)
@@ -139,7 +139,7 @@
 - [ ] `query_staged.scala` -> partially covered by Scala-backend `HashJoin` fallback; group-by lowering still blocked on staged mutable array scheduling/query IR
 - [ ] `query_live.scala` -> deferred until core query/C path is stable
 - [ ] `query_live_steps.scala` -> deferred until core query/C path is stable
-- [ ] `query_optc.scala` -> partial Scala 3 C-source port in tree for scan/project and numeric fields; filters/hash/group still blocked as tracked above
+- [ ] `query_optc.scala` -> partial Scala 3 C-source port in tree for scan/project, filters, nested-loop/hash-join fallback, and bounded group fallback; full legacy hash/group structures still blocked as tracked above
 - [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
 - [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
 - [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
