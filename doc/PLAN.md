@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 208 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 210 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -115,7 +115,7 @@
       - [x] Add C output CSV tests for the current `query_optc` nested-loop/hash-join fallback slice
       - [x] Add C output CSV tests for the bounded `query_optc` group fallback
     - [x] Port `query_live.scala` and `query_live_steps.scala` as deterministic Scala 3 live-query walkthrough tests over temporary CSV input
-    - [ ] Keep `03_compiler.scala` and `04_atwork.scala` deferred until the core query/C path is stable
+    - [x] Port `03_compiler.scala` and `04_atwork.scala` as Scala 3 chapter catalogs pointing at active IR/codegen and application-scale coverage
 
 ### Legacy tutorial parity tracker (`/legacy-lms-tutorials/src/test/scala/lms/tutorial`)
 
@@ -142,8 +142,8 @@
 - [x] `query_live_steps.scala` -> Scala 3 deterministic stepwise live-query examples in tree
 - [ ] `query_optc.scala` -> partial Scala 3 C-source port in tree for scan/project, filters, nested-loop/hash-join fallback, and bounded group fallback; full legacy hash/group structures still blocked as tracked above
 - [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
-- [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
-- [ ] `04_atwork.scala` -> deferred until compiler/backend-heavy chapter is back in scope
+- [x] `03_compiler.scala` -> Scala 3 compiler chapter catalog in tree, linked to active IR/codegen coverage
+- [x] `04_atwork.scala` -> Scala 3 at-work chapter catalog in tree, linked to active application examples
 - [x] `scannerlib.scala` -> Scala 3 scanner internals equivalent in tree
 - [x] `utils.scala` -> ported helper pieces used by current Scala 3 tutorial/test workflow (`dataFilePath`, `checkOut`, `exec`)
 - [x] Document new design decisions in `DECISIONS.md` as they land
