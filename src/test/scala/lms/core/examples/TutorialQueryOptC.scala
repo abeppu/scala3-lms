@@ -134,6 +134,10 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
       CStringField(unit(text), unit(text.length))
   }
 
+  def fieldsEqual(lhs: CFields, rhs: CFields)(using SourceContext): Rep[Boolean] =
+    lhs.zip(rhs).foldLeft(unit(true)) { case (acc, (left, right)) =>
+      boolean_and(acc, left.compare(right))
+    }
 
   def resultSchema(op: Operator): Schema = op match {
     case Scan(_, schema, _, _) => schema
@@ -157,9 +161,23 @@ trait TutorialQueryOptCCompiler extends Dsl with TutorialScannerLowerBase {
           yld(record)
         }
       }
+    case Join(left, right) =>
+      execNestedJoin(left, right, dynamicPath)(yld)
+    case HashJoin(left, right) =>
+      execNestedJoin(left, right, dynamicPath)(yld)
     case other =>
       throw new UnsupportedOperationException(s"query_optc initial C slice does not yet support $other")
   }
+
+  private def execNestedJoin(left: Operator, right: Operator, dynamicPath: Rep[String])(yld: CRecord => Rep[Unit])(using SourceContext): Rep[Unit] =
+    execOp(left, dynamicPath) { leftRecord =>
+      execOp(right, dynamicPath) { rightRecord =>
+        val keys = leftRecord.schema.intersect(rightRecord.schema)
+        emitIf(fieldsEqual(leftRecord(keys), rightRecord(keys))) {
+          yld(CRecord(leftRecord.fields ++ rightRecord.fields, leftRecord.schema ++ rightRecord.schema))
+        }
+      }
+    }
 
   def execQuery(op: Operator, dynamicPath: Rep[String])(using SourceContext): Rep[Unit] =
     execOp(op, dynamicPath)(record => printFields(record.fields))
@@ -225,6 +243,38 @@ object TutorialQueryOptCNumericFilterSnippet extends TutorialDslDriverC[String, 
         Eq(Field("#Value"), Value(2)),
         Scan("?", Vector("Name", "#Value", "Flag"), ',', externalSchema = true)
       )
+    )
+
+  def snippet(path: Rep[String]): Rep[Unit] =
+    execQuery(query, path)
+}
+
+object TutorialQueryOptCJoinSnippet extends TutorialDslDriverC[String, Unit] with Dsl with TutorialScannerLowerExp with TutorialQueryOptCCompiler { self =>
+  override val codegen = new TutorialDslGenC with TutorialCGenScannerLower {
+    val IR: self.type = self
+  }
+
+  private val schema = Vector("Name", "#Value", "Flag")
+  private val query =
+    Join(
+      Scan("?", schema, ',', externalSchema = true),
+      Project(Vector("Name"), Vector("Name"), Scan("?", schema, ',', externalSchema = true))
+    )
+
+  def snippet(path: Rep[String]): Rep[Unit] =
+    execQuery(query, path)
+}
+
+object TutorialQueryOptCHashJoinFallbackSnippet extends TutorialDslDriverC[String, Unit] with Dsl with TutorialScannerLowerExp with TutorialQueryOptCCompiler { self =>
+  override val codegen = new TutorialDslGenC with TutorialCGenScannerLower {
+    val IR: self.type = self
+  }
+
+  private val schema = Vector("Name", "#Value", "Flag")
+  private val query =
+    HashJoin(
+      Scan("?", schema, ',', externalSchema = true),
+      Project(Vector("Name"), Vector("Name"), Scan("?", schema, ',', externalSchema = true))
     )
 
   def snippet(path: Rep[String]): Rep[Unit] =
@@ -370,6 +420,43 @@ class TutorialQueryOptCTest extends AnyFunSuite with Matchers {
         runtimePrefix
       )
       output shouldBe "Bob,2\nEve,2"
+    }
+  }
+
+  test("query_optc initial slice emits C source for nested-loop joins") {
+    val code = TutorialQueryOptCJoinSnippet.cSource
+    code should include("open(")
+    code should include("strncmp(")
+    code should include("if (")
+  }
+
+  test("query_optc initial slice compiles and runs nested-loop joins") {
+    withCsv("Alice,1,yes\nBob,2,no\n") { path =>
+      val output = compileAndRun(
+        TutorialQueryOptCJoinSnippet.cSource,
+        s"""int main() {
+           |  snippet(${cString(path)});
+           |  return 0;
+           |}
+           |""".stripMargin,
+        runtimePrefix
+      )
+      output shouldBe "Alice,1,yes,Alice\nBob,2,no,Bob"
+    }
+  }
+
+  test("query_optc accepts hash joins through nested-loop fallback") {
+    withCsv("Alice,1,yes\nBob,2,no\n") { path =>
+      val output = compileAndRun(
+        TutorialQueryOptCHashJoinFallbackSnippet.cSource,
+        s"""int main() {
+           |  snippet(${cString(path)});
+           |  return 0;
+           |}
+           |""".stripMargin,
+        runtimePrefix
+      )
+      output shouldBe "Alice,1,yes,Alice\nBob,2,no,Bob"
     }
   }
 }
