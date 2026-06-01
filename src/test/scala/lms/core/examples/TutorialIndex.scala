@@ -18,6 +18,8 @@ class TutorialIndexTest extends AnyFunSuite with Matchers {
     "TutorialQueryUnstaged.scala",
     "TutorialQueryStaged0.scala",
     "TutorialQueryOptC.scala",
+    "TutorialQueryLive.scala",
+    "TutorialQueryLiveSteps.scala",
     "TutorialShonan.scala",
     "TutorialStencil.scala",
     "TutorialScanner.scala",

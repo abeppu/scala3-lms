@@ -1,7 +1,7 @@
 
 ## Current status checklist
 
-- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 205 passing)
+- [x] Builds on Scala 3.7.3 and test suite is green (`sbt test`, 208 passing)
 - [x] Trim warning noise (unchecked/feature/deprecation) to make regressions visible
   - [x] Remove debug `report.info` logging from `MacroVirtualization` rewrites
 - [ ] Harden virtualization macro (Var handling, trailing units, avoid brittle string matching)
@@ -114,7 +114,8 @@
       - [x] Add C output CSV tests for the current `query_optc` filter slice
       - [x] Add C output CSV tests for the current `query_optc` nested-loop/hash-join fallback slice
       - [x] Add C output CSV tests for the bounded `query_optc` group fallback
-    - [ ] Keep `query_live.scala`, `query_live_steps.scala`, `03_compiler.scala`, and `04_atwork.scala` deferred until the core query/C path is stable
+    - [x] Port `query_live.scala` and `query_live_steps.scala` as deterministic Scala 3 live-query walkthrough tests over temporary CSV input
+    - [ ] Keep `03_compiler.scala` and `04_atwork.scala` deferred until the core query/C path is stable
 
 ### Legacy tutorial parity tracker (`/legacy-lms-tutorials/src/test/scala/lms/tutorial`)
 
@@ -137,8 +138,8 @@
 - [x] `query_unstaged.scala` -> Scala 3 host baseline and SQL parser/AST reference in tree
 - [x] `query_staged0.scala` -> initial Scala-backend query compiler in tree for scans, filters, projections, and nested-loop joins
 - [ ] `query_staged.scala` -> partially covered by Scala-backend `HashJoin` fallback; group-by lowering still blocked on staged mutable array scheduling/query IR
-- [ ] `query_live.scala` -> deferred until core query/C path is stable
-- [ ] `query_live_steps.scala` -> deferred until core query/C path is stable
+- [x] `query_live.scala` -> Scala 3 live-query demo in tree over the current parsed query engine
+- [x] `query_live_steps.scala` -> Scala 3 deterministic stepwise live-query examples in tree
 - [ ] `query_optc.scala` -> partial Scala 3 C-source port in tree for scan/project, filters, nested-loop/hash-join fallback, and bounded group fallback; full legacy hash/group structures still blocked as tracked above
 - [x] `shonan_live.scala` -> Scala 3 live-style staged matrix-vector example in tree
 - [ ] `03_compiler.scala` -> deferred until compiler/backend-heavy chapter is back in scope
