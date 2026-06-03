@@ -1,11 +1,11 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
 
 
-trait SplitEffectsExpFat extends IfThenElseFatExp with WhileExp with PreviousIterationDummyExp { thisIR: BooleanOpsExp with EqualExpBridge =>
+import lms.legacy.compat.{SourceContext, EmbeddedControls}
+trait SplitEffectsExpFat extends IfThenElseFatExp with WhileExp with PreviousIterationDummyExp { thisIR: BooleanOpsExp & EqualExpBridge =>
   
   // split effectful statements: one piece for each affected mutable object.
   // this provides for simple dce: pieces not referenced are eliminated.
@@ -19,7 +19,7 @@ trait SplitEffectsExpFat extends IfThenElseFatExp with WhileExp with PreviousIte
   // FIXME: wo do not account for mutable objectes allocated in a loop
   // (see test8-speculative6)
 
-  override def reflectEffectInternal[A:Typ](x: Def[A], u: Summary)(implicit pos: SourceContext): Exp[A] = x match {
+  override def reflectEffectInternal[A:Typ](x: Def[A], u: Summary)(using pos: SourceContext): Exp[A] = x match {
     case IfThenElse(cond, thenp, elsep) =>
       val affected = (u.mayRead ++ u.mayWrite).distinct
 
@@ -45,12 +45,15 @@ trait SplitEffectsExpFat extends IfThenElseFatExp with WhileExp with PreviousIte
         // find PreviousIteration nodes that write to s
         // for each one, add a reflect dep to the loop
     
-        val TP(loopSym, Reflect(While(_,_),_,_)) = globalDefs.last
+        val TP(loopSym, Reflect(While(_,_),_,_)) = (globalDefs.last: @unchecked)
     
-        def xtract(b:Block[Any]) = b match { 
-          case Block(Def(Reify(_,_,es: List[Sym[Any]]))) => 
-            es map (e=>findDefinition(e)) collect { 
-              case Some(t@TP(s1,Reflect(PreviousIteration(_),u,_))) if mayWrite(u,List(s)) => t }}
+        def xtract(b:Block[Any]) = b match {
+          case Block(Def(Reify(_,_,es))) =>
+            es.asInstanceOf[List[Sym[Any]]].flatMap(e => findDefinition(e)) collect {
+              case t@TP(_,Reflect(PreviousIteration(_),u,_)) if mayWrite(u,List(s)) => t
+            }
+          case _ => Nil
+        }
     
         val pvs = xtract(cc) ++ xtract(bb)
         val pvss = (pvs map (_.sym))
@@ -134,29 +137,29 @@ trait SplitEffectsExpFat extends IfThenElseFatExp with WhileExp with PreviousIte
 // REMOVE
 
 
-case class SimpleFatWhile(cond: Block[Boolean], body: List[Block[Any]]) extends FatDef {
-  var extradeps: List[Sym[Any]] = Nil //HACK
-  def setExtraDeps(es: List[Sym[Any]]) = {
-    // need to do it this way. otherwise we get compiler errors, but strangely
-    // only when instrumenting code for coverage.
-    (thisIR: EmbeddedControls).__assign(extradeps, es)
+  case class SimpleFatWhile(cond: Block[Boolean], body: List[Block[Any]]) extends FatDef {
+    var extradeps: List[Sym[Any]] = Nil //HACK
+    def setExtraDeps(es: List[Sym[Any]]) = {
+      // need to do it this way. otherwise we get compiler errors, but strangely
+      // only when instrumenting code for coverage.
+      (thisIR: EmbeddedControls).__assign(extradeps, es)
+    }
   }
-}
 
-override def syms(e: Any): List[Sym[Any]] = e match {
-  case x@SimpleFatWhile(c, b) => syms(c) ++ syms(b) ++ syms(x.extradeps)
-  case _ => super.syms(e)
-}
+  override def syms(e: Any): List[Sym[Any]] = e match {
+    case x@SimpleFatWhile(c, b) => syms(c) ++ syms(b) ++ syms(x.extradeps)
+    case _ => super.syms(e)
+  }
 
-override def boundSyms(e: Any): List[Sym[Any]] = e match {
-  case SimpleFatWhile(c, b) => effectSyms(c):::effectSyms(b)
-  case _ => super.boundSyms(e)
-}
+  override def boundSyms(e: Any): List[Sym[Any]] = e match {
+    case SimpleFatWhile(c, b) => effectSyms(c):::effectSyms(b)
+    case _ => super.boundSyms(e)
+  }
 
-override def symsFreq(e: Any): List[(Sym[Any], Double)] = e match {
-  case x@SimpleFatWhile(c, b) => freqHot(c) ++ freqHot(b) ++ freqNormal(x.extradeps)
-  case _ => super.symsFreq(e)
-}
+  override def symsFreq(e: Any): List[(Sym[Any], Double)] = e match {
+    case x@SimpleFatWhile(c, b) => freqHot(c) ++ freqHot(b) ++ freqNormal(x.extradeps)
+    case _ => super.symsFreq(e)
+  }
 
 }
 
@@ -209,31 +212,36 @@ trait BaseGenSplitEffects extends BaseGenIfThenElseFat with GenericFatCodegen {
     //println(e1)
     
     val e2 = e1 collect {
-      case t@TTP(lhs, mhs, p @ SimpleFatIfThenElse(c,as,bs)) => t
-      case t@TTP(lhs, mhs, p @ SimpleFatWhile(c,b)) => t
-      case t@TTP(lhs, mhs, p @ SimpleFatPrevious(k,es)) => t
+      case t@TTP(_, _, _: SimpleFatIfThenElse) => t
+      case t@TTP(_, _, _: SimpleFatWhile) => t
+      case t@TTP(_, _, _: SimpleFatPrevious) => t
     }
     
-    val m = e2 groupBy { 
-      case t@TTP(lhs, mhs, p @ SimpleFatIfThenElse(c,as,bs)) => (c, "if")
-      case t@TTP(lhs, mhs, p @ SimpleFatWhile(Block(Def(Reify(c,_,_))),b)) => (c, "while")
-      case t@TTP(lhs, mhs, p @ SimpleFatPrevious(k,es)) => (k,"prev")
+    val m = e2.groupBy {
+      case t@TTP(_, _, SimpleFatIfThenElse(c,_,_)) => ("if", c)
+      case t@TTP(_, _, SimpleFatWhile(Block(Def(Reify(c,_,_))),_)) => ("while", c)
+      case t@TTP(_, _, SimpleFatPrevious(k,_)) => ("prev", k)
+      case other => throw new MatchError(other)
     }
     
     val e3 = e1 diff e2
 
     val g1 = m map {
-      case ((c:Exp[Boolean], "if"), ifs: List[TTP]) => TTP(ifs.flatMap(_.lhs), ifs.flatMap(_.mhs), 
+      case (("if", cond), ifs) =>
+        val c = cond.asInstanceOf[Exp[Boolean]]
+        TTP(ifs.flatMap(_.lhs), ifs.flatMap(_.mhs), 
         SimpleFatIfThenElse(c, ifs.flatMap(_.rhs.asInstanceOf[SimpleFatIfThenElse].thenp), 
           ifs.flatMap(_.rhs.asInstanceOf[SimpleFatIfThenElse].elsep)))
-      case ((c, "while"), wls: List[TTP]) => 
+      case (("while", _), wls) => 
         val x = SimpleFatWhile(wls.map(_.rhs.asInstanceOf[SimpleFatWhile].cond).apply(0), //FIXME: merge cond!!!
           wls.flatMap(_.rhs.asInstanceOf[SimpleFatWhile].body))
         x.setExtraDeps(wls.flatMap(_.rhs.asInstanceOf[SimpleFatWhile].extradeps) diff wls.flatMap(_.lhs))
         TTP(wls.flatMap(_.lhs), wls.flatMap(_.mhs), // TODO: merge cond blocks!
         x)
-      case ((k:Exp[Nothing],"prev"), pvs: List[TTP]) => 
+      case (("prev", key), pvs) =>
+        val k = key.asInstanceOf[Exp[Unit]]
         TTP(pvs.flatMap(_.lhs), pvs.flatMap(_.mhs), SimpleFatPrevious(k,pvs.flatMap(_.rhs.asInstanceOf[SimpleFatPrevious].extra)))
+      case other => throw new MatchError(other)
     }
 
     val r = e3 ++ g1

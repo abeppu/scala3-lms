@@ -1,26 +1,32 @@
-package scala.lms
-package tests
+package lms.core
 
-import java.io._
-import scala.reflect.ClassTag
-
+import lms.gen.StagingCompile
+import lms.legacy.common.*
+import lms.legacy.compat.SourceContext
 import org.scalatest.funsuite.AnyFunSuite
 
-import scala.lms.common._
+import java.io.*
+import scala.reflect.ClassTag
 
 // CR cam: should we try to use Packages.scala here?
 
-trait Dsl extends PrimitiveOps with NumericOps with BooleanOps with LiftString with LiftPrimitives with LiftNumeric with LiftBoolean with IfThenElse with Equal with RangeOps with OrderingOps with MiscOps with ArrayOps with StringOps with SeqOps with Functions with While with StaticData with Variables with LiftVariables with ObjectOps {
+trait LibSuite { this: AnyFunSuite =>
+  def dataFilePath(csv: String): String = "src/data/" + csv
+}
+
+trait Dsl extends PrimitiveOps with NumericOps with BooleanOps with LiftString with LiftPrimitives with LiftNumeric with LiftBoolean with IfThenElse with Equal with RangeOps with OrderingOps with MiscOps with ArrayOps with StringOps with SeqOps with Functions with While with StaticData with Variables with LiftVariables with ObjectOps with CastingOps with StagedMatchOps with ExceptionOps {
+  given anyTyp: Typ[Any]
   def generate_comment(l: String): Rep[Unit]
   def comment[A:Typ](l: String, verbose: Boolean = true)(b: => Rep[A]): Rep[A]
 }
 
-trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with BooleanOpsExp with IfThenElseExpOpt with EqualExpBridgeOpt with RangeOpsExp with OrderingOpsExp with MiscOpsExp with EffectExp with ArrayOpsExpOpt with StringOpsExp with SeqOpsExp with FunctionsRecursiveExp with WhileExp with StaticDataExp with VariablesExpOpt with ObjectOpsExpOpt {
-  override def boolean_or(lhs: Exp[Boolean], rhs: Exp[Boolean])(implicit pos: SourceContext) : Exp[Boolean] = lhs match {
+trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with BooleanOpsExpOpt with IfThenElseExpOpt with EqualExpBridgeOpt with RangeOpsExp with OrderingOpsExp with MiscOpsExp with EffectExp with ArrayOpsExpOpt with StringOpsExp with SeqOpsExp with FunctionsRecursiveExp with WhileExp with StaticDataExp with VariablesExpOpt with ObjectOpsExpOpt with CastingOpsExp with StagedMatchOpsExp with ExceptionOpsExp {
+  override given anyTyp: Typ[Any] = manifestTyp
+  override def boolean_or(lhs: Exp[Boolean], rhs: Exp[Boolean])(using pos: SourceContext) : Exp[Boolean] = lhs match {
     case Const(false) => rhs
     case _ => super.boolean_or(lhs, rhs)
   }
-  override def boolean_and(lhs: Exp[Boolean], rhs: Exp[Boolean])(implicit pos: SourceContext) : Exp[Boolean] = lhs match {
+  override def boolean_and(lhs: Exp[Boolean], rhs: Exp[Boolean])(using pos: SourceContext) : Exp[Boolean] = lhs match {
     case Const(true) => rhs
     case _ => super.boolean_and(lhs, rhs)
   }
@@ -39,7 +45,7 @@ trait DslExp extends Dsl with PrimitiveOpsExpOpt with NumericOpsExpOpt with Bool
     case _ => super.boundSyms(e)
   }
 
-  override def array_apply[T:Typ](x: Exp[Array[T]], n: Exp[Int])(implicit pos: SourceContext): Exp[T] = (x,n) match {
+  override def array_apply[T:Typ](x: Exp[Array[T]], n: Exp[Int])(using pos: SourceContext): Exp[T] = (x,n) match {
     case (Def(StaticData(x:Array[T])), Const(n)) =>
       val y = x(n)
       if (y.isInstanceOf[Int]) unit(y) else staticData(y)
@@ -53,16 +59,16 @@ trait DslGen extends ScalaGenNumericOps
     with ScalaGenMiscOps with ScalaGenArrayOps with ScalaGenStringOps
     with ScalaGenSeqOps with ScalaGenFunctions with ScalaGenWhile
     with ScalaGenStaticData with ScalaGenVariables
-    with ScalaGenObjectOps
+    with ScalaGenObjectOps with ScalaGenCastingOps with ScalaGenExceptionOps
 {
   val IR: DslExp
 
-  import IR._
+  import IR.*
 
   override def quote(x: Exp[Any]) = x match {
-    case Const('\n') if x.tp == typ[Char] => "'\\n'"
-    case Const('\t') if x.tp == typ[Char] => "'\\t'"
-    case Const(0)    if x.tp == typ[Char] => "'\\0'"
+    case Const('\n') if x.tp == (typ[Char]: @unchecked) => "'\\n'"
+    case Const('\t') if x.tp == (typ[Char]: @unchecked) => "'\\t'"
+    case Const(0)    if x.tp == (typ[Char]: @unchecked) => "'\\0'"
     case _ => super.quote(x)
   }
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
@@ -94,11 +100,28 @@ trait DslImpl extends DslExp { q =>
   }
 }
 
-abstract class DslSnippet[A:ClassTag,B:ClassTag] extends Dsl {
+trait DslCompile extends DslExp
+    with StagingCompile
+    with PrimitiveOpsGen
+    with NumericOpsGen
+    with BooleanOpsGen
+    with IfThenElseGen
+    with EqualGen
+    with OrderingOpsGen
+    with StringOpsGen
+    with MiscOpsGen
+    with VariablesGen
+    with CastingOpsGen
+    with WhileGen
+    with ExceptionOpsGen {
+  type API = DslExp
+}
+
+trait DslSnippet[A:ClassTag,B:ClassTag] extends Dsl {
   def snippet(x: Rep[A]): Rep[B]
 }
 
-abstract class DslDriver[A:ClassTag,B:ClassTag] extends DslSnippet[A,B] with DslImpl {
+trait DslDriver[A:ClassTag,B:ClassTag] extends DslSnippet[A,B] with DslImpl {
   lazy val code: String = {
     val source = new java.io.StringWriter()
     codegen.emitSource(
@@ -107,7 +130,20 @@ abstract class DslDriver[A:ClassTag,B:ClassTag] extends DslSnippet[A,B] with Dsl
   }
 }
 
-trait TutorialFunSuite extends AnyFunSuite {
+trait DslSnippet2[A:ClassTag,B:ClassTag, C:ClassTag] extends Dsl {
+  def snippet(x: Rep[A], y: Rep[B]): Rep[C]
+}
+
+abstract class DslDriver2[A:ClassTag,B:ClassTag, C:ClassTag] extends DslSnippet2[A,B,C] with DslImpl {
+  lazy val code: String = {
+    val source = new java.io.StringWriter()
+    codegen.emitSource2(
+      snippet, "Snippet", new java.io.PrintWriter(source))(using manifestTyp[A],manifestTyp[B], manifestTyp[C])
+    source.toString
+  }
+}
+
+trait TutorialFunSuite extends AnyFunSuite with LibSuite {
   val prefix = "src/out/"
   val overwriteCheckFiles = false
   val under: String
@@ -191,5 +227,25 @@ trait TutorialFunSuite extends AnyFunSuite {
     if (!overwriteCheckFiles) {
       assert(expected == code, name)
     }
+  }
+
+  def checkOut(label: String, suffix: String, thunk: => Unit): Unit = {
+    val output = new ByteArrayOutputStream()
+    val ps = new PrintStream(output)
+    try {
+      scala.Console.withOut(ps) {
+        thunk
+      }
+    } finally {
+      ps.flush()
+      ps.close()
+    }
+    check(label, output.toString, suffix = suffix)
+  }
+
+  def exec(label: String, code: String, suffix: String = "scala"): Unit = {
+    val fileprefix = prefix + under + label
+    val aname = fileprefix + ".actual." + suffix
+    writeFileIndented(aname, code)
   }
 }

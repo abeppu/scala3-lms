@@ -1,4 +1,6 @@
-package scala.lms
+package lms.legacy.compat
+
+import scala.language.implicitConversions
 
 import scala.reflect.ClassTag
 import scala.quoted.*
@@ -71,7 +73,7 @@ implicit def manifestFromClassTag[T: ClassTag]: Manifest[T] = Manifest.of[T]
 case class RefinedManifest[T](ct: Manifest[T], fields: List[(String, Manifest[?])])
 
 object RefinedManifest {
-  implicit def materialize[T](implicit ct: ClassTag[T]): RefinedManifest[T] =
+  implicit def materialize[T](using ct: ClassTag[T]): RefinedManifest[T] =
     RefinedManifest(null, structFields[T])
 
   inline def structFields[T]: List[(String, Manifest[?])] = ${ structFieldsImpl[T] }

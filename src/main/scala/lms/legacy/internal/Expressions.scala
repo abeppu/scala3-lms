@@ -1,9 +1,14 @@
-package scala.lms
-package internal
+package lms.legacy.internal
+
+import scala.language.implicitConversions
+
+import lms.legacy.compat.{Manifest, SourceContext}
 
 import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.mutable.ListBuffer
-import java.lang.{StackTraceElement,Thread}
+import java.lang.{StackTraceElement, Thread}
+import scala.quoted.*
+
 
 /**
  * The Expressions trait houses common AST nodes. It also manages a list of encountered Definitions which
@@ -18,6 +23,17 @@ trait Expressions extends Utils {
     def runtimeClass: java.lang.Class[?]
     def <:<(that: Typ[?]): Boolean
     def isArray = runtimeClass.isArray
+
+    def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
+      import q.reflect.*
+      val typeArgs = typeArguments.map(_.asTypeRepr)
+      if runtimeClass.isArray && typeArgs.size == 1 then
+        typeArgs.head.asType match
+          case '[elem] => TypeRepr.of[Array[elem]]
+      else
+        val base = TypeRepr.typeConstructorOf(runtimeClass)
+        if typeArgs.isEmpty then base else base.appliedTo(typeArgs)
+    }
   }
 
   case class ManifestTyp[T](mf: Manifest[T]) extends Typ[T] {
@@ -33,6 +49,11 @@ trait Expressions extends Utils {
     //override def equals(that: Any): Boolean = mf.equals(that) // TEMP
     //override def hashCode = mf.hashCode
     override def toString = mf.toString
+  }
+
+  protected def manifestOf[A](using Typ[A]): Manifest[A] = typ[A] match {
+    case ManifestTyp(mf) => mf
+    case other => throw new RuntimeException(s"Expected ManifestTyp for $other")
   }
 
   object ClassTyp {
@@ -56,7 +77,7 @@ trait Expressions extends Utils {
 
   case class Const[+T:Typ](x: T) extends Exp[T] {
     override def equals(other: Any) = other match {
-      case c: Const[_] => x == c.x && tp == c.tp
+      case c: Const[?] => x == c.x && tp == c.tp
       case _ => false
     }
   }
@@ -75,11 +96,35 @@ trait Expressions extends Utils {
       case _ => false
     }
 
-    def arrayTyp = throw new RuntimeException("TODO: manifest for Array[Var[T]]")
+    private def makeArrayTyp(elem: Typ[?]): Typ[?] = new Typ[Any] {
+      def typeArguments: List[Typ[?]] = List(elem)
+      def arrayTyp: Typ[Array[Any]] = makeArrayTyp(this).asInstanceOf[Typ[Array[Any]]]
+      def runtimeClass: Class[?] = classOf[Array[?]]
+      override def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
+        import q.reflect.*
+        TypeRepr.of[Array].appliedTo(List(elem.asTypeRepr))
+      }
+      def <:<(that: Typ[?]): Boolean = that match {
+        case ClassTyp(c, args) if c.isArray && args.nonEmpty =>
+          elem.<:<(args.head)
+        case ArrayTyp(otherElem) =>
+          elem.<:<(otherElem)
+        case _ =>
+          false
+      }
+    }
 
-    def runtimeClass: Class[?] = throw new RuntimeException("TODO: VariableTyp.runtimeClass")
+    def arrayTyp: Typ[Array[Variable[T]]] =
+      makeArrayTyp(VariableTyp.this).asInstanceOf[Typ[Array[Variable[T]]]]
+
+    def runtimeClass: Class[?] = classOf[Variable[?]]
 
     def typeArguments = List(inner)
+
+    override def asTypeRepr(using q: Quotes): q.reflect.TypeRepr = {
+      import q.reflect.*
+      TypeRepr.typeConstructorOf(runtimeClass).appliedTo(List(inner.asTypeRepr))
+    }
   }
 
   var nVars = 0
@@ -114,12 +159,12 @@ trait Expressions extends Utils {
   }
 
   def infix_defines[A](stm: Stm, sym: Sym[A]): Option[Def[A]] = stm match {
-    case TP(`sym`, rhs: Def[A]) => Some(rhs)
+    case TP(`sym`, rhs: Def[?]) => Some(rhs.asInstanceOf[Def[A]])
     case _ => None
   }
-
+  
   def infix_defines[A: Typ](stm: Stm, rhs: Def[A]): Option[Sym[A]] = stm match {
-    case TP(sym: Sym[A], `rhs`) if sym.tp <:< typ[A] => Some(sym)
+    case TP(sym, `rhs`) if sym.tp <:< typ[A] => Some(sym.asInstanceOf[Sym[A]])
     case _ => None
   }
 
@@ -179,7 +224,7 @@ trait Expressions extends Utils {
   }
   
 
-  protected implicit def toAtom[T:Typ](d: Def[T])(implicit pos: SourceContext): Exp[T] = {
+  protected implicit def toAtom[T:Typ](d: Def[T])(using pos: SourceContext): Exp[T] = {
     findOrCreateDefinitionExp(d, List(pos)) // TBD: return Const(()) if type is Unit??
   }
 

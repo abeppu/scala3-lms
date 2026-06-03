@@ -1,4 +1,4 @@
-package scala.lms.internal
+package lms.legacy.internal
 
 /* Defines Cuda specific device transfer functions */
 trait CudaDeviceTransfer extends AbstractDeviceTransfer {
@@ -8,7 +8,7 @@ trait CudaDeviceTransfer extends AbstractDeviceTransfer {
   import IR._
 
 
-  def emitSendSlave(tp: Typ[_]): (String,String) = {
+  def emitSendSlave(tp: Typ[?]): (String,String) = {
     if (isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "%s sendCuda_%s(%s sym)".format(remap(tp),mangledName(remap(tp)),remap(tp))
@@ -31,7 +31,7 @@ trait CudaDeviceTransfer extends AbstractDeviceTransfer {
     }
   }
 
-  def emitRecvSlave(tp: Typ[_]): (String,String) = {
+  def emitRecvSlave(tp: Typ[?]): (String,String) = {
     if (isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "%s recvCuda_%s(%s *sym_dev)".format(remap(tp),mangledName(remap(tp)),remap(tp))
@@ -87,7 +87,7 @@ trait CudaDeviceTransfer extends AbstractDeviceTransfer {
     }
   }
 */
-  def emitSendUpdateSlave(tp: Typ[_]): (String,String) = {
+  def emitSendUpdateSlave(tp: Typ[?]): (String,String) = {
     if(isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "void sendUpdateCuda_%s(%s sym)".format(mangledName(remap(tp)),remap(tp))
@@ -109,7 +109,7 @@ trait CudaDeviceTransfer extends AbstractDeviceTransfer {
     }
   }
 
-  def emitRecvUpdateSlave(tp: Typ[_]): (String,String) = {
+  def emitRecvUpdateSlave(tp: Typ[?]): (String,String) = {
     if(isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "void recvUpdateCuda_%s(%s sym)".format(mangledName(remap(tp)),remap(tp))

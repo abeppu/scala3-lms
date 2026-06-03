@@ -1,4 +1,4 @@
-package scala.lms.internal
+package lms.legacy.internal
 
 trait CppHostTransfer extends AbstractHostTransfer {
   this: CLikeCodegen =>
@@ -9,7 +9,7 @@ trait CppHostTransfer extends AbstractHostTransfer {
   // NOTE: strings are in general treated as primitive types to avoid the memory management,
   //       but for transfer functions strings must be treated separately from primitive types
 
-  def emitSend(tp: Typ[_], peer: Targets.Value): (String,String) = {
+  def emitSend(tp: Typ[?], peer: Targets.Value): (String,String) = {
     if (peer == Targets.JVM) {
       if (remap(tp) == "string") {
         val out = new StringBuilder
@@ -48,7 +48,7 @@ trait CppHostTransfer extends AbstractHostTransfer {
     }
   }
 
-  def emitRecv(tp: Typ[_], peer: Targets.Value): (String,String) = {
+  def emitRecv(tp: Typ[?], peer: Targets.Value): (String,String) = {
     if (peer == Targets.JVM) {
       if (remap(tp) == "string") {
         val out = new StringBuilder
@@ -93,7 +93,7 @@ trait CppHostTransfer extends AbstractHostTransfer {
     }
   }
 
-  def emitSendView(tp: Typ[_], peer: Targets.Value): (String,String) = {
+  def emitSendView(tp: Typ[?], peer: Targets.Value): (String,String) = {
     if (peer == Targets.JVM) {
       if (remap(tp) == "string") {
         val out = new StringBuilder
@@ -134,7 +134,7 @@ trait CppHostTransfer extends AbstractHostTransfer {
     }
   }
 
-  def emitRecvView(tp: Typ[_], peer: Targets.Value): (String,String) = {
+  def emitRecvView(tp: Typ[?], peer: Targets.Value): (String,String) = {
     if (peer == Targets.JVM) {
       if (remap(tp) == "string") {
         val out = new StringBuilder
@@ -175,7 +175,7 @@ trait CppHostTransfer extends AbstractHostTransfer {
     }
   }
 
-  def emitSendUpdate(tp: Typ[_], peer: Targets.Value): (String,String) = {
+  def emitSendUpdate(tp: Typ[?], peer: Targets.Value): (String,String) = {
     if (peer == Targets.JVM) {
       if(isPrimitiveType(tp)) {
         val out = new StringBuilder
@@ -213,7 +213,7 @@ trait CppHostTransfer extends AbstractHostTransfer {
     }
   }
 
-  def emitRecvUpdate(tp: Typ[_], peer: Targets.Value): (String,String) = {
+  def emitRecvUpdate(tp: Typ[?], peer: Targets.Value): (String,String) = {
     if (peer == Targets.JVM) {
       if (remap(tp) == "string") {
         val out = new StringBuilder

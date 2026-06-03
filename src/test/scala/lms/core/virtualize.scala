@@ -1,13 +1,15 @@
-package scala.lms
-package tests
+package lms.core
 
-import scala.lms.common.*
+import scala.language.implicitConversions
 
-@virtualize
+import lms.legacy.common.*
+
+
 class VirtualizeTest extends TutorialFunSuite {
   val under = "virtualize/"
 
   test("simple if") {
+    @virt
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
           if (x) {
@@ -21,6 +23,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("if nested") {
+    @virt
     object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
           if (x) {
@@ -34,6 +37,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("equality guard") {
+    @virt
     object Snippet extends DslDriver[Int, Int] with Dsl {
       def snippet(x: Rep[Int]): Rep[Int] = {
         if (x == 1) 2 else x
@@ -43,20 +47,22 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("function calls") {
+    @virt
     object Snippet extends DslDriver[Int, Int] with Dsl {
+
       def snippet(x: Rep[Int]) = {
         def compute(b: Rep[Boolean]): Rep[Int] = {
           // the if is deferred to the second stage
           if (b) 1 else x
         }
-        compute(x==1)
+        compute(x == 1)
       }
     }
     check("func-tutorial", Snippet.code)
   }
 
   test("while empty") {
-    object Snippet extends DslDriver[Boolean, Int] with Dsl {
+    @virt object Snippet extends DslDriver[Boolean, Int] with Dsl {
       def snippet(x: Rep[Boolean]): Rep[Int] = {
         while(x) {
         }
@@ -67,6 +73,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("array") {
+    @virt
     object Snippet extends DslDriver[Array[Int], Array[Int]] with Dsl {
       def snippet(x: Rep[Array[Int]]): Rep[Array[Int]] = {
         x(0) = 1
@@ -77,6 +84,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("power") {
+    @virt
     object Snippet extends DslDriver[Int,Int] {
       def square(x: Rep[Int]): Rep[Int] = x*x
 
@@ -92,6 +100,7 @@ class VirtualizeTest extends TutorialFunSuite {
   }
 
   test("one-sided if") {
+    @virt
     object Snippet extends DslDriver[Int,Int] {
       def snippet(b: Rep[Int]): Rep[Int] = {
         if (b < 10) {

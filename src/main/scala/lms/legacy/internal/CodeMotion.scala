@@ -1,12 +1,11 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.GraphUtil
+import lms.legacy.util.GraphUtil
 import java.io.{File, PrintWriter}
 
 
 trait CodeMotion extends Scheduling {
-  val IR: Expressions with Effects /* effects just for sanity check */
+  val IR: Expressions & Effects /* effects just for sanity check */
   import IR._
 
   def getExactScope[A](currentScope: List[Stm])(result: List[Exp[Any]]): List[Stm] = {
@@ -105,7 +104,7 @@ trait CodeMotion extends Scheduling {
           val actual = levelScope.filter(infix_lhs(_) exists (observable contains _))
           val expected = observable.map(d=>/*fatten*/(findDefinition(d.asInstanceOf[Sym[Any]]).get)) 
           val missing = expected filterNot (actual contains _)
-          val printfn = if (missing.isEmpty) printlog _ else printerr _
+          val printfn = if (missing.isEmpty) printlog else printerr
           printfn("error: violated ordering of effects")
           printfn("  expected:")
           expected.foreach(d => printfn("    "+d))

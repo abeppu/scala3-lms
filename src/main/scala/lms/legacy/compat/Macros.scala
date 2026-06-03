@@ -1,4 +1,4 @@
-package scala.lms
+package lms.legacy.compat
 
 import scala.reflect.ClassTag
 import scala.quoted.*

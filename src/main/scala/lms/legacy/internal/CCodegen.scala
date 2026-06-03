@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 import java.io.{FileWriter, PrintWriter, File}
 import collection.immutable.List._
@@ -100,11 +99,11 @@ trait CCodegen extends CLikeCodegen with CppHostTransfer {
     super.initializeGenerator(buildDir, args)
   }
 
-  def emitForwardDef[A:Typ](args: List[Typ[_]], functionName: String, out: PrintWriter) = {
+  def emitForwardDef[A:Typ](args: List[Typ[?]], functionName: String, out: PrintWriter) = {
     out.println(remap(typ[A])+" "+functionName+"("+args.map(a => remap(a)).mkString(", ")+");")
   }
       
-  def emitSource[A:Typ](args: List[Sym[_]], body: Block[A], functionName: String, out: PrintWriter) = {
+  def emitSource[A:Typ](args: List[Sym[?]], body: Block[A], functionName: String, out: PrintWriter) = {
 
     val sA = remap(typ[A])
 
@@ -211,13 +210,13 @@ trait CCodegen extends CLikeCodegen with CppHostTransfer {
 }
 
 trait CNestedCodegen extends CLikeNestedCodegen with CCodegen {
-  val IR: Expressions with Effects
+  val IR: Expressions & Effects
   import IR._
   
 }
 
 trait CFatCodegen extends CLikeFatCodegen with CCodegen {
-  val IR: Expressions with Effects with FatExpressions
+  val IR: Expressions & Effects & FatExpressions
   import IR._
 
 }

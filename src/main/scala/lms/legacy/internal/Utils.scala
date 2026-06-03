@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 // TODO: add logging, etc.
 trait Utils extends Config {

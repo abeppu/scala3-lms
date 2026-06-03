@@ -1,10 +1,10 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
-import scala.lms.internal.NestedBlockTraversal
+import lms.legacy.internal.NestedBlockTraversal
 
 import scala.collection.mutable
+import scala.compiletime.uninitialized
 
 trait LivenessOpt extends NestedBlockTraversal {
   import IR._  
@@ -55,7 +55,7 @@ trait LivenessOpt extends NestedBlockTraversal {
 trait DefUseAnalysis extends NestedBlockTraversal {
   import IR._  
   
-  var defUseMap: Map[Exp[Any], Set[Exp[Any]]] = _
+  var defUseMap: Map[Exp[Any], Set[Exp[Any]]] = uninitialized
 
   override def focusBlock[A](result: Block[Any])(body: => A): A = {
     super.focusBlock(result) {

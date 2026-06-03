@@ -1,39 +1,54 @@
-package scala.lms
-package common
+package lms.legacy.common
+
+import scala.language.implicitConversions
 
 import java.io.PrintWriter
 
-import scala.lms.internal.{GenericNestedCodegen, GenerationFailedException}
-import scala.lms.util.ClosureCompare
-
+import lms.legacy.internal.{GenericNestedCodegen, GenerationFailedException}
+import lms.legacy.util.ClosureCompare
+import lms.legacy.compat.{Manifest, SourceContext}
 trait Functions extends Base {
 
   implicit def funTyp[A:Typ,B:Typ]: Typ[A => B]
 
-  def doLambda[A:Typ,B:Typ](fun: Rep[A] => Rep[B])(implicit pos: SourceContext): Rep[A => B]
-  implicit def fun[A:Typ,B:Typ](f: Rep[A] => Rep[B]): Rep[A=>B] = doLambda(f)
+  def doLambda[A:Typ,B:Typ](fun: Rep[A] => Rep[B])(using pos: SourceContext): Rep[A => B]
+  given fun[A:Typ,B:Typ]: Conversion[Rep[A] => Rep[B], Rep[A => B]] with {
+    def apply(x: Rep[A] => Rep[B]): Rep[A => B] = doLambda(x)
+  }
 
   implicit def toLambdaOps[A:Typ,B:Typ](fun: Rep[A => B]): LambdaOps[A, B] = new LambdaOps(fun)
 
   class LambdaOps[A:Typ,B:Typ](f: Rep[A => B]) {
-    def apply(x: Rep[A])(implicit pos: SourceContext): Rep[B] = doApply(f,x)
+    def apply(x: Rep[A])(using pos: SourceContext): Rep[B] = doApply(f,x)
   }
 
-  def doApply[A:Typ,B:Typ](fun: Rep[A => B], arg: Rep[A])(implicit pos: SourceContext): Rep[B]
+  def doApply[A:Typ,B:Typ](fun: Rep[A => B], arg: Rep[A])(using pos: SourceContext): Rep[B]
 }
 
 trait TupledFunctions extends Functions with TupleOps {
-  implicit def fun[B:Typ](f: () => Rep[B]): Rep[Unit=>B] =
-    fun((t: Rep[Unit]) => f())
-  implicit def fun[A1:Typ,A2:Typ,B:Typ](f: (Rep[A1], Rep[A2]) => Rep[B]): Rep[((A1,A2))=>B] =
-    fun((t: Rep[(A1,A2)]) => f(tuple2_get1(t), tuple2_get2(t)))
-  implicit def fun[A1:Typ,A2:Typ,A3:Typ,B:Typ](f: (Rep[A1], Rep[A2], Rep[A3]) => Rep[B]): Rep[((A1,A2,A3))=>B] =
-    fun((t: Rep[(A1,A2,A3)]) => f(tuple3_get1(t), tuple3_get2(t), tuple3_get3(t)))
-  implicit def fun[A1:Typ,A2:Typ,A3:Typ,A4:Typ,B:Typ](f: (Rep[A1], Rep[A2], Rep[A3], Rep[A4]) => Rep[B]): Rep[((A1,A2,A3,A4))=>B] =
-    fun((t: Rep[(A1,A2,A3,A4)]) => f(tuple4_get1(t), tuple4_get2(t), tuple4_get3(t), tuple4_get4(t)))
-  implicit def fun[A1:Typ,A2:Typ,A3:Typ,A4:Typ,A5:Typ,B:Typ](f: (Rep[A1], Rep[A2], Rep[A3], Rep[A4], Rep[A5]) => Rep[B]): Rep[((A1,A2,A3,A4,A5))=>B] =
-    fun((t: Rep[(A1,A2,A3,A4,A5)]) => f(tuple5_get1(t), tuple5_get2(t), tuple5_get3(t), tuple5_get4(t), tuple5_get5(t)))
-
+  
+  given fun2[A1:Typ,A2:Typ,B:Typ]: Conversion[(Rep[A1], Rep[A2]) => Rep[B], Rep[((A1, A2)) => B]] with
+  {
+    def apply(f: (Rep[A1], Rep[A2]) => Rep[B]): Rep[((A1, A2)) => B] = {
+      fun[(A1,A2),B]((t: Rep[(A1, A2)]) => f(tuple2_get1(t), tuple2_get2(t)))
+    }
+  }
+  given fun3[A1:Typ,A2:Typ,A3:Typ,B:Typ]: Conversion[(Rep[A1],Rep[A2],Rep[A3]) => Rep[B], Rep[((A1,A2,A3)) => B]] with {
+    def apply(f: (Rep[A1], Rep[A2], Rep[A3]) => Rep[B]): Rep[((A1,A2,A3)) => B] = {
+      val t: Rep[(A1,A2,A3)] => Rep[B] = (t: Rep[(A1,A2,A3)]) => f(tuple3_get1(t), tuple3_get2(t), tuple3_get3(t))
+      fun[(A1,A2,A3),B](t)
+    }
+  }
+  given fun4[A1:Typ,A2:Typ,A3:Typ,A4:Typ,B:Typ]: Conversion[(Rep[A1], Rep[A2], Rep[A3], Rep[A4]) => Rep[B], Rep[((A1,A2,A3,A4)) => B]] with {
+    def apply(f: (Rep[A1], Rep[A2], Rep[A3], Rep[A4]) => Rep[B]): Rep[((A1,A2,A3,A4))=>B] = {
+      fun[(A1,A2,A3,A4),B]((t: Rep[(A1,A2,A3,A4)]) => f(tuple4_get1(t), tuple4_get2(t), tuple4_get3(t), tuple4_get4(t)))
+    }
+  }
+  given fun5[A1:Typ,A2:Typ,A3:Typ,A4:Typ,A5:Typ,B:Typ]: Conversion[(Rep[A1], Rep[A2], Rep[A3], Rep[A4], Rep[A5]) => Rep[B], Rep[((A1,A2,A3,A4,A5)) => B]] with {
+    def apply(f: (Rep[A1], Rep[A2], Rep[A3], Rep[A4], Rep[A5]) => Rep[B]): Rep[((A1,A2,A3,A4,A5))=>B] = {
+      fun[(A1,A2,A3,A4,A5),B]((t: Rep[(A1,A2,A3,A4,A5)]) => f(tuple5_get1(t), tuple5_get2(t), tuple5_get3(t), tuple5_get4(t), tuple5_get5(t)))
+    }
+  }
   class LambdaOps2[A1:Typ,A2:Typ,B:Typ](f: Rep[((A1,A2)) => B]) {
     def apply(x1: Rep[A1], x2: Rep[A2]) = doApply(f,(x1, x2))
     def apply(x: Rep[(A1,A2)]): Rep[B] = doApply(f,x)
@@ -64,13 +79,13 @@ trait TupledFunctions extends Functions with TupleOps {
 
 trait FunctionsExp extends Functions with EffectExp {
   implicit def funTyp[A:Typ,B:Typ]: Typ[A => B] = {
-    implicit val ManifestTyp(mA: Manifest[A]) = typ[A]
-    implicit val ManifestTyp(mB: Manifest[B]) = typ[B]
+    implicit val mA: Manifest[A] = manifestOf[A]
+    implicit val mB: Manifest[B] = manifestOf[B]
     manifestTyp
   }
 
-  case class Lambda[A:Typ,B:Typ](f: Exp[A] => Exp[B], x: Exp[A], y: Block[B]) extends Def[A => B] { def mA = typ[A]; def mB = typ[B] }
-  case class Apply[A:Typ,B:Typ](f: Exp[A => B], arg: Exp[A]) extends Def[B] { def mA = typ[A]; def mB = typ[B] }
+  case class Lambda[A:Typ,B:Typ](f: Exp[A] => Exp[B], x: Exp[A], y: Block[B]) extends Def[A => B] { def mA = (typ[A]: @unchecked); def mB = (typ[B]: @unchecked) }
+  case class Apply[A:Typ,B:Typ](f: Exp[A => B], arg: Exp[A]) extends Def[B] { def mA = (typ[A]: @unchecked); def mB = (typ[B]: @unchecked) }
 
   // unboxedFresh and unbox are hooks that can be overridden to
   // implement multiple-arity functions with tuples. These two methods
@@ -79,7 +94,7 @@ trait FunctionsExp extends Functions with EffectExp {
   // TupledFunctionsExp for an example.
 
   def unboxedFresh[A:Typ] : Exp[A] = fresh[A]
-  def unbox[A:Typ](x : Exp[A])(implicit pos: SourceContext) : Exp[A] = x
+  def unbox[A:Typ](x : Exp[A])(using pos: SourceContext) : Exp[A] = x
 
   def doLambdaDef[A:Typ,B:Typ](f: Exp[A] => Exp[B]) : Def[A => B] = {
     val x = unboxedFresh[A]
@@ -88,10 +103,10 @@ trait FunctionsExp extends Functions with EffectExp {
     Lambda(f, x, y)
   }
 
-  override def doLambda[A:Typ,B:Typ](f: Exp[A] => Exp[B])(implicit pos: SourceContext): Exp[A => B] =
+  override def doLambda[A:Typ,B:Typ](f: Exp[A] => Exp[B])(using pos: SourceContext): Exp[A => B] =
     doLambdaDef(f)
 
-  override def doApply[A:Typ,B:Typ](f: Exp[A => B], x: Exp[A])(implicit pos: SourceContext): Exp[B] = {
+  override def doApply[A:Typ,B:Typ](f: Exp[A => B], x: Exp[A])(using pos: SourceContext): Exp[B] = {
     val x1 = unbox(x)
     f match {
       case Def(Lambda(_,_,y)) =>
@@ -104,14 +119,14 @@ trait FunctionsExp extends Functions with EffectExp {
     }
   }
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case e@Lambda(g,x:Exp[Any],y:Block[b]) => toAtom(Lambda(f(g),f(x),f(y))(using e.mA,e.mB))(using mtyp1[A],pos)
     case e@Apply(g,arg) => doApply(f(g), f(arg))(using e.mA,mtype(e.mB),pos)
     case Reflect(e@Apply(g,arg), u, es) => reflectMirrored(Reflect(Apply(f(g),f(arg))(using e.mA,mtype(e.mB)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]] // why??
 
-  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Def[A] = (e match {
+  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = (e match {
     case e@Lambda(g, x, y) => Lambda(f(g), f(x), f(y))(using e.mA,e.mB)
     case e@Apply(g, arg) => Apply(f(g), f(arg))(using e.mA, mtype(e.mB))
     case _ => super.mirrorDef(e, f)
@@ -154,33 +169,33 @@ trait TupledFunctionsExp extends TupledFunctions with FunctionsExp with TupleOps
   private def tupledTypOf[T](m: Typ[T], arity: Int): Boolean = m.runtimeClass.getName == "scala.Tuple" + arity
 
   override def unboxedFresh[A:Typ] : Exp[A] = {
-    val mA = typ[A]
-    if (mA == typ[Unit] || tupledTyp(mA))
+    val mA = (typ[A]: @unchecked)
+    if (mA == (typ[Unit]: @unchecked) || tupledTyp(mA))
       UnboxedTuple[A](mA.typeArguments.map(fresh(using _)))
     else fresh[A]
   }
 
-  override def unbox[A:Typ](x : Exp[A])(implicit pos: SourceContext) : Exp[A] = {
-    val mA = typ[A]
+  override def unbox[A:Typ](x : Exp[A])(using pos: SourceContext) : Exp[A] = {
+    val mA = (typ[A]: @unchecked)
     x match {
-      case _ : UnboxedTuple[A] => x
-      case _ if mA == typ[Unit] =>
+      case _: UnboxedTuple[?] => x
+      case _ if mA == (typ[Unit]: @unchecked) =>
         UnboxedTuple[A](List())
       case _ if tupledTypOf(mA, 2) =>
-        x match { case t : Rep[(a1,a2)] =>
+        x match { case t : Rep[(a1,a2)] @unchecked =>
           UnboxedTuple[A](List(
             tuple2_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple2_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos)))
         }
       case _ if tupledTypOf(mA, 3) =>
-        x match { case t : Rep[(a1,a2,a3)] =>
+        x match { case t : Rep[(a1,a2,a3)] @unchecked =>
           UnboxedTuple[A](List(
             tuple3_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple3_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos),
             tuple3_get3(t)(using mA.typeArguments(2).asInstanceOf[Typ[a3]], pos)))
         }
       case _ if tupledTypOf(mA, 4) =>
-        x match { case t : Rep[(a1,a2,a3,a4)] =>
+        x match { case t : Rep[(a1,a2,a3,a4)] @unchecked =>
           UnboxedTuple[A](List(
             tuple4_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple4_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos),
@@ -188,7 +203,7 @@ trait TupledFunctionsExp extends TupledFunctions with FunctionsExp with TupleOps
             tuple4_get4(t)(using mA.typeArguments(3).asInstanceOf[Typ[a4]], pos)))
         }
       case _ if tupledTypOf(mA, 5) =>
-        x match { case t : Rep[(a1,a2,a3,a4,a5)] =>
+        x match { case t : Rep[(a1,a2,a3,a4,a5)] @unchecked =>
           UnboxedTuple[A](List(
             tuple5_get1(t)(using mA.typeArguments(0).asInstanceOf[Typ[a1]], pos),
             tuple5_get2(t)(using mA.typeArguments(1).asInstanceOf[Typ[a2]], pos),
@@ -205,15 +220,15 @@ trait TupledFunctionsExp extends TupledFunctions with FunctionsExp with TupleOps
     case _ => super.boundSyms(e)
   }
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case e@Lambda(g,UnboxedTuple(xs),y:Block[b]) => toAtom(Lambda(f(g),UnboxedTuple(f(xs))(using e.mA),f(y))(using e.mA,e.mB))(using mtyp1[A],implicitly[SourceContext])
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]
 }
 
 trait FunctionsRecursiveExp extends FunctionsExp with ClosureCompare {
-  var funTable: List[(Sym[_], Any)] = List()
-  override def doLambda[A:Typ,B:Typ](f: Exp[A] => Exp[B])(implicit pos: SourceContext): Exp[A => B] = {
+  var funTable: List[(Sym[?], Any)] = List()
+  override def doLambda[A:Typ,B:Typ](f: Exp[A] => Exp[B])(using pos: SourceContext): Exp[A => B] = {
     val can = canonicalize(f)
     funTable.find(_._2 == can) match {
       case Some((funSym, _)) =>

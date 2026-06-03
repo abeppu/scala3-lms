@@ -1,5 +1,4 @@
-package scala.lms
-package util
+package lms.legacy.util
 
 import java.io._
 
@@ -15,16 +14,16 @@ trait ClosureCompare extends Externalizable {
     throw new NotSerializableException("this is just a mock-up!")
   }
 
-  def canonicalize(f: Function[_,_]): Unit  = {
+  def canonicalize(f: Function[?,?]): String = {
     val s = new java.io.ByteArrayOutputStream()
     val o = new java.io.ObjectOutputStream(s)
     o.writeObject(f)
     s.toString("ASCII")
   }
 
-  def sameFunction(f: Function[_,_], g: Function[_,_]): Boolean = {
+  def sameFunction(f: Function[?,?], g: Function[?,?]): Boolean = {
 
-    def ser(f: Function[_,_]) = f.isInstanceOf[java.io.Serializable]
+    def ser(f: Function[?,?]) = f.isInstanceOf[java.io.Serializable]
     
     if (f.getClass != g.getClass)
       return false

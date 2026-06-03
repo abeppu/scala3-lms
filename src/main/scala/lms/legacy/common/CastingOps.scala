@@ -1,23 +1,31 @@
-package scala.lms
-package common
+package lms.legacy.common
 
+import scala.language.implicitConversions
+
+import lms.gen.{Gen, StagingCompile}
 import java.io.PrintWriter
-import scala.lms.util.OverloadHack
+import lms.legacy.util.OverloadHack
+import lms.legacy.compat.SourceContext
+import scala.quoted.*
 
 trait CastingOps extends Variables with OverloadHack {
   this: ImplicitOps =>
 
   //implicit def anyToCastingOps[A:Typ](lhs: A) = new CastingOpsCls(lhs)
-  implicit def repAnyToCastingOps[A:Typ](lhs: Rep[A]): CastingOpsCls[A] = new CastingOpsCls(lhs)
-  implicit def varAnyToCastingOps[A:Typ](lhs: Var[A]): CastingOpsCls[A] = new CastingOpsCls(readVar(lhs))
+  given repAnyToCastingOps[A:Typ]: Conversion[Rep[A], CastingOpsCls[A]] with {
+  def apply(lhs: Rep[A]): CastingOpsCls[A] = new CastingOpsCls(lhs)
+}
+  given varAnyToCastingOps[A:Typ]: Conversion[Var[A], CastingOpsCls[A]] with {
+  def apply(lhs: Var[A]): CastingOpsCls[A] = new CastingOpsCls(readVar(lhs))
+}
     
   class CastingOpsCls[A:Typ](lhs: Rep[A]){
-    def IsInstanceOf[B:Typ](implicit pos: SourceContext): Rep[Boolean] = rep_isinstanceof(lhs, typ[A], typ[B])
-    def AsInstanceOf[B:Typ](implicit pos: SourceContext): Rep[B] = rep_asinstanceof(lhs, typ[A], typ[B])
+    def IsInstanceOf[B:Typ](using pos: SourceContext): Rep[Boolean] = rep_isinstanceof(lhs, typ[A], typ[B])
+    def AsInstanceOf[B:Typ](using pos: SourceContext): Rep[B] = rep_asinstanceof(lhs, typ[A], typ[B])
   }
 
-  def rep_isinstanceof[A,B](lhs: Rep[A], mA: Typ[A], mB: Typ[B])(implicit pos: SourceContext) : Rep[Boolean]
-  def rep_asinstanceof[A,B:Typ](lhs: Rep[A], mA: Typ[A], mB: Typ[B])(implicit pos: SourceContext) : Rep[B]
+  def rep_isinstanceof[A,B](lhs: Rep[A], mA: Typ[A], mB: Typ[B])(using pos: SourceContext) : Rep[Boolean]
+  def rep_asinstanceof[A,B:Typ](lhs: Rep[A], mA: Typ[A], mB: Typ[B])(using pos: SourceContext) : Rep[B]
 }
 
 trait CastingOpsExp extends CastingOps with BaseExp with EffectExp with BooleanOpsExp {
@@ -26,10 +34,10 @@ trait CastingOpsExp extends CastingOps with BaseExp with EffectExp with BooleanO
   case class RepIsInstanceOf[A,B](lhs: Exp[A], mA: Typ[A], mB: Typ[B]) extends Def[Boolean]
   case class RepAsInstanceOf[A,B:Typ](lhs: Exp[A], mA: Typ[A], mB: Typ[B]) extends Def[B]
 
-  def rep_isinstanceof[A,B](lhs: Exp[A], mA: Typ[A], mB: Typ[B])(implicit pos: SourceContext) = RepIsInstanceOf(lhs,mA,mB)
-  def rep_asinstanceof[A,B:Typ](lhs: Exp[A], mA: Typ[A], mB: Typ[B])(implicit pos: SourceContext) : Exp[B] = toAtom(RepAsInstanceOf(lhs,mA,mB))(using mB,pos)
+  def rep_isinstanceof[A,B](lhs: Exp[A], mA: Typ[A], mB: Typ[B])(using pos: SourceContext) = RepIsInstanceOf(lhs,mA,mB)
+  def rep_asinstanceof[A,B:Typ](lhs: Exp[A], mA: Typ[A], mB: Typ[B])(using pos: SourceContext) : Exp[B] = toAtom(RepAsInstanceOf(lhs,mA,mB))(using mB,pos)
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case RepAsInstanceOf(lhs, mA, mB) => rep_asinstanceof(f(lhs),mA,mB)(using mtype(mB),pos)
     case Reflect(e@RepAsInstanceOf(lhs, mA, mB), u, es) => reflectMirrored(Reflect(RepAsInstanceOf(f(lhs),mA,mB)(using mtype(mB)), mapOver(f,u), f(es)))(using mtyp1[A], pos)
     case _ => super.mirror(e,f)
@@ -58,6 +66,41 @@ trait CLikeGenCastingOps extends CLikeGenBase {
         case _ => super.emitNode(sym, rhs)
       }
     }
+}
+
+trait CastingOpsGen extends Gen with CastingOpsExp {
+  this: StagingCompile =>
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    def interpretIsInstanceOf[F: Type, T: Type](lhs: Exp[F]): Term = {
+      val lhsExpr = interpretExpWithEnv(lhs).asExprOf[F]
+      '{ $lhsExpr.isInstanceOf[T] }.asTerm
+    }
+
+    def interpretAsInstanceOf[F: Type, T: Type](lhs: Exp[F]): Term = {
+      val lhsExpr = interpretExpWithEnv(lhs).asExprOf[F]
+      '{ $lhsExpr.asInstanceOf[T] }.asTerm
+    }
+
+    d match {
+      case repIs: RepIsInstanceOf[?, ?] =>
+        repIs.mA.asTypeRepr.asType match
+          case '[from] =>
+            repIs.mB.asTypeRepr.asType match
+              case '[to] =>
+                interpretIsInstanceOf[from, to](repIs.lhs.asInstanceOf[Exp[from]])
+      case repAs: RepAsInstanceOf[?, ?] =>
+        repAs.mA.asTypeRepr.asType match
+          case '[from] =>
+            repAs.mB.asTypeRepr.asType match
+              case '[to] =>
+                interpretAsInstanceOf[from, to](repAs.lhs.asInstanceOf[Exp[from]])
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+  }
 }
 
 trait CudaGenCastingOps extends CudaGenBase with CLikeGenCastingOps 

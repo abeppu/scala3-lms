@@ -1,10 +1,15 @@
-package scala.lms
-package common
+package lms.legacy.common
+
+import scala.language.implicitConversions
 
 import java.io.PrintWriter
 import scala.collection.mutable.ArrayBuffer
-import scala.lms.internal.GenericNestedCodegen
+import lms.legacy.internal.GenericNestedCodegen
+
 import collection.mutable.ArrayBuffer
+import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
 
 trait ArrayBufferOps extends Base with StringOps with ArrayOps {
 
@@ -12,53 +17,55 @@ trait ArrayBufferOps extends Base with StringOps with ArrayOps {
     def apply[A:Typ](xs: Rep[A]*) = arraybuffer_new(xs)
   }
 
-  implicit def arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]]
+  given arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]] = deferred
   implicit def seqTyp[T:Typ]: Typ[Seq[T]] // TODO: remove?
 
-  implicit def repToArrayBufferOps[A:Typ](l: Rep[ArrayBuffer[A]]): ArrayBufferOpsCls[?] = new ArrayBufferOpsCls(l)
+  given repToArrayBufferOps[A:Typ]: Conversion[Rep[ArrayBuffer[A]], ArrayBufferOpsCls[?]] with {
+  def apply(l: Rep[ArrayBuffer[A]]): ArrayBufferOpsCls[?] = new ArrayBufferOpsCls(l)
+}
   
   class ArrayBufferOpsCls[A:Typ](l: Rep[ArrayBuffer[A]]) {
-    def +=(e: Rep[A])(implicit pos: SourceContext) = arraybuffer_append(l,e)
-    def ++=(e: Rep[Array[A]])(implicit pos: SourceContext) = arraybuffer_append_array(l,e)
-    def ++=(e: Rep[Seq[A]])(implicit o: Overloaded1, pos: SourceContext) = arraybuffer_append_seq(l,e)
-    def mkString(sep: Rep[String] = unit(""))(implicit pos: SourceContext) = arraybuffer_mkstring(l,sep)
-    def append(e: Rep[A])(implicit pos: SourceContext) = arraybuffer_append(l,e)
-    def appendAll(e: Rep[Array[A]])(implicit pos: SourceContext) = arraybuffer_append_array(l,e)
-    def appendAll(e: Rep[Seq[A]])(implicit o: Overloaded1, pos: SourceContext) = arraybuffer_append_seq(l,e)
+    def +=(e: Rep[A])(using pos: SourceContext) = arraybuffer_append(l,e)
+    def ++=(e: Rep[Array[A]])(using pos: SourceContext) = arraybuffer_append_array(l,e)
+    def ++=(e: Rep[Seq[A]])(using o: Overloaded1, pos: SourceContext) = arraybuffer_append_seq(l,e)
+    def mkString(sep: Rep[String] = unit(""))(using pos: SourceContext) = arraybuffer_mkstring(l,sep)
+    def append(e: Rep[A])(using pos: SourceContext) = arraybuffer_append(l,e)
+    def appendAll(e: Rep[Array[A]])(using pos: SourceContext) = arraybuffer_append_array(l,e)
+    def appendAll(e: Rep[Seq[A]])(using o: Overloaded1, pos: SourceContext) = arraybuffer_append_seq(l,e)
     def clear() = arraybuffer_clear(l)
-    def toArray(implicit pos: SourceContext) = arraybuffer_toarray(l)
-    def toSeq(implicit pos: SourceContext) = arraybuffer_toseq(l)
+    def toArray(using pos: SourceContext) = arraybuffer_toarray(l)
+    def toSeq(using pos: SourceContext) = arraybuffer_toseq(l)
   }
   
-  def infix_+=[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(implicit pos: SourceContext) = arraybuffer_append(l, e)
+  def infix_+=[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(using pos: SourceContext) = arraybuffer_append(l, e)
 
   /* when mixed in with OptiML, one of these infix operations causes an NPE in the scala-virtualized compiler */ //TR: still the case?
   /*
-  def infix_mkString[A:Typ](l: Rep[ArrayBuffer[A]], sep: Rep[String] = unit(""))(implicit pos: SourceContext) = arraybuffer_mkstring(l, sep)
-  def infix_+=[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(implicit pos: SourceContext) = arraybuffer_append(l, e)
-  def infix_append[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(implicit pos: SourceContext) = arraybuffer_append(l, e)
-  def infix_toArray[A:Typ](l: Rep[ArrayBuffer[A]])(implicit pos: SourceContext) = arraybuffer_toarray(l)
-  def infix_toSeq[A:Typ](l: Rep[ArrayBuffer[A]])(implicit pos: SourceContext) = arraybuffer_toseq(l)
+  def infix_mkString[A:Typ](l: Rep[ArrayBuffer[A]], sep: Rep[String] = unit(""))(using pos: SourceContext) = arraybuffer_mkstring(l, sep)
+  def infix_+=[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(using pos: SourceContext) = arraybuffer_append(l, e)
+  def infix_append[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(using pos: SourceContext) = arraybuffer_append(l, e)
+  def infix_toArray[A:Typ](l: Rep[ArrayBuffer[A]])(using pos: SourceContext) = arraybuffer_toarray(l)
+  def infix_toSeq[A:Typ](l: Rep[ArrayBuffer[A]])(using pos: SourceContext) = arraybuffer_toseq(l)
   */
   
-  def arraybuffer_mkstring[A:Typ](l: Rep[ArrayBuffer[A]], sep: Rep[String])(implicit pos: SourceContext): Rep[String]
-  def arraybuffer_append[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(implicit pos: SourceContext): Rep[Unit]
-  def arraybuffer_append_array[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Array[A]])(implicit pos: SourceContext): Rep[Unit]
-  def arraybuffer_append_seq[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Seq[A]])(implicit pos: SourceContext): Rep[Unit]
-  def arraybuffer_new[A:Typ](xs: Seq[Rep[A]])(implicit pos: SourceContext): Rep[ArrayBuffer[A]]
+  def arraybuffer_mkstring[A:Typ](l: Rep[ArrayBuffer[A]], sep: Rep[String])(using pos: SourceContext): Rep[String]
+  def arraybuffer_append[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[A])(using pos: SourceContext): Rep[Unit]
+  def arraybuffer_append_array[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Array[A]])(using pos: SourceContext): Rep[Unit]
+  def arraybuffer_append_seq[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Seq[A]])(using pos: SourceContext): Rep[Unit]
+  def arraybuffer_new[A:Typ](xs: Seq[Rep[A]])(using pos: SourceContext): Rep[ArrayBuffer[A]]
   def arraybuffer_clear[A:Typ](l: Rep[ArrayBuffer[A]]): Rep[Unit]
-  def arraybuffer_toarray[A:Typ](x: Rep[ArrayBuffer[A]])(implicit pos: SourceContext): Rep[Array[A]]
-  def arraybuffer_toseq[A:Typ](x: Rep[ArrayBuffer[A]])(implicit pos: SourceContext): Rep[Seq[A]]
+  def arraybuffer_toarray[A:Typ](x: Rep[ArrayBuffer[A]])(using pos: SourceContext): Rep[Array[A]]
+  def arraybuffer_toseq[A:Typ](x: Rep[ArrayBuffer[A]])(using pos: SourceContext): Rep[Seq[A]]
 }
 
 trait ArrayBufferOpsExp extends ArrayBufferOps with EffectExp {
-  implicit def arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]] = {
-    implicit val ManifestTyp(m: Manifest[T]) = typ[T]
+  override given arrayBufferTyp[T:Typ]: Typ[ArrayBuffer[T]] = {
+    given Typ[T] = (typ[T]: @unchecked)
     manifestTyp
   }
   
   case class ArrayBufferNew[A:Typ](xs: Seq[Exp[A]]) extends Def[ArrayBuffer[A]]  {
-    def mA = typ[A]
+    def mA = (typ[A]: @unchecked)
   }
   case class ArrayBufferMkString[A:Typ](l: Exp[ArrayBuffer[A]], sep: Exp[String]) extends Def[String]
   case class ArrayBufferAppend[A:Typ](l: Exp[ArrayBuffer[A]], e: Exp[A]) extends Def[Unit]
@@ -68,19 +75,19 @@ trait ArrayBufferOpsExp extends ArrayBufferOps with EffectExp {
   case class ArrayBufferToArray[A:Typ](x: Exp[ArrayBuffer[A]]) extends Def[Array[A]]
   case class ArrayBufferToSeq[A:Typ](x: Exp[ArrayBuffer[A]]) extends Def[Seq[A]]
 
-  def arraybuffer_new[A:Typ](xs: Seq[Exp[A]])(implicit pos: SourceContext) = reflectMutable(ArrayBufferNew(xs))
-  def arraybuffer_mkstring[A:Typ](l: Exp[ArrayBuffer[A]], sep: Exp[String])(implicit pos: SourceContext) = ArrayBufferMkString(l, sep)
-  def arraybuffer_append[A:Typ](l: Exp[ArrayBuffer[A]], e: Exp[A])(implicit pos: SourceContext) = reflectWrite(l)(ArrayBufferAppend(l, e))
-  def arraybuffer_append_array[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Array[A]])(implicit pos: SourceContext): Rep[Unit] = reflectWrite(l)(ArrayBufferAppendArray(l, e))
-  def arraybuffer_append_seq[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Seq[A]])(implicit pos: SourceContext): Rep[Unit] = reflectWrite(l)(ArrayBufferAppendSeq(l, e))
+  def arraybuffer_new[A:Typ](xs: Seq[Exp[A]])(using pos: SourceContext) = reflectMutable(ArrayBufferNew(xs))
+  def arraybuffer_mkstring[A:Typ](l: Exp[ArrayBuffer[A]], sep: Exp[String])(using pos: SourceContext) = ArrayBufferMkString(l, sep)
+  def arraybuffer_append[A:Typ](l: Exp[ArrayBuffer[A]], e: Exp[A])(using pos: SourceContext) = reflectWrite(l)(ArrayBufferAppend(l, e))
+  def arraybuffer_append_array[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Array[A]])(using pos: SourceContext): Rep[Unit] = reflectWrite(l)(ArrayBufferAppendArray(l, e))
+  def arraybuffer_append_seq[A:Typ](l: Rep[ArrayBuffer[A]], e: Rep[Seq[A]])(using pos: SourceContext): Rep[Unit] = reflectWrite(l)(ArrayBufferAppendSeq(l, e))
   def arraybuffer_clear[A:Typ](l: Exp[ArrayBuffer[A]]) = reflectWrite(l)(ArrayBufferClear(l))
-  def arraybuffer_toarray[A:Typ](x: Exp[ArrayBuffer[A]])(implicit pos: SourceContext) = ArrayBufferToArray(x)
-  def arraybuffer_toseq[A:Typ](x: Exp[ArrayBuffer[A]])(implicit pos: SourceContext) = ArrayBufferToSeq(x)
+  def arraybuffer_toarray[A:Typ](x: Exp[ArrayBuffer[A]])(using pos: SourceContext) = ArrayBufferToArray(x)
+  def arraybuffer_toseq[A:Typ](x: Exp[ArrayBuffer[A]])(using pos: SourceContext) = ArrayBufferToSeq(x)
 
   //////////////
   // mirroring
 
-  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Def[A] = (e match {
+  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = (e match {
     case ArrayBufferMkString(l,r) => ArrayBufferMkString(f(l),f(r))(using mtyp1[A])
     case ArrayBufferAppend(l,r) => ArrayBufferAppend(f(l),f(r))(using mtyp1[A])
     case ArrayBufferAppendArray(l,r) => ArrayBufferAppendArray(f(l),f(r))(using mtyp1[A])
@@ -89,7 +96,7 @@ trait ArrayBufferOpsExp extends ArrayBufferOps with EffectExp {
   }).asInstanceOf[Def[A]] // why??
   
 /*
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case Reflect(ArrayBufferMkString(l,r), u, es) => reflectMirrored(Reflect(ArrayBufferMkString(f(l),f(r)), mapOver(f,u), f(es)))(mtyp1[A])
     case Reflect(ArrayBufferAppend(l,r), u, es) => reflectMirrored(Reflect(ArrayBufferAppend(f(l),f(r)), mapOver(f,u), f(es)))(mtyp1[A])
     case Reflect(ArrayBufferAppendArray(l,r), u, es) => reflectMirrored(Reflect(ArrayBufferAppendArray(f(l),f(r)), mapOver(f,u), f(es)))(mtyp1[A])
@@ -135,4 +142,3 @@ trait CLikeGenArrayBufferOps extends BaseGenArrayBufferOps with CLikeGenBase {
 trait CudaGenArrayBufferOps extends CudaGenEffect with CLikeGenArrayBufferOps
 trait OpenCLGenArrayBufferOps extends OpenCLGenEffect with CLikeGenArrayBufferOps
 trait CGenArrayBufferOps extends CGenEffect with CLikeGenArrayBufferOps
-

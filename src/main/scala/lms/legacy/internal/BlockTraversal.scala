@@ -1,7 +1,6 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.GraphUtil
+import lms.legacy.util.GraphUtil
 import java.io.{File, PrintWriter}
 
 
@@ -32,7 +31,7 @@ trait BlockTraversal extends GraphTraversal {
 
 
 trait NestedBlockTraversal extends BlockTraversal with NestedGraphTraversal {
-  val IR: Expressions with Effects
+  val IR: Expressions & Effects
   import IR._
 
   // ----- block definition

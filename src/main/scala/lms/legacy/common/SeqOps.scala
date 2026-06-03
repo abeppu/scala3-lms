@@ -1,48 +1,57 @@
-package scala.lms
-package common
+package lms.legacy.common
+
+import scala.language.implicitConversions
 
 import java.io.PrintWriter
-import internal._
+import lms.legacy.internal.*
+import lms.legacy.compat.{Manifest, SourceContext}
+
+import scala.compiletime.deferred
 
 trait SeqOps extends Variables {
 
-  implicit def seqTyp[T:Typ]: Typ[Seq[T]]
-
+  given seqTyp[T:Typ]: Typ[Seq[T]] = deferred
   object Seq {
-    def apply[A:Typ](xs: Rep[A]*)(implicit pos: SourceContext) = seq_new(xs)
+    def apply[A:Typ](xs: Rep[A]*)(using pos: SourceContext) = seq_new(xs)
   }
   
-  implicit def varToSeqOps[A:Typ](x: Var[Seq[A]]): SeqOpsCls[A] = new SeqOpsCls(readVar(x))
-  implicit def repSeqToSeqOps[T:Typ](a: Rep[Seq[T]]): SeqOpsCls[T] = new SeqOpsCls(a)
-  implicit def seqToSeqOps[T:Typ](a: Seq[T]): SeqOpsCls[T] = new SeqOpsCls(unit(a))
+  given varToSeqOps[A:Typ]: Conversion[Var[Seq[A]], SeqOpsCls[A]] with {
+  def apply(x: Var[Seq[A]]): SeqOpsCls[A] = new SeqOpsCls(readVar(x))
+}
+  given repSeqToSeqOps[T:Typ]: Conversion[Rep[Seq[T]], SeqOpsCls[T]] with {
+  def apply(a: Rep[Seq[T]]): SeqOpsCls[T] = new SeqOpsCls(a)
+}
+  given seqToSeqOps[T:Typ]: Conversion[Seq[T], SeqOpsCls[T]] with {
+  def apply(a: Seq[T]): SeqOpsCls[T] = new SeqOpsCls(unit(a))
+}
 
   class SeqOpsCls[T:Typ](a: Rep[Seq[T]]){
-    def apply(n: Rep[Int])(implicit pos: SourceContext) = seq_apply(a,n)
-    def length(implicit pos: SourceContext) = seq_length(a)
+    def apply(n: Rep[Int])(using pos: SourceContext) = seq_apply(a,n)
+    def length(using pos: SourceContext) = seq_length(a)
   }
 
-  def seq_new[A:Typ](xs: Seq[Rep[A]])(implicit pos: SourceContext): Rep[Seq[A]]
-  def seq_apply[T:Typ](x: Rep[Seq[T]], n: Rep[Int])(implicit pos: SourceContext): Rep[T]
-  def seq_length[T:Typ](x: Rep[Seq[T]])(implicit pos: SourceContext): Rep[Int]
+  def seq_new[A:Typ](xs: Seq[Rep[A]])(using pos: SourceContext): Rep[Seq[A]]
+  def seq_apply[T:Typ](x: Rep[Seq[T]], n: Rep[Int])(using pos: SourceContext): Rep[T]
+  def seq_length[T:Typ](x: Rep[Seq[T]])(using pos: SourceContext): Rep[Int]
 }
 
 trait SeqOpsExp extends SeqOps with PrimitiveOps with EffectExp {
-  implicit def seqTyp[T:Typ]: Typ[Seq[T]] = {
-    implicit val ManifestTyp(m: Manifest[T]) = typ[T]
+  override given seqTyp[T:Typ]: Typ[Seq[T]] = {
+    implicit val m: Manifest[T] = manifestOf[T]
     manifestTyp
   }
 
   case class SeqNew[A:Typ](xs: List[Rep[A]]) extends Def[Seq[A]] {
-    def mA = typ[A]
+    def mA = (typ[A]: @unchecked)
   }
   case class SeqLength[T:Typ](a: Exp[Seq[T]]) extends Def[Int]
   case class SeqApply[T:Typ](x: Exp[Seq[T]], n: Exp[Int]) extends Def[T]
   
-  def seq_new[A:Typ](xs: Seq[Rep[A]])(implicit pos: SourceContext) = SeqNew(xs.toList)
-  def seq_apply[T:Typ](x: Exp[Seq[T]], n: Exp[Int])(implicit pos: SourceContext): Exp[T] = SeqApply(x, n)
-  def seq_length[T:Typ](a: Exp[Seq[T]])(implicit pos: SourceContext): Exp[Int] = SeqLength(a)
+  def seq_new[A:Typ](xs: Seq[Rep[A]])(using pos: SourceContext) = SeqNew(xs.toList)
+  def seq_apply[T:Typ](x: Exp[Seq[T]], n: Exp[Int])(using pos: SourceContext): Exp[T] = SeqApply(x, n)
+  def seq_length[T:Typ](a: Exp[Seq[T]])(using pos: SourceContext): Exp[Int] = SeqLength(a)
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case e@SeqNew(xs) => seq_new(f(xs))(using e.mA,pos)
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]

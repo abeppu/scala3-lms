@@ -1,8 +1,6 @@
-package scala.lms
-package common
+package lms.legacy.common
 
-import internal.CodeMotion
-import internal.Scheduling
+import lms.legacy.internal.{CodeMotion, FatBlockTraversal, FatScheduling, Scheduling}
 
 /*
   current fusion algorithm:
@@ -171,8 +169,8 @@ import internal.Scheduling
 
 
 
-trait LoopFusionOpt extends internal.FatBlockTraversal with LoopFusionCore {
-  val IR: LoopsFatExp with IfThenElseFatExp
+trait LoopFusionOpt extends FatBlockTraversal with LoopFusionCore {
+  val IR: LoopsFatExp & IfThenElseFatExp
   import IR._  
 
   
@@ -212,8 +210,8 @@ trait LoopFusionOpt extends internal.FatBlockTraversal with LoopFusionCore {
 
 
 
-trait LoopFusionCore extends internal.FatScheduling with CodeMotion with SimplifyTransform {
-  val IR: LoopsFatExp with IfThenElseFatExp
+trait LoopFusionCore extends FatScheduling with CodeMotion with SimplifyTransform {
+  val IR: LoopsFatExp & IfThenElseFatExp
   import IR._  
   
 /*
@@ -405,6 +403,7 @@ trait LoopFusionCore extends internal.FatScheduling with CodeMotion with Simplif
               val fusedNeg = preNeg flatMap { s1 => postNeg map { s2 => (s1,s2) } }
               WtableNeg = (fusedNeg ++ WtableNeg).distinct
 
+            case Some(_) => partitionsOut = b :: partitionsOut
             case None => partitionsOut = b::partitionsOut
           }
         }

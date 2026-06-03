@@ -1,8 +1,10 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.GraphUtil
+import lms.legacy.util.GraphUtil
 import java.io.{File, PrintWriter}
+
+import lms.legacy.compat.RefinedManifest
+import scala.compiletime.uninitialized
 
 trait GenericCodegen extends BlockTraversal {
   val IR: Expressions
@@ -83,7 +85,7 @@ trait GenericCodegen extends BlockTraversal {
 
   // ---------
 
-  var stream: PrintWriter = _
+  var stream: PrintWriter = uninitialized
 
   def withStream[A](out: PrintWriter)(body: => A): A = {
     val save = stream
@@ -154,7 +156,7 @@ trait GenericCodegen extends BlockTraversal {
    * @param className Name of the generated identifier
    * @param stream Output stream
    */
-  def emitSource[A : Typ](args: List[Sym[_]], body: Block[A], className: String, stream: PrintWriter): List[(Sym[Any], Any)] // return free static data in block
+  def emitSource[A : Typ](args: List[Sym[?]], body: Block[A], className: String, stream: PrintWriter): List[(Sym[Any], Any)] // return free static data in block
 
   def quote(x: Exp[Any]) : String = x match {
     case Const(s: String) => "\""+s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")+"\"" // TODO: more escapes?
@@ -195,9 +197,9 @@ trait GenericCodegen extends BlockTraversal {
     }
 
     def quoteOrRemap(arg: Any): String = arg match {
-      case xs: Seq[_] => xs.map(quoteOrRemap).mkString(",")
-      case e: Exp[_] => quote(e)
-      case m: Typ[_] => remap(m)
+      case xs: Seq[?] => xs.map(quoteOrRemap).mkString(",")
+      case e: Exp[?] => quote(e)
+      case m: Typ[?] => remap(m)
       case s: String => s
       case _ => throw new RuntimeException(s"Could not quote or remap $arg")
     }
@@ -211,12 +213,12 @@ trait GenericCodegen extends BlockTraversal {
     }
 
     def src(args: Any*): String = {
-      sc.raw(args.map(quoteOrRemap): _*).stripMargin
+      sc.raw(args.map(quoteOrRemap)*).stripMargin
     }
 
     def gen(args: Any*): Unit = {
-      sc.checkLengths(args)
-      val start :: contextStrings = sc.parts.iterator.toList
+      StringContext.checkLengths(args, sc.parts.toIndexedSeq)
+      val start :: contextStrings = (sc.parts.iterator.toList: @unchecked)
       printToStream(start.stripMargin)
       for ((arg, contextString) <- args zip contextStrings) {
         printToStream(arg)
@@ -230,7 +232,7 @@ trait GenericCodegen extends BlockTraversal {
 
 
 trait GenericNestedCodegen extends NestedBlockTraversal with GenericCodegen {
-  val IR: Expressions with Effects
+  val IR: Expressions & Effects
   import IR._
 
   override def traverseStm(stm: Stm) = super[GenericCodegen].traverseStm(stm)
@@ -253,7 +255,7 @@ trait GenericNestedCodegen extends NestedBlockTraversal with GenericCodegen {
 
     override def printToStream(arg: Any): Unit = arg match {
       case NestedBlock(b) => emitBlock(b)
-      case b: Block[_] => stream.print(quoteOrRemap(getBlockResult(b)))
+      case b: Block[?] => stream.print(quoteOrRemap(getBlockResult(b)))
       case _ => stream.print(quoteOrRemap(arg))
     }
   }

@@ -1,9 +1,10 @@
-package scala.lms
-package common
+package lms.legacy.common
+
+import scala.language.implicitConversions
 
 import java.io.PrintWriter
-import scala.lms.internal.GenericNestedCodegen
-
+import lms.legacy.internal.GenericNestedCodegen
+import lms.legacy.compat.SourceContext
 trait StaticData extends Base {
   def staticData[T:Typ](x: T): Rep[T]
 }
@@ -13,7 +14,7 @@ trait StaticDataExp extends EffectExp {
   def staticData[T:Typ](x: T): Exp[T] = StaticData(x)
 
   // StaticData doesn't play well with control dependencies.. looks like we somehow lose updates
-  override implicit def toAtom[T:Typ](d: Def[T])(implicit pos: SourceContext) = d match {
+  override implicit def toAtom[T:Typ](d: Def[T])(using pos: SourceContext) = d match {
     case StaticData(x) if addControlDeps =>
       val save = conditionalScope
       conditionalScope = false
@@ -28,7 +29,7 @@ trait StaticDataExp extends EffectExp {
     case _ => super.isWritableSym(w)
   }
   
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case StaticData(x) => staticData(x)(using mtyp1[A])
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]   
@@ -68,7 +69,7 @@ trait ScalaGenStaticData extends ScalaGenEffect with BaseGenStaticData {
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
     case StaticData(x) =>
-      emitValDef(sym, "p"+quote(sym) + " // static data: " + (x match { case x: Array[_] => "Array("+x.mkString(",")+")" case _ => x }))
+      emitValDef(sym, "p"+quote(sym) + " // static data: " + (x match { case x: Array[?] => "Array("+x.mkString(",")+")" case _ => x }))
     case _ => super.emitNode(sym, rhs)
   }
 }

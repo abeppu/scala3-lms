@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 import java.io.{FileWriter, StringWriter, PrintWriter, File}
 import java.util.ArrayList
@@ -36,9 +35,9 @@ trait OpenCLCodegen extends GPUCodegen with CppHostTransfer with OpenCLDeviceTra
     super.initializeGenerator(buildDir, args)
   }
 
-  def emitSource[A : Typ](args: List[Sym[_]], body: Block[A], className: String, out: PrintWriter) = {
+  def emitSource[A : Typ](args: List[Sym[?]], body: Block[A], className: String, out: PrintWriter) = {
 
-    val sB = typ[A].toString
+    val sB = (typ[A]: @unchecked).toString
 
     withStream(out) {
       stream.println("/*****************************************\n"+
@@ -65,11 +64,11 @@ trait OpenCLCodegen extends GPUCodegen with CppHostTransfer with OpenCLDeviceTra
 
 // TODO: do we need this for each target?
 trait OpenCLNestedCodegen extends CLikeNestedCodegen with OpenCLCodegen {
-  val IR: Expressions with Effects
+  val IR: Expressions & Effects
   import IR._
 }
 
 trait OpenCLFatCodegen extends CLikeFatCodegen with OpenCLCodegen {
-  val IR: Expressions with Effects with FatExpressions
+  val IR: Expressions & Effects & FatExpressions
   import IR._
 }

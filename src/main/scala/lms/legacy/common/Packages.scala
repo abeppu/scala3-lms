@@ -1,7 +1,6 @@
-package scala.lms
-package common
+package lms.legacy.common
 
-import scala.lms.common._
+import lms.legacy.common._
 
 trait CoreOpsPkgExp 
     extends PrimitiveOpsExp
@@ -26,13 +25,13 @@ trait ScalaOpsPkg extends Base
     with ImplicitOps with NumericOps with FractionalOps with OrderingOps with StringOps
     with RangeOps with IOOps with ArrayOps with BooleanOps with PrimitiveOps with MiscOps
     with Equal with IfThenElse with Variables with While with TupleOps with ListOps
-    with SeqOps with MathOps with CastingOps with SetOps with ObjectOps with ArrayBufferOps
+    with SeqOps with MathOps with CastingOps with StagedMatchOps with SetOps with ObjectOps with ArrayBufferOps
 
 trait ScalaOpsPkgExp extends ScalaOpsPkg
     with ImplicitOpsExp with NumericOpsExp with FractionalOpsExp with OrderingOpsExp with StringOpsExp
     with RangeOpsExp with IOOpsExp with ArrayOpsExp with BooleanOpsExp with PrimitiveOpsExp with MiscOpsExp
     with FunctionsExp with EqualExp with IfThenElseExp with VariablesExp with WhileExp with TupleOpsExp with ListOpsExp
-    with SeqOpsExp with DSLOpsExp with MathOpsExp with CastingOpsExp with SetOpsExp with ObjectOpsExp with ArrayBufferOpsExp
+    with SeqOpsExp with DSLOpsExp with MathOpsExp with CastingOpsExp with StagedMatchOpsExp with SetOpsExp with ObjectOpsExp with ArrayBufferOpsExp
 
 
 /**

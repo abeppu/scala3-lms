@@ -1,9 +1,12 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
-import util.GraphUtil
+import scala.language.implicitConversions
+
+import lms.legacy.util.GraphUtil
 import scala.collection.mutable
 import scala.annotation.unchecked.uncheckedVariance
+import scala.compiletime.uninitialized
+import lms.legacy.compat.{anyManifest,SourceContext}
 
 trait Blocks extends Expressions {
   
@@ -25,7 +28,7 @@ trait Effects extends Expressions with Blocks with Utils {
 
   type State = List[Exp[Any]] // TODO: maybe use TP instead to save lookup
   
-  var context: State = _
+  var context: State = uninitialized
 
   var conditionalScope = false // used to construct Control nodes
 
@@ -339,7 +342,7 @@ trait Effects extends Expressions with Blocks with Utils {
     of course this is unsafe in general but there might be cases that are definitely save.
   */
 
-  protected override implicit def toAtom[T:Typ](d: Def[T])(implicit pos: SourceContext): Exp[T] = {
+  protected override implicit def toAtom[T:Typ](d: Def[T])(using pos: SourceContext): Exp[T] = {
 /*
     are we depending on a variable or mutable object? then we need to be serialized -> effect
 
@@ -368,7 +371,7 @@ trait Effects extends Expressions with Blocks with Utils {
     // reflectEffect(d, Pure())
   }
 
-  def reflectMirrored[A:Typ](zd: Reflect[A])(implicit pos: SourceContext): Exp[A] = {
+  def reflectMirrored[A:Typ](zd: Reflect[A])(using pos: SourceContext): Exp[A] = {
     checkContext()
     // warn if type is Any. TODO: make optional, sometimes Exp[Any] is fine
     if (typ[A] == ManifestTyp(anyManifest)) printlog("warning: possible missing mtype call - reflectMirrored with Def of type Any: " + zd)
@@ -403,7 +406,7 @@ trait Effects extends Expressions with Blocks with Utils {
     s
   }
 
-  def reflectMutable[A:Typ](d: Def[A])(implicit pos: SourceContext): Exp[A] = {
+  def reflectMutable[A:Typ](d: Def[A])(using pos: SourceContext): Exp[A] = {
     val z = reflectEffect(d, Alloc())
 
     val mutableAliases = mutableTransitiveAliases(d)
@@ -411,7 +414,7 @@ trait Effects extends Expressions with Blocks with Utils {
     z
   }
 
-  def reflectWrite[A:Typ](write0: Exp[Any]*)(d: Def[A])(implicit pos: SourceContext): Exp[A] = {
+  def reflectWrite[A:Typ](write0: Exp[Any]*)(d: Def[A])(using pos: SourceContext): Exp[A] = {
     val write = write0.toList.asInstanceOf[List[Sym[Any]]] // should check...
 
     val z = reflectEffect(d, Write(write))
@@ -421,21 +424,21 @@ trait Effects extends Expressions with Blocks with Utils {
     z
   }
 
-  def reflectEffect[A:Typ](x: Def[A])(implicit pos: SourceContext): Exp[A] = reflectEffect(x, Simple()) // simple effect (serialized with respect to other simples)
+  def reflectEffect[A:Typ](x: Def[A])(using pos: SourceContext): Exp[A] = reflectEffect(x, Simple()) // simple effect (serialized with respect to other simples)
 
-  def reflectEffect[A:Typ](d: Def[A], u: Summary)(implicit pos: SourceContext): Exp[A] = {
+  def reflectEffect[A:Typ](d: Def[A], u: Summary)(using pos: SourceContext): Exp[A] = {
     // are we depending on a variable? then we need to be serialized -> effect
     val mutableInputs = readMutableData(d)
     reflectEffectInternal(d, infix_andAlso(u, Read(mutableInputs))) // will call super.toAtom if mutableInput.isEmpty
   }
   
-  def reflectEffectInternal[A:Typ](x: Def[A], u: Summary)(implicit pos: SourceContext): Exp[A] = {
+  def reflectEffectInternal[A:Typ](x: Def[A], u: Summary)(using pos: SourceContext): Exp[A] = {
     if (mustPure(u)) super.toAtom(x) else {
       checkContext()
       // NOTE: reflecting mutable stuff *during mirroring* doesn't work right now.
       
       // FIXME: Reflect(Reflect(ObjectUnsafeImmutable(..))) on delite
-      assert(!x.isInstanceOf[Reflect[_]], x)
+      assert(!x.isInstanceOf[Reflect[?]], x)
 
       val deps = calculateDependencies(u)
       val zd = Reflect(x,u,deps)

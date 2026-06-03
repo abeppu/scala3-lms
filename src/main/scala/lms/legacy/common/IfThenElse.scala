@@ -1,11 +1,15 @@
-package scala.lms
-package common
+package lms.legacy.common
+
+import scala.language.implicitConversions
+
+import lms.gen.{Gen, StagingCompile}
 
 import java.io.PrintWriter
-import scala.lms.internal.{GenericNestedCodegen, GenericFatCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenerationFailedException, GenericFatCodegen, GenericNestedCodegen}
+import lms.legacy.compat.SourceContext
 
 trait IfThenElse extends Base {
-  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext): Rep[T]
+  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext): Rep[T]
 }
 
 // TODO: it would be nice if IfThenElseExp would extend IfThenElsePureExp
@@ -13,9 +17,11 @@ trait IfThenElse extends Base {
 
 trait IfThenElsePureExp extends IfThenElse with BaseExp {
 
-  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Exp[T], elsep: Exp[T]) extends Def[T]
+  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Exp[T], elsep: Exp[T]) extends Def[T] {
+    def m = (typ[T]: @unchecked)
+  }
 
-  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext) = IfThenElse(cond, thenp, elsep)
+  def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = IfThenElse(cond, thenp, elsep)
 }
 
 
@@ -27,16 +33,32 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
     val elsep: Block[T]
   }
   
-  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Block[T], elsep: Block[T]) extends AbstractIfThenElse[T]
+  case class IfThenElse[T:Typ](cond: Exp[Boolean], thenp: Block[T], elsep: Block[T]) extends AbstractIfThenElse[T] {
+    def m = (typ[T]: @unchecked)
+  }
 
-  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext) = {
+  private def blockEffectSyms(block: Block[?]): List[Sym[Any]] = block.res match {
+    case Def(Reify(_, _, effects)) =>
+      effects.asInstanceOf[List[Sym[Any]]]
+    case sym: Sym[?] =>
+      findDefinition(sym.asInstanceOf[Sym[Any]]) match {
+        case Some(TP(_, reify: Reify[?])) =>
+          reify.effects.asInstanceOf[List[Sym[Any]]]
+        case _ =>
+          effectSyms(block.res)
+      }
+    case _ =>
+      effectSyms(block.res)
+  }
+
+  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = {
     val a = reifyEffectsHere(thenp)
     val b = reifyEffectsHere(elsep)
 
     ifThenElse(cond,a,b)
   }
 
-  def ifThenElse[T:Typ](cond: Rep[Boolean], thenp: Block[T], elsep: Block[T])(implicit pos: SourceContext) = {
+  def ifThenElse[T:Typ](cond: Rep[Boolean], thenp: Block[T], elsep: Block[T])(using pos: SourceContext): Exp[T] = {
     val ae = summarizeEffects(thenp)
     val be = summarizeEffects(elsep)
     
@@ -50,12 +72,12 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
     reflectEffectInternal(IfThenElse(cond,thenp,elsep), infix_orElse(ae,be))
   }
   
-  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Def[A] = e match {
+  override def mirrorDef[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Def[A] = e match {
     case IfThenElse(c,a,b) => IfThenElse[A](f(c),f(a),f(b))
     case _ => super.mirrorDef(e,f)
   }
   
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = e match {
     case Reflect(IfThenElse(c,a,b), u, es) =>
       if (f.hasContext)
         __ifThenElse[A](f(c),f.reflectBlock(a),f.reflectBlock(b))
@@ -113,8 +135,47 @@ trait IfThenElseExp extends IfThenElse with EffectExp {
 */
 
   override def boundSyms(e: Any): List[Sym[Any]] = e match {
-    case IfThenElse(c, t, e) => effectSyms(t):::effectSyms(e)
+    case IfThenElse(c, t, e) => blockEffectSyms(t) ::: blockEffectSyms(e)
     case _ => super.boundSyms(e)
+  }
+}
+
+import scala.quoted.*
+
+trait IfThenElseGen extends Gen with IfThenElseExp {
+  this: StagingCompile =>
+
+  override def constantTerm[T](c: Const[T])(using q: Quotes): q.reflect.Term = {
+    import q.reflect.*
+    c match {
+      // Is there such a thing as an IfThenElse lit?
+      // TODO others
+      case _ => super.constantTerm(c)
+    }
+  }
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    def interpretIf[T:Typ](cond: Exp[Boolean], thenp: this.Block[T], elsep: this.Block[T]): Term = {
+      val condExpr = interpretExpWithEnv(cond).asExprOf[Boolean]
+      val branchType = typ[T].asTypeRepr
+      branchType.asType match
+        case '[t] =>
+          val thenExpr = interpretBlockWithVars(thenp).asExprOf[t]
+          val elseExpr = interpretBlockWithVars(elsep).asExprOf[t]
+          '{ if ($condExpr) $thenExpr else $elseExpr }.asTerm
+    }
+
+    d match {
+      case Reflect(node @ IfThenElse(cond, thenp, elsep), _, _) =>
+        interpretIf(cond, thenp, elsep)(using node.m)
+      case node @ IfThenElse(cond, thenp, elsep) =>
+        interpretIf(cond, thenp, elsep)(using node.m)
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+
   }
 
 }
@@ -175,7 +236,7 @@ trait IfThenElseFatExp extends IfThenElseExp with BaseFatExp {
 }
 
 
-trait IfThenElseExpOpt extends IfThenElseExp { this: BooleanOpsExp with EqualExpBridge =>
+trait IfThenElseExpOpt extends IfThenElseExp { this: BooleanOpsExp & EqualExpBridge =>
   
   //TODO: eliminate conditional if both branches return same value!
 
@@ -183,7 +244,7 @@ trait IfThenElseExpOpt extends IfThenElseExp { this: BooleanOpsExp with EqualExp
   // 'de-reify' blocks in case we rewrite if(true) to thenp. 
   // TODO: make reflect(Reify(..)) do the right thing
   
-  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(implicit pos: SourceContext) = cond match {
+  override def __ifThenElse[T:Typ](cond: Rep[Boolean], thenp: => Rep[T], elsep: => Rep[T])(using pos: SourceContext) = cond match {
     case Const(true) => thenp
     case Const(false) => elsep
     case Def(BooleanNegate(a)) => __ifThenElse(a, elsep, thenp)
@@ -204,9 +265,9 @@ trait BaseGenIfThenElseFat extends BaseGenIfThenElse with GenericFatCodegen {
   import IR._
 
   override def fatten(e: Stm): Stm = e match {
-    case TP(sym, o: AbstractIfThenElse[_]) => 
+    case TP(sym, o: AbstractIfThenElse[?]) => 
       TTP(List(sym), List(o), SimpleFatIfThenElse(o.cond, List(o.thenp), List(o.elsep)))
-    case TP(sym, p @ Reflect(o: AbstractIfThenElse[_], u, es)) => //if !u.maySimple && !u.mayGlobal =>  // contrary, fusing will not change observable order
+    case TP(sym, p @ Reflect(o: AbstractIfThenElse[?], u, es)) => //if !u.maySimple && !u.mayGlobal =>  // contrary, fusing will not change observable order
       // assume body will reflect, too...
       printdbg("-- fatten effectful if/then/else " + e)
       val e2 = SimpleFatIfThenElse(o.cond, List(o.thenp), List(o.elsep))
@@ -433,4 +494,3 @@ trait CGenIfThenElseFat extends CGenIfThenElse with CGenFat with BaseGenIfThenEl
     case _ => super.emitFatNode(symList, rhs)
   }
 }
-

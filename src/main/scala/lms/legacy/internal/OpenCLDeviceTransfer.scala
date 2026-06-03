@@ -1,4 +1,4 @@
-package scala.lms.internal
+package lms.legacy.internal
 
 /* Defines OpenCL specific device transfer functions */
 trait OpenCLDeviceTransfer extends AbstractDeviceTransfer {
@@ -7,7 +7,7 @@ trait OpenCLDeviceTransfer extends AbstractDeviceTransfer {
   //val IR: Expressions
   import IR._
 
-  def emitSendSlave(tp: Typ[_]): (String,String) = {
+  def emitSendSlave(tp: Typ[?]): (String,String) = {
     if (isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "%s sendOpenCL_%s(%s sym)".format(remap(tp),mangledName(remap(tp)),remap(tp))
@@ -21,7 +21,7 @@ trait OpenCLDeviceTransfer extends AbstractDeviceTransfer {
     }
   }
 
-  def emitRecvSlave(tp: Typ[_]): (String,String) = {
+  def emitRecvSlave(tp: Typ[?]): (String,String) = {
     if (isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "%s recvOpenCL_%s(%s sym)".format(remap(tp),mangledName(remap(tp)),remap(tp))
@@ -65,7 +65,7 @@ trait OpenCLDeviceTransfer extends AbstractDeviceTransfer {
     }
   }
 */
-  def emitSendUpdateSlave(tp: Typ[_]): (String,String) = {
+  def emitSendUpdateSlave(tp: Typ[?]): (String,String) = {
     if(isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "void sendUpdateOpenCL_%s(%s sym)".format(mangledName(remap(tp)),remap(tp))
@@ -79,7 +79,7 @@ trait OpenCLDeviceTransfer extends AbstractDeviceTransfer {
     }
   }
 
-  def emitRecvUpdateSlave(tp: Typ[_]): (String,String) = {
+  def emitRecvUpdateSlave(tp: Typ[?]): (String,String) = {
     if(isPrimitiveType(tp)) {
       val out = new StringBuilder
       val signature = "void recvUpdateOpenCL_%s(%s sym)".format(mangledName(remap(tp)),remap(tp))

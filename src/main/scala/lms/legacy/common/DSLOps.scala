@@ -1,9 +1,8 @@
-package scala.lms
-package common
+package lms.legacy.common
 
 import java.io.PrintWriter
 
-import scala.lms.internal.{GenericNestedCodegen, GenerationFailedException}
+import lms.legacy.internal.{GenericNestedCodegen, GenerationFailedException}
 
 //TODO: is this used at all? should it be merge with DeliteOps?
 
@@ -25,7 +24,7 @@ trait ScalaGenDSLOps extends ScalaGenEffect with BaseGenDSLOps {
   import IR._
   
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
-    case op: DSLOp[_] =>
+    case op: DSLOp[?] =>
       val b = op.representation
       gen"""val $sym = {
            |${nestedBlock(b)}
@@ -42,7 +41,7 @@ trait CLikeGenDSLOps extends BaseGenDSLOps with CLikeGenBase {
   import IR._
 
   override def emitNode(sym: Sym[Any], rhs: Def[Any]) = rhs match {
-    case op: DSLOp[_] => throw new GenerationFailedException("CLikeGenDSLOps: DSLOp is not supported")
+    case op: DSLOp[?] => throw new GenerationFailedException("CLikeGenDSLOps: DSLOp is not supported")
     case _ => super.emitNode(sym, rhs)
   }
 }

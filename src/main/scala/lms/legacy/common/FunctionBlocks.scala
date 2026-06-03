@@ -1,9 +1,10 @@
-package scala.lms
-package common
+package lms.legacy.common
+
+import scala.language.implicitConversions
 
 import java.io.PrintWriter
-import scala.lms.internal.{Blocks, Effects, AbstractTransformer}
-import scala.lms.util.OverloadHack
+import lms.legacy.internal.{Blocks, Effects, AbstractTransformer}
+import lms.legacy.util.OverloadHack
 
 /*
  * This trait allows functions to be stored as case class parameters in a way that works correctly
@@ -47,7 +48,7 @@ trait FunctionBlocksExp extends BaseExp with Blocks with Effects with OverloadHa
    */
    
    def transformBlockWithBound[A](t: ForwardTransformer{val IR: FunctionBlocksExp.this.type}, f: Block[A], boundVars: List[(Exp[Any],Exp[Any])]) = {
-     t.withSubstScope(boundVars: _*) {
+     t.withSubstScope(boundVars*) {
        t.reflectBlock(f)
      }
    }

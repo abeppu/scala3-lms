@@ -1,87 +1,108 @@
-package scala.lms
-package common
+package lms.legacy.common
+
+import lms.gen.{Gen, StagingCompile}
 
 import java.io.PrintWriter
-import scala.lms.util.OverloadHack
-import scala.lms.internal.{GenerationFailedException}
+import lms.legacy.util.OverloadHack
+import lms.legacy.internal.GenerationFailedException
+import lms.legacy.compat.SourceContext
+
+import scala.compiletime.deferred
+import scala.language.implicitConversions
+import scala.util.NotGiven
 
 trait LiftString {
   this: StringOps =>
 
-  implicit def strToRepStr(s: String): Rep[String] = unit(s)
+  implicit def strToRepStr(s: String)(using NotGiven[LiftString.SuppressAutoLift]): Rep[String] = unit(s)
+}
+
+object LiftString {
+  trait SuppressAutoLift
 }
 
 trait StringOps extends Variables with OverloadHack with PrimitiveOps {
   // NOTE: if something doesn't get lifted, this won't give you a compile time error,
   //       since string concat is defined on all objects
   
-  implicit def stringTyp: Typ[String]
-
-  def infix_+(s1: String, s2: Rep[Any])(implicit o: Overloaded1, pos: SourceContext) = string_plus(unit(s1), s2)
-  def infix_+[T:Typ](s1: String, s2: Var[T])(implicit o: Overloaded2, pos: SourceContext) = string_plus(unit(s1), readVar(s2))
-  def infix_+(s1: Rep[String], s2: Rep[Any])(implicit o: Overloaded1, pos: SourceContext) = string_plus(s1, s2)
-  def infix_+[T:Typ](s1: Rep[String], s2: Var[T])(implicit o: Overloaded2, pos: SourceContext) = string_plus(s1, readVar(s2))
-  def infix_+(s1: Rep[String], s2: Rep[String])(implicit o: Overloaded3, pos: SourceContext) = string_plus(s1, s2)
-  def infix_+(s1: Rep[String], s2: Var[String])(implicit o: Overloaded4, pos: SourceContext) = string_plus(s1, readVar(s2))
-  def infix_+(s1: Rep[Any], s2: Rep[String])(implicit o: Overloaded5, pos: SourceContext) = string_plus(s1, s2)
-  def infix_+(s1: Rep[Any], s2: Var[String])(implicit o: Overloaded6, pos: SourceContext) = string_plus(s1, readVar(s2))
-  def infix_+(s1: Rep[Any], s2: String)(implicit o: Overloaded7, pos: SourceContext) = string_plus(s1, unit(s2))
+  extension (s: Rep[String]) {
+    def length: Rep[Int] = string_length(s)
+    def apply(i: Int)(using o1: Overloaded1): Rep[Char] = string_charAt(s, unit(i))
+    def apply(i: Rep[Int])(using o2: Overloaded2): Rep[Char] = string_charAt(s, i)
+  }
   
-  def infix_+(s1: Var[String], s2: Rep[Any])(implicit o: Overloaded8, pos: SourceContext) = string_plus(readVar(s1), s2)  
-  def infix_+[T:Typ](s1: Var[String], s2: Var[T])(implicit o: Overloaded9, pos: SourceContext) = string_plus(readVar(s1), readVar(s2))
-  def infix_+(s1: Var[String], s2: Rep[String])(implicit o: Overloaded10, pos: SourceContext) = string_plus(readVar(s1), s2)    
-  def infix_+(s1: Var[String], s2: Var[String])(implicit o: Overloaded11, pos: SourceContext) = string_plus(readVar(s1), readVar(s2))    
-  def infix_+[T:Typ](s1: Var[T], s2: Rep[String])(implicit o: Overloaded12, pos: SourceContext) = string_plus(readVar(s1), s2)
-  def infix_+[T:Typ](s1: Var[T], s2: Var[String])(implicit o: Overloaded13, pos: SourceContext) = string_plus(readVar(s1), readVar(s2))
-  def infix_+[T:Typ](s1: Var[T], s2: String)(implicit o: Overloaded14, pos: SourceContext) = string_plus(readVar(s1), unit(s2))
+  
+
+  given stringTyp: Typ[String] = deferred
+
+  def infix_+(s1: String, s2: Rep[Any])(using o: Overloaded1, pos: SourceContext) = string_plus(unit(s1), s2)
+  def infix_+[T:Typ](s1: String, s2: Var[T])(using o: Overloaded2, pos: SourceContext) = string_plus(unit(s1), readVar(s2))
+  def infix_+(s1: Rep[String], s2: Rep[Any])(using o: Overloaded1, pos: SourceContext) = string_plus(s1, s2)
+  def infix_+[T:Typ](s1: Rep[String], s2: Var[T])(using o: Overloaded2, pos: SourceContext) = string_plus(s1, readVar(s2))
+  def infix_+(s1: Rep[String], s2: Rep[String])(using o: Overloaded3, pos: SourceContext) = string_plus(s1, s2)
+  def infix_+(s1: Rep[String], s2: Var[String])(using o: Overloaded4, pos: SourceContext) = string_plus(s1, readVar(s2))
+  def infix_+(s1: Rep[Any], s2: Rep[String])(using o: Overloaded5, pos: SourceContext) = string_plus(s1, s2)
+  def infix_+(s1: Rep[Any], s2: Var[String])(using o: Overloaded6, pos: SourceContext) = string_plus(s1, readVar(s2))
+  def infix_+(s1: Rep[Any], s2: String)(using o: Overloaded7, pos: SourceContext) = string_plus(s1, unit(s2))
+  
+  def infix_+(s1: Var[String], s2: Rep[Any])(using o: Overloaded8, pos: SourceContext) = string_plus(readVar(s1), s2)
+  def infix_+[T:Typ](s1: Var[String], s2: Var[T])(using o: Overloaded9, pos: SourceContext) = string_plus(readVar(s1), readVar(s2))
+  def infix_+(s1: Var[String], s2: Rep[String])(using o: Overloaded10, pos: SourceContext) = string_plus(readVar(s1), s2)
+  def infix_+(s1: Var[String], s2: Var[String])(using o: Overloaded11, pos: SourceContext) = string_plus(readVar(s1), readVar(s2))
+  def infix_+[T:Typ](s1: Var[T], s2: Rep[String])(using o: Overloaded12, pos: SourceContext) = string_plus(readVar(s1), s2)
+  def infix_+[T:Typ](s1: Var[T], s2: Var[String])(using o: Overloaded13, pos: SourceContext) = string_plus(readVar(s1), readVar(s2))
+  def infix_+[T:Typ](s1: Var[T], s2: String)(using o: Overloaded14, pos: SourceContext) = string_plus(readVar(s1), unit(s2))
   
   // these are necessary to be more specific than arithmetic/numeric +. is there a more generic form of this that will work?
-  //def infix_+[R:Typ](s1: Rep[String], s2: R)(implicit c: R => Rep[Any], o: Overloaded15, pos: SourceContext) = string_plus(s1, c(s2))  
-  def infix_+(s1: Rep[String], s2: Double)(implicit o: Overloaded15, pos: SourceContext) = string_plus(s1, unit(s2))
-  def infix_+(s1: Rep[String], s2: Float)(implicit o: Overloaded16, pos: SourceContext) = string_plus(s1, unit(s2))
-  def infix_+(s1: Rep[String], s2: Int)(implicit o: Overloaded17, pos: SourceContext) = string_plus(s1, unit(s2))
-  def infix_+(s1: Rep[String], s2: Long)(implicit o: Overloaded18, pos: SourceContext) = string_plus(s1, unit(s2))
-  def infix_+(s1: Rep[String], s2: Short)(implicit o: Overloaded19, pos: SourceContext) = string_plus(s1, unit(s2))  
+  //def infix_+[R:Typ](s1: Rep[String], s2: R)(using c: R => Rep[Any], o: Overloaded15, pos: SourceContext) = string_plus(s1, c(s2))
+  def infix_+(s1: Rep[String], s2: Double)(using o: Overloaded15, pos: SourceContext) = string_plus(s1, unit(s2))
+  def infix_+(s1: Rep[String], s2: Float)(using o: Overloaded16, pos: SourceContext) = string_plus(s1, unit(s2))
+  def infix_+(s1: Rep[String], s2: Int)(using o: Overloaded17, pos: SourceContext) = string_plus(s1, unit(s2))
+  def infix_+(s1: Rep[String], s2: Long)(using o: Overloaded18, pos: SourceContext) = string_plus(s1, unit(s2))
+  def infix_+(s1: Rep[String], s2: Short)(using o: Overloaded19, pos: SourceContext) = string_plus(s1, unit(s2))
   
-  def infix_startsWith(s1: Rep[String], s2: Rep[String])(implicit pos: SourceContext) = string_startswith(s1,s2)
-  def infix_trim(s: Rep[String])(implicit pos: SourceContext) = string_trim(s)
-  def infix_split(s: Rep[String], separators: Rep[String])(implicit pos: SourceContext) = string_split(s, separators, unit(0))
-  def infix_split(s: Rep[String], separators: Rep[String], limit: Rep[Int])(implicit pos: SourceContext) = string_split(s, separators, limit)
-  def infix_charAt(s: Rep[String], i: Rep[Int])(implicit pos: SourceContext) = string_charAt(s,i)
-  def infix_endsWith(s: Rep[String], e: Rep[String])(implicit pos: SourceContext) = string_endsWith(s,e)
-  def infix_contains(s1: Rep[String], s2: Rep[String])(implicit pos: SourceContext) = string_contains(s1,s2)
-  def infix_toDouble(s: Rep[String])(implicit pos: SourceContext) = string_todouble(s)
-  def infix_toFloat(s: Rep[String])(implicit pos: SourceContext) = string_tofloat(s)
-  def infix_toInt(s: Rep[String])(implicit pos: SourceContext) = string_toint(s)
-  def infix_toLong(s: Rep[String])(implicit pos: SourceContext) = string_tolong(s)
-  def infix_substring(s: Rep[String], start: Rep[Int], end: Rep[Int])(implicit pos: SourceContext) = string_substring(s,start,end)
+  def infix_startsWith(s1: Rep[String], s2: Rep[String])(using pos: SourceContext) = string_startswith(s1,s2)
+  def infix_trim(s: Rep[String])(using pos: SourceContext) = string_trim(s)
+  def infix_split(s: Rep[String], separators: Rep[String])(using pos: SourceContext) = string_split(s, separators, unit(0))
+  def infix_split(s: Rep[String], separators: Rep[String], limit: Rep[Int])(using pos: SourceContext) = string_split(s, separators, limit)
+  def infix_charAt(s: Rep[String], i: Rep[Int])(using pos: SourceContext) = string_charAt(s,i)
+  def infix_endsWith(s: Rep[String], e: Rep[String])(using pos: SourceContext) = string_endsWith(s,e)
+  def infix_contains(s1: Rep[String], s2: Rep[String])(using pos: SourceContext) = string_contains(s1,s2)
+  def infix_toDouble(s: Rep[String])(using pos: SourceContext) = string_todouble(s)
+  def infix_toFloat(s: Rep[String])(using pos: SourceContext) = string_tofloat(s)
+  def infix_toInt(s: Rep[String])(using pos: SourceContext) = string_toint(s)
+  def infix_toLong(s: Rep[String])(using pos: SourceContext) = string_tolong(s)
+  def infix_substring(s: Rep[String], start: Rep[Int], end: Rep[Int])(using pos: SourceContext) = string_substring(s,start,end)
 
   // FIXME: enabling this causes trouble with DeliteOpSuite. investigate!!
-  //def infix_length(s: Rep[String])(implicit pos: SourceContext) = string_length(s)
+  //def infix_length(s: Rep[String])(using pos: SourceContext) = string_length(s)
 
   object String {
-    def valueOf(a: Rep[Any])(implicit pos: SourceContext) = string_valueof(a)
+    def valueOf(a: Rep[Any])(using pos: SourceContext) = string_valueof(a)
   }
 
-  def string_plus(s: Rep[Any], o: Rep[Any])(implicit pos: SourceContext): Rep[String]
-  def string_startswith(s1: Rep[String], s2: Rep[String])(implicit pos: SourceContext): Rep[Boolean]
-  def string_trim(s: Rep[String])(implicit pos: SourceContext): Rep[String]
-  def string_split(s: Rep[String], separators: Rep[String], limit: Rep[Int])(implicit pos: SourceContext): Rep[Array[String]]
-  def string_valueof(d: Rep[Any])(implicit pos: SourceContext): Rep[String]
-  def string_charAt(s: Rep[String], i: Rep[Int])(implicit pos: SourceContext): Rep[Char]
-  def string_endsWith(s: Rep[String], e: Rep[String])(implicit pos: SourceContext): Rep[Boolean]
-  def string_contains(s1: Rep[String], s2: Rep[String])(implicit pos: SourceContext): Rep[Boolean]
-  def string_todouble(s: Rep[String])(implicit pos: SourceContext): Rep[Double]
-  def string_tofloat(s: Rep[String])(implicit pos: SourceContext): Rep[Float]
-  def string_toint(s: Rep[String])(implicit pos: SourceContext): Rep[Int]
-  def string_tolong(s: Rep[String])(implicit pos: SourceContext): Rep[Long]
-  def string_substring(s: Rep[String], start:Rep[Int], end:Rep[Int])(implicit pos: SourceContext): Rep[String]
-  def string_length(s: Rep[String])(implicit pos: SourceContext): Rep[Int]
+  def string_plus(s: Rep[Any], o: Rep[Any])(using pos: SourceContext): Rep[String]
+  def string_startswith(s1: Rep[String], s2: Rep[String])(using pos: SourceContext): Rep[Boolean]
+  def string_trim(s: Rep[String])(using pos: SourceContext): Rep[String]
+  def string_split(s: Rep[String], separators: Rep[String], limit: Rep[Int])(using pos: SourceContext): Rep[Array[String]]
+  def string_valueof(d: Rep[Any])(using pos: SourceContext): Rep[String]
+  def string_charAt(s: Rep[String], i: Rep[Int])(using pos: SourceContext): Rep[Char]
+  def string_endsWith(s: Rep[String], e: Rep[String])(using pos: SourceContext): Rep[Boolean]
+  def string_contains(s1: Rep[String], s2: Rep[String])(using pos: SourceContext): Rep[Boolean]
+  def string_todouble(s: Rep[String])(using pos: SourceContext): Rep[Double]
+  def string_tofloat(s: Rep[String])(using pos: SourceContext): Rep[Float]
+  def string_toint(s: Rep[String])(using pos: SourceContext): Rep[Int]
+  def string_tolong(s: Rep[String])(using pos: SourceContext): Rep[Long]
+  def string_substring(s: Rep[String], start:Rep[Int], end:Rep[Int])(using pos: SourceContext): Rep[String]
+  def string_length(s: Rep[String])(using pos: SourceContext): Rep[Int]
+    
 }
 
 trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
-  implicit def arrayTyp[T:Typ]: Typ[Array[T]]  
-  implicit def stringTyp: Typ[String] = manifestTyp
+
+
+  given arrayTyp[T:Typ]: Typ[Array[T]] = deferred
+  override given stringTyp: Typ[String] = manifestTyp
 
   case class StringPlus(s: Exp[Any], o: Exp[Any]) extends Def[String]
   case class StringStartsWith(s1: Exp[String], s2: Exp[String]) extends Def[Boolean]
@@ -98,22 +119,22 @@ trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
   case class StringSubstring(s: Exp[String], start:Exp[Int], end:Exp[Int]) extends Def[String]
   case class StringLength(s: Exp[String]) extends Def[Int]
 
-  def string_plus(s: Exp[Any], o: Exp[Any])(implicit pos: SourceContext): Rep[String] = StringPlus(s,o)
-  def string_startswith(s1: Exp[String], s2: Exp[String])(implicit pos: SourceContext) = StringStartsWith(s1,s2)
-  def string_trim(s: Exp[String])(implicit pos: SourceContext) : Rep[String] = StringTrim(s)
-  def string_split(s: Exp[String], separators: Exp[String], limit: Exp[Int])(implicit pos: SourceContext) : Rep[Array[String]] = StringSplit(s, separators, limit)
-  def string_valueof(a: Exp[Any])(implicit pos: SourceContext) = StringValueOf(a)
-  def string_charAt(s: Exp[String], i: Exp[Int])(implicit pos: SourceContext) = StringCharAt(s,i)
-  def string_endsWith(s: Exp[String], e: Exp[String])(implicit pos: SourceContext) = StringEndsWith(s,e)
-  def string_contains(s1: Exp[String], s2: Exp[String])(implicit pos: SourceContext) = StringContains(s1,s2)
-  def string_todouble(s: Rep[String])(implicit pos: SourceContext) = StringToDouble(s)
-  def string_tofloat(s: Rep[String])(implicit pos: SourceContext) = StringToFloat(s)
-  def string_toint(s: Rep[String])(implicit pos: SourceContext) = StringToInt(s)
-  def string_tolong(s: Rep[String])(implicit pos: SourceContext) = StringToLong(s)
-  def string_substring(s: Rep[String], start:Rep[Int], end:Rep[Int])(implicit pos: SourceContext) = StringSubstring(s,start,end)
-  def string_length(s: Rep[String])(implicit pos: SourceContext) = StringLength(s)
+  def string_plus(s: Exp[Any], o: Exp[Any])(using pos: SourceContext): Rep[String] = StringPlus(s,o)
+  def string_startswith(s1: Exp[String], s2: Exp[String])(using pos: SourceContext) = StringStartsWith(s1,s2)
+  def string_trim(s: Exp[String])(using pos: SourceContext) : Rep[String] = StringTrim(s)
+  def string_split(s: Exp[String], separators: Exp[String], limit: Exp[Int])(using pos: SourceContext) : Rep[Array[String]] = StringSplit(s, separators, limit)
+  def string_valueof(a: Exp[Any])(using pos: SourceContext) = StringValueOf(a)
+  def string_charAt(s: Exp[String], i: Exp[Int])(using pos: SourceContext) = StringCharAt(s,i)
+  def string_endsWith(s: Exp[String], e: Exp[String])(using pos: SourceContext) = StringEndsWith(s,e)
+  def string_contains(s1: Exp[String], s2: Exp[String])(using pos: SourceContext) = StringContains(s1,s2)
+  def string_todouble(s: Rep[String])(using pos: SourceContext) = StringToDouble(s)
+  def string_tofloat(s: Rep[String])(using pos: SourceContext) = StringToFloat(s)
+  def string_toint(s: Rep[String])(using pos: SourceContext) = StringToInt(s)
+  def string_tolong(s: Rep[String])(using pos: SourceContext) = StringToLong(s)
+  def string_substring(s: Rep[String], start:Rep[Int], end:Rep[Int])(using pos: SourceContext) = StringSubstring(s,start,end)
+  def string_length(s: Rep[String])(using pos: SourceContext) = StringLength(s)
 
-  override def mirror[A:Typ](e: Def[A], f: Transformer)(implicit pos: SourceContext): Exp[A] = (e match {
+  override def mirror[A:Typ](e: Def[A], f: Transformer)(using pos: SourceContext): Exp[A] = (e match {
     case StringPlus(a,b) => string_plus(f(a),f(b))
     case StringStartsWith(s1, s2) => string_startswith(f(s1), f(s2))
     case StringTrim(s) => string_trim(f(s))
@@ -129,8 +150,94 @@ trait StringOpsExp extends StringOps with BooleanOpsExp with VariablesExp {
     case StringLength(s) => string_length(f(s))
     case _ => super.mirror(e,f)
   }).asInstanceOf[Exp[A]]
+
+  //given repStrToStringOpsCls: Conversion[Exp[String], StringOpsCls] = (s: Exp[String]) => StringOpsCls(s)
+
+  //given strToStringOpsCls: Conversion[String, StringOpsCls] = (s: String) => StringOpsCls(unit[String](s))
 }
 
+import scala.quoted.*
+trait StringOpsGen extends Gen with StringOpsExp {
+  this: StagingCompile =>
+
+  override def constantTerm[T](c: Const[T])(using q: Quotes): q.reflect.Term = {
+    import q.reflect.*
+    c match {
+      case Const(x: String) => Literal(StringConstant(x))
+      case Const(x: Char) => Literal(CharConstant(x))
+      // TODO others
+      case _ => super.constantTerm(c)
+    }
+  }
+
+  override def interpretDefWithEnv[A](d: Def[A])(using q: Quotes, env: Map[Sym[?], q.reflect.Symbol]): q.reflect.Term = {
+    import q.reflect.*
+
+    d match {
+      case StringPlus(sExp, oExp) =>
+        val sTerm = interpretExpWithEnv(sExp)
+        val oTerm = interpretExpWithEnv(oExp)
+        sTerm.tpe.classSymbol.flatMap(_.methodMember("+").headOption) match {
+          case Some(plusMethod) =>
+            Apply(Select(sTerm, plusMethod), List(oTerm))
+          case None =>
+            val sExpr = sTerm.asExpr
+            val oExpr = oTerm.asExpr
+            '{ $sExpr.toString + $oExpr }.asTerm
+        }
+      case StringLength(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.length }.asTerm
+      case StringCharAt(sExp, iExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val iExpr = interpretExpWithEnv(iExp).asExprOf[Int]
+        '{ $sExpr.charAt($iExpr) }.asTerm
+      case StringStartsWith(s1, s2) =>
+        val str = interpretExpWithEnv(s1).asExprOf[String]
+        val prefix = interpretExpWithEnv(s2).asExprOf[String]
+        '{ $str.startsWith($prefix) }.asTerm
+      case StringTrim(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.trim }.asTerm
+      case StringSplit(sExp, separators, limit) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val sepExpr = interpretExpWithEnv(separators).asExprOf[String]
+        val limitExpr = interpretExpWithEnv(limit).asExprOf[Int]
+        '{ $sExpr.split($sepExpr, $limitExpr) }.asTerm
+      case StringEndsWith(sExp, eExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val suffixExpr = interpretExpWithEnv(eExp).asExprOf[String]
+        '{ $sExpr.endsWith($suffixExpr) }.asTerm
+      case StringValueOf(arg) =>
+        val argExpr = interpretExpWithEnv(arg).asExpr
+        '{ java.lang.String.valueOf($argExpr) }.asTerm
+      case StringToDouble(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toDouble }.asTerm
+      case StringToFloat(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toFloat }.asTerm
+      case StringToInt(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toInt }.asTerm
+      case StringContains(s1, s2) =>
+        val haystack = interpretExpWithEnv(s1).asExprOf[String]
+        val needle = interpretExpWithEnv(s2).asExprOf[String]
+        '{ $haystack.contains($needle) }.asTerm
+      case StringToLong(sExp) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        '{ $sExpr.toLong }.asTerm
+      case StringSubstring(sExp, start, end) =>
+        val sExpr = interpretExpWithEnv(sExp).asExprOf[String]
+        val startExpr = interpretExpWithEnv(start).asExprOf[Int]
+        val endExpr = interpretExpWithEnv(end).asExprOf[Int]
+        '{ $sExpr.substring($startExpr, $endExpr) }.asTerm
+      case _ =>
+        super.interpretDefWithEnv(d)
+    }
+  }
+  
+}
 trait ScalaGenStringOps extends ScalaGenBase {
   val IR: StringOpsExp
   import IR._

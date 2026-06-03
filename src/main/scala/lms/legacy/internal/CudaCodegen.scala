@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 import java.io.{FileWriter, StringWriter, PrintWriter, File}
 import collection.immutable.List._
@@ -41,7 +40,7 @@ trait CudaCodegen extends GPUCodegen with CppHostTransfer with CudaDeviceTransfe
     super.initializeGenerator(buildDir, args)
   }
 
-  def emitSource[A : Typ](args: List[Sym[_]], body: Block[A], className: String, out: PrintWriter) = {
+  def emitSource[A : Typ](args: List[Sym[?]], body: Block[A], className: String, out: PrintWriter) = {
     val sB = remap(typ[A])
 
     withStream(out) {
@@ -69,11 +68,11 @@ trait CudaCodegen extends GPUCodegen with CppHostTransfer with CudaDeviceTransfe
 
 // TODO: do we need this for each target?
 trait CudaNestedCodegen extends CLikeNestedCodegen with CudaCodegen {
-  val IR: Expressions with Effects
+  val IR: Expressions & Effects
   import IR._
 }
 
 trait CudaFatCodegen extends CLikeFatCodegen with CudaCodegen {
-  val IR: Expressions with Effects with FatExpressions
+  val IR: Expressions & Effects & FatExpressions
   import IR._
 }

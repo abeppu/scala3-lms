@@ -1,5 +1,4 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 import java.io.{File, FileWriter, PrintWriter}
 
@@ -19,7 +18,7 @@ trait ScalaCodegen extends GenericCodegen with Config {
       outFile.delete
   }
 
-  def emitSource[A:Typ](args: List[Sym[_]], body: Block[A], className: String, out: PrintWriter) = {
+  def emitSource[A:Typ](args: List[Sym[?]], body: Block[A], className: String, out: PrintWriter) = {
 
     val sA = remap(typ[A])
 
@@ -111,7 +110,7 @@ trait ScalaCodegen extends GenericCodegen with Config {
 }
 
 trait ScalaNestedCodegen extends GenericNestedCodegen with ScalaCodegen {
-  val IR: Expressions with Effects
+  val IR: Expressions & Effects
   import IR._
   
   // emit forward decls for recursive vals
@@ -136,7 +135,7 @@ trait ScalaNestedCodegen extends GenericNestedCodegen with ScalaCodegen {
 
 
 trait ScalaFatCodegen extends GenericFatCodegen with ScalaCodegen {
-  val IR: Expressions with Effects with FatExpressions
+  val IR: Expressions & Effects & FatExpressions
   import IR._
   
   def emitKernelExtra(syms: List[Sym[Any]]): Unit = {

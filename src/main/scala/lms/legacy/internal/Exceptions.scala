@@ -1,4 +1,3 @@
-package scala.lms
-package internal
+package lms.legacy.internal
 
 class GenerationFailedException(msg: String) extends Exception(msg)

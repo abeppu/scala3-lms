@@ -1,7 +1,6 @@
-package scala.lms
-package common
+package lms.legacy.common
 
-import internal.GraphVizExport
+import lms.legacy.internal.GraphVizExport
 
 trait ExportGraph extends GraphVizExport {
   import IR._
